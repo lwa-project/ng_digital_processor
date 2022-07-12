@@ -37,7 +37,8 @@ def build_pipeline(args):
     from bifrost.ring import Ring
     # Blocks
     from lwa352_pipeline.blocks.block_base import Block
-    from lwa352_pipeline.blocks.corr_block import Corr
+    #from lwa352_pipeline.blocks.corr_block import Corr
+    from ndp.corr_block import Corr
     from lwa352_pipeline.blocks.dummy_source_block import DummySource
     from lwa352_pipeline.blocks.corr_acc_block import CorrAcc
     from lwa352_pipeline.blocks.corr_output_full_block import CorrOutputFull
