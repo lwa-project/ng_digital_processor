@@ -189,8 +189,6 @@ def build_pipeline(args):
     ops.append(CorrOutputFull(log, iring=corr_slow_output_ring,
                       core=cores.pop(0), guarantee=True, etcd_client=etcd_client,
                       nchan=nchan, npol=npol, nstand=nstand,
-                      antpol_to_bl=antpol_to_bl,
-                      bl_is_conj=bl_is_conj,
                       pipeline_idx=pipeline_idx,
                       npipeline=args.cor_npipeline))
 
