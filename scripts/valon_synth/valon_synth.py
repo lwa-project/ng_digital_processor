@@ -190,11 +190,11 @@ class Synthesizer:
         return self._send_command('S %i; PLEV %i' % (synth, rfl))
 
     def get_rf_output_enabled(self, synth):
-        onoff = self._send_command('S %i; PDN?' % synth)
+        onoff = self._send_command('S %i; OEN?' % synth)
         return bool(self._parse_simple(onoff))
 
     def set_rf_output_enabled(self, synth, enabled):
-        return self._send_command('S %i; PDN %i' % (synth, enabled))
+        return self._send_command('S %i; OEN %i' % (synth, enabled))
         
     def get_options(self, synth):
         """
@@ -216,7 +216,7 @@ class Synthesizer:
         half = self._send_command('S %i; REFDIV?' % synth)
         half = bool(self._parse_simple(half))
         r = 1
-        low_spur = self._send_command('S %i; SDN?')
+        low_spur = self._send_command('S %i; SDN?' % synth)
         low_spur = self._parse_simple(low_spur) == 0
         return double, half, r, low_spur
 
@@ -244,8 +244,8 @@ class Synthesizer:
 
         @return: True if success (bool)
         """
-        self._send_command('S %i; REFDB %s' % (synth, 'Enable' if double else 'Disable'))
-        self._send_command('S %i; REFDIV %s' % (synth, 'Enable' if half else 'Disable'))
+        self._send_command('S %i; REFDB %i' % (synth, double))
+        self._send_command('S %i; REFDIV %i' % (synth, half))
         return self._send_command('S %i; SDN %i' % (synth, 11*low_spur))
 
     def get_ref_select(self):
