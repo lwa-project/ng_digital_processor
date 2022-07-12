@@ -240,7 +240,7 @@ if __name__ == '__main__':
                         help='Which GPU device to use')
     parser.add_argument('--pipelineid', type=int, default=0,
                         help='Pipeline ID. Useful if you are running multiple pipelines on a single machine')
-    parser.add_argument('-c', '--cores', default='0,1,2,3,4,5,6,7',
+    parser.add_argument('-c', '--cores', default='0,1,2,3,4,5,6,7,8',
                         help='Comma-separated list of CPU cores to use')
     parser.add_argument('--useetcd', action='store_true',
                         help='Use etcd control/monitoring server')
