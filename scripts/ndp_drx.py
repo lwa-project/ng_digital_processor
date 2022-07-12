@@ -161,11 +161,6 @@ def build_pipeline(args):
                    skip_write=args.nodata, target_throughput=args.target_throughput,
                    nstand=nstand, nchan=nchan, npol=npol, testfile=args.testdatain))
 
-    # Get the antenna to input map as understood by the data source
-    # This could (should?) to passed down in the headers and calculated on the fly,
-    # but observational evidence is that this can be problematic for pipeline throughput.
-    ant_to_input = ops[-1].ant_to_input
-
     # capture_ring -> triggered buffer
     ops.append(Copy(log, iring=capture_ring, oring=trigger_capture_ring, ntime_gulp=NETGSIZE,
                       nbyte_per_time=nchan*npol*nstand, buffer_multiplier=GPU_NGULP*NET_NGULP,
@@ -183,7 +178,7 @@ def build_pipeline(args):
     ops.append(Corr(log, iring=gpu_input_ring, oring=corr_output_ring, ntime_gulp=GSIZE,
                       nchan=nchan, npol=npol, nstand=nstand,
                       core=cores.pop(0), guarantee=True, acc_len=2400, gpu=args.gpu,
-                      etcd_client=etcd_client, autostartat=2400*8, ant_to_input=ant_to_input))
+                      etcd_client=etcd_client, autostartat=2400*8))
 
     # Get the conjugation conventions and baseline IDs provided by the correlator block.
     # Again, these could be handed downstream through headers, but this way we
