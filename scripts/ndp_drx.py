@@ -111,16 +111,13 @@ def build_pipeline(args):
     log.info("Pipeline index: %i", args.pipelineid)
     log.info("Global index: %i", pipeline_idx)
     
-    if not args.nogpu:
-        capture_ring = Ring(name="capture", space='system')
-        gpu_input_ring = Ring(name="gpu-input", space='cuda')
-        bf_output_ring = Ring(name="bf-output", space='cuda')
-        bf_acc_output_ring = Ring(name="bf-acc-output", space='system')
-        corr_output_ring = Ring(name="corr-output", space='cuda')
-        corr_slow_output_ring = Ring(name="corr-slow-output", space='cuda_host')
-    else:
-        capture_ring = Ring(name="capture", space='system')
-
+    capture_ring = Ring(name="capture", space='system')
+    gpu_input_ring = Ring(name="gpu-input", space='cuda')
+    bf_output_ring = Ring(name="bf-output", space='cuda')
+    bf_acc_output_ring = Ring(name="bf-acc-output", space='system')
+    corr_output_ring = Ring(name="corr-output", space='cuda')
+    corr_slow_output_ring = Ring(name="corr-slow-output", space='cuda_host')
+    
     trigger_capture_ring = Ring(name="trigger_capture", space='cuda_host')
     
     # TODO:  Figure out what to do with this resize
