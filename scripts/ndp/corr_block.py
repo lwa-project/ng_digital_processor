@@ -179,7 +179,7 @@ class Corr(Block):
         self.nchan = nchan
         self.npol = npol
         self.nstand = nstand
-        self.matlen = nchan * (nstand//2+1)*(nstand//4)*npol*npol*4
+        self.matlen = nchan * nstand*(nstand+1)//2 * npol*npol
         self.gpu = gpu
 
         if self.gpu != -1:
@@ -199,10 +199,7 @@ class Corr(Block):
         # but we need to pass something
         self.bfcc = Btcc()
         self.bfcc.init(4, int(np.ceil((self.ntime_gulp/16.0))*16), nchan, nstand, npol)
-        if (self.bfcc != _bf.BF_STATUS_SUCCESS):
-            self.log.error("TCC init returned %d" % self.bfcc)
-            raise RuntimeError
-
+        
     def main(self):
         cpu_affinity.set_core(self.core)
         if self.gpu != -1:
