@@ -180,13 +180,6 @@ def build_pipeline(args):
                       core=cores.pop(0), guarantee=True, acc_len=2400, gpu=args.gpu,
                       etcd_client=etcd_client, autostartat=2400*8))
 
-    # Get the conjugation conventions and baseline IDs provided by the correlator block.
-    # Again, these could be handed downstream through headers, but this way we
-    # save some potential throughput issues. This means the pipeline needs restarting if the
-    # input antenna configuration changes, which doesn't seem too heinous a requirement
-    antpol_to_bl = ops[-1].antpol_to_bl # antpol_to_bl[ant0, pol0, ant1, pol1] is the baseline index of (ant0, pol0) * (ant1, pol1)
-    bl_is_conj = ops[-1].bl_is_conj # bl_is_conj[ant0, pol0, ant1, pol1] is 1 if this baseline is conjugated by xGPU
-
     ops.append(CorrAcc(log, iring=corr_output_ring, oring=corr_slow_output_ring,
                       core=cores.pop(0), guarantee=True, gpu=args.gpu, etcd_client=etcd_client,
                       nchan=nchan, npol=npol, nstand=nstand,
