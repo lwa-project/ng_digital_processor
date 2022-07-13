@@ -40,8 +40,10 @@ def build_pipeline(args):
     #from lwa352_pipeline.blocks.corr_block import Corr
     from ndp.corr_block import Corr
     from lwa352_pipeline.blocks.dummy_source_block import DummySource
-    from lwa352_pipeline.blocks.corr_acc_block import CorrAcc
-    from lwa352_pipeline.blocks.corr_output_full_block import CorrOutputFull
+    #from lwa352_pipeline.blocks.corr_acc_block import CorrAcc
+    from ndp.corr_acc_block import CorrAcc
+    #from lwa352_pipeline.blocks.corr_output_full_block import CorrOutputFull
+    from ndp.corr_output_full_block import CorrOutputFull
     from lwa352_pipeline.blocks.copy_block import Copy
     from lwa352_pipeline.blocks.capture_block import Capture
     from lwa352_pipeline.blocks.beamform_block import Beamform
@@ -153,7 +155,7 @@ def build_pipeline(args):
         ops.append(Capture(log, fmt="snap2", sock=isock, ring=capture_ring,
                            nsrc=NSNAP*nfreqblocks, src0=0, max_payload_size=packet_buf_size,
                            buffer_ntime=NETGSIZE, slot_ntime=NET_NGULP*NETGSIZE*16,
-                           core=cores.pop(0), system_nchan=system_nchan,
+                           core=cores.pop(0), nstand=nstand, npol=npol, system_nchan=system_nchan,
                            utc_start=datetime.datetime.now(), ibverbs=True))
     else:
         print('Using dummy source...')
