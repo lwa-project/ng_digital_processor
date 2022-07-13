@@ -73,12 +73,10 @@ class Corr(Block):
     *Input Data Buffer*: A GPU-side bifrost ring buffer of 4+4 bit
     complex data in order: ``time x channel x stand x polarization``.
 
-    Each gulp of the input buffer reads ``ntime_gulp`` samples,
-    which should match *both* the xGPU
-    compile-time parameters ``NTIME`` and ``NTIME_PIPE``.
+    Each gulp of the input buffer reads ``ntime_gulp`` samples.
 
     *Output Data Buffer*: A GPU-side bifrost ring buffer of 32+32 bit complex
-    integer data. This buffer is in the xGPU triangular matrix order:
+    integer data. This buffer is in the TCC triangular matrix order:
     ``time x channel x complexity x baseline``.
 
     The output buffer is written in single accumulation blocks (an integration of
