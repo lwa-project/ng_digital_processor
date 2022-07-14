@@ -230,8 +230,9 @@ class CorrAcc(Block):
                         self.update_pending = False
                         if acc_len % upstream_acc_len != 0:
                             self.log.error("CORRACC >> Requested acc_len %d incompatible with upstream integration %d" % (acc_len, upstream_acc_len))
-                        if acc_len != 0 and ((start_time - upstream_start_time) % upstream_acc_len != 0):
-                            self.log.error("CORRACC >> Requested start_time %d incompatible with upstream integration %d" % (acc_len, upstream_acc_len))
+                        # HACK test
+                        #if acc_len != 0 and ((start_time - upstream_start_time) % upstream_acc_len != 0):
+                        #    self.log.error("CORRACC >> Requested start_time %d incompatible with upstream integration %d" % (acc_len, upstream_acc_len))
                         ohdr['acc_len'] = acc_len
                         ohdr['seq0'] = start_time
                     self.stats.update({'curr_sample': this_gulp_time})
