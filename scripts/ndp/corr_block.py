@@ -287,7 +287,7 @@ class Corr(Block):
                     if not ospan:
                         self.log.error("CORR: trying to write to not-yet-opened ospan")
                     idata = ispan.data_view('ci4').reshape(self.ntime_gulp,self.nchan,self.nstand*self.npol)
-                    odata = ospan.data_view('ci32').reshape(self.nchan,self.nstand*(self.nstand-1)//2*self.npol*self.npol)
+                    odata = ospan.data_view('ci32').reshape(self.nchan,self.nstand*(self.nstand+1)//2*self.npol*self.npol)
                     self.bfcc.execute(idata, odata, int(this_gulp_time==last))
                     curr_time = time.time()
                     process_time += curr_time - prev_time
