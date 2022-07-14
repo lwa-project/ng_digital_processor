@@ -182,7 +182,7 @@ class CorrAcc(Block):
         self.igulp_size = self.matlen * 8 # complex64
         self.ogulp_size = self.igulp_size
         # integration buffer
-        self.accdata = BFArray(shape=self.igulp_size, dtype='i32', space='cuda')
+        self.accdata = BFArray(shape=(self.igulp_size // 4), dtype='i32', space='cuda')
         self.bfbf = LinAlg()
 
         self.define_command_key('start_time', type=int, initial_val=autostartat)
