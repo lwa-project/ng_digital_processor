@@ -77,7 +77,7 @@ class Corr(Block):
 
     *Output Data Buffer*: A GPU-side bifrost ring buffer of 32+32 bit complex
     integer data. This buffer is in the TCC triangular matrix order:
-    ``time x channel x complexity x baseline``.
+    ``channel x baseline x complexity``.
 
     The output buffer is written in single accumulation blocks (an integration of
     ``acc_len`` input time samples).
@@ -286,7 +286,9 @@ class Corr(Block):
                         prev_time = curr_time
                     if not ospan:
                         self.log.error("CORR: trying to write to not-yet-opened ospan")
-                    self.bfcc.execute(ispan.data.as_BFarray(), ospan.data.as_BFarray(), int(this_gulp_time==last))
+                    idata = ispan.data_view('ci4').reshape(self.ntime_gulp,self.nchan,self.nstand*self.npol)
+                    odata = ospan.data_view('ci32').reshape(self.nchan,self.nstand*(self.nstand-1)//2*self.npol*self.npol)
+                    self.bfcc.execute(idata, odata, int(this_gulp_time==last))
                     curr_time = time.time()
                     process_time += curr_time - prev_time
                     prev_time = curr_time
