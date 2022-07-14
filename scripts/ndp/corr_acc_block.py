@@ -250,7 +250,7 @@ class CorrAcc(Block):
                     # a new integration boundary
 
                     # If this is the start time, update the first flag, and compute where the last flag should be
-                    if this_gulp_time == start_time:
+                    if this_gulp_time >= start_time:
                         start = True
                         first = start_time
                         last  = first + acc_len - upstream_acc_len
