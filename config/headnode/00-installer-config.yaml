@@ -1,0 +1,17 @@
+# This is the network config written by 'subiquity'
+network:
+  ethernets:
+    eno1:
+      dhcp4: true
+    eno2:
+      dhcp4: false
+      addresses: [169.254.128.1/24]
+    enp129s0:
+      dhcp4: false
+      addresses: [192.168.40.10/25]
+      mtu: 9000
+    enp1s0:
+      dhcp4: false
+      addresses: [192.168.40.210/25]
+      mtu: 9000
+  version: 2

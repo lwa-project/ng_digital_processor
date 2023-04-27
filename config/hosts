@@ -1,0 +1,22 @@
+127.0.0.1 localhost
+
+169.254.128.1  ndp0 ndp
+169.254.128.11 ndp1
+169.254.128.12 ndp2
+
+169.254.128.31 ndp1-ipmi
+169.254.128.31 ndp2-ipmi
+
+192.168.40.10 ndp-data1
+192.168.40.11 ndp1-data1
+192.168.40.12 ndp2-data2
+192.168.40.210 ndp-data2
+192.168.40.211 ndp1-data1
+192.168.40.212 ndp2-data2
+
+# The following lines are desirable for IPv6 capable hosts
+::1     ip6-localhost ip6-loopback
+fe00::0 ip6-localnet
+ff00::0 ip6-mcastprefix
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
