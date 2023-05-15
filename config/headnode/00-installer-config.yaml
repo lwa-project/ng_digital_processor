@@ -10,6 +10,8 @@ network:
       dhcp4: false
       addresses: [192.168.40.10/25]
       mtu: 9000
+      routes:
+      - to: 239.168.40.0/24
     enp1s0:
       dhcp4: false
       addresses: [192.168.40.210/25]
