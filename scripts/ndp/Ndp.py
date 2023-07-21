@@ -10,7 +10,6 @@ from .ConsumerThread import ConsumerThread
 from .SequenceDict import SequenceDict
 from .ThreadPool import ThreadPool
 from .ThreadPool import ObjectPool
-from .Cache      import lru_cache_method
 from .NdpRoach   import NdpRoach
 from .iptools    import *
 
@@ -21,6 +20,7 @@ import numpy as np
 import time
 import math
 from collections import defaultdict, OrderedDict
+from functools import lru_cache
 import logging
 import struct
 import subprocess
@@ -417,7 +417,7 @@ class NdpServerMonitorClient(object):
             sensors[key] = val
         return sensors
         
-    @lru_cache_method(maxsize=4)
+    @lru_cache(maxsize=4)
     def get_temperatures(self, slot):
         try:
             sensors = self.read_sensors()
@@ -427,15 +427,15 @@ class NdpServerMonitorClient(object):
         except:
             return {'error': float('nan')}
             
-    @lru_cache_method(maxsize=4)
+    @lru_cache(maxsize=4)
     def get_status(self, slot):
         return self._request('STAT')
         
-    @lru_cache_method(maxsize=4)
+    @lru_cache(maxsize=4)
     def get_info(self, slot):
         return self._request('INFO')
         
-    @lru_cache_method(maxsize=4)
+    @lru_cache(maxsize=4)
     def get_software(self, slot):
         return self._request('SOFTWARE')
         
@@ -626,12 +626,12 @@ class Snap2MonitorClient(object):
     def get_samples(self, slot, stand, pol, nsamps=None):
         return self.get_samples_all(slot, nsamps)[stand,pol]
         
-    @lru_cache_method(maxsize=4)
+    @lru_cache(maxsize=4)
     def get_samples_all(self, slot, nsamps=None):
         """Returns an NDArray of shape (stand,pol,sample)"""
         return self.device.samples_all(nsamps).transpose([1,2,0])
         
-    @lru_cache_method(maxsize=4)
+    @lru_cache(maxsize=4)
     def get_temperatures(self, slot):
         try:
             return self.device.temperatures()
