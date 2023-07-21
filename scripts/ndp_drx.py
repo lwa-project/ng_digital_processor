@@ -53,7 +53,6 @@ __maintainer__ = "Jayce Dowell"
 __email__      = "jdowell at unm"
 __status__     = "Development"
 
-#{"nbit": 4, "nchan": 136, "nsrc": 16, "chan0": 1456, "time_tag": 288274740432000000}
 class CaptureOp(object):
     def __init__(self, log, *args, **kwargs):
         self.log    = log
@@ -256,7 +255,7 @@ def time_tag_to_seq_float(time_tag):
     return time_tag*CHAN_BW/FS
 
 class TriggeredDumpOp(object):
-    def __init__(self, log, osock, iring, ntime_gulp, ntime_buf, tuning=0, nchan_max=256, core=-1, max_bytes_per_sec=None):
+    def __init__(self, log, osock, iring, ntime_gulp, ntime_buf, tuning=0, nchan_max=768, core=-1, max_bytes_per_sec=None):
         self.log = log
         self.sock = osock
         self.iring = iring
@@ -306,14 +305,7 @@ class TriggeredDumpOp(object):
         
         print("Writing ended, TBFOp exiting")
         
-    def dump(self, samples, time_tag=0, mask=None, local=False):
-        if mask is None:
-            mask = 0b11
-        if (mask >> self.tuning) & 1 == 0:
-            self.log.info('Not for us: %i -> %i @ %i', mask, (mask >> self.tuning) & 1, self.tuning)
-            return False
-        speed_factor = 2 // sum([mask>>i&1 for i in range(2)])        # TODO: Slightly hacky
-        
+    def dump(self, samples, time_tag=0, local=False):
         ntime_pkt = 1 # TODO: Should be TBF_NTIME_PER_PKT?
         
         # HACK TESTING
@@ -407,7 +399,7 @@ class TriggeredDumpOp(object):
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
                             
-                    while bytesSent/(time.time()-bytesStart) >= max_bytes_per_sec*speed_factor:
+                    while bytesSent/(time.time()-bytesStart) >= max_bytes_per_sec:
                         time.sleep(0.001)
                         
             if local:
@@ -495,8 +487,8 @@ class BeamformerOp(object):
         # Can we act on this configuration change now?
         if config:
             ## Pull out the tuning (something unique to DRX/BAM/COR)
-            beam, tuning = config[0], config[3]
-            if beam > self.nbeam_max or tuning != self.tuning:
+            beam = config[0]
+            if beam > self.nbeam_max:
                 return False
                 
             ## Set the configuration time - BAM commands are for the specified slot in the next second
@@ -532,11 +524,8 @@ class BeamformerOp(object):
                 
         if config:
             self.log.info("Beamformer: New configuration received for beam %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
-            beam, delays, gains, tuning, slot = config
-            if tuning != self.tuning:
-                self.log.info("Beamformer: Not for this tuning, skipping")
-                return False
-           
+            beam, delays, gains, slot = config
+            
             #Search for the "code word" gain pattern which specifies an achromatic observation.
             if ( gains[0,:,:] == np.array([[8191, 16383],[32767,65535]]) ).all():
                 #The pointing index is stored in the second gains entry. Pointings start at 1.
@@ -561,6 +550,10 @@ class BeamformerOp(object):
                 delays = (((delays>>4)&0xFFF) + (delays&0xF)/16.0) / FS
                 gains = gains/32767.0
                 gains.shape = (gains.size//2, 2)
+                
+                # Trim down the the correct size for our number of stands
+                delays = delays[:self.delays.shape[1]]
+                gains = gains[:self.gains.shape[1],2]
             
                 # Update the internal delay and gain cache so that we can use these later
                 self.delays[2*(beam-1)+0,:] = delays
@@ -737,13 +730,8 @@ class CorrelatorOp(object):
         
         # Can we act on this configuration change now?
         if config:
-            ## Pull out the tuning (something unique to DRX/BAM/COR)
-            tuning = config[1]
-            if tuning != self.tuning:
-                return False
-                
             ## Set the configuration time - COR commands are for the specified slot in the next second
-            slot = config[3] / 100.0
+            slot = config[2] / 100.0
             config_time = int(time.time()) + 1 + slot
             
             ## Is this command from the future?
@@ -775,11 +763,8 @@ class CorrelatorOp(object):
                 
         if config:
             self.log.info("Correlator: New configuration received for tuning %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
-            navg, tuning, gain, slot = config
-            if tuning != self.tuning:
-                self.log.info("Correlator: Not for this tuning, skipping")
-                return False
-                
+            navg, gain, slot = config
+            
             self.navg = navg
             self.log.info('  Averaging time set')
             self.gain = gain
@@ -959,9 +944,9 @@ class CorrelatorOp(object):
                         break
 
 class RetransmitOp(object):
-    def __init__(self, log, osock, iring, tuning=0, nchan_max=256, ntime_gulp=2500, nbeam_max=1, guarantee=True, core=-1):
+    def __init__(self, log, osocks, iring, tuning=0, nchan_max=256, ntime_gulp=2500, nbeam_max=1, guarantee=True, core=-1):
         self.log   = log
-        self.sock = osock
+        self.socks = osocks
         self.iring = iring
         self.tuning = tuning
         self.ntime_gulp = ntime_gulp
@@ -986,56 +971,66 @@ class RetransmitOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
-        with UDPTransmit('ibeam%i_%i' % (self.nbeam_max, self.nchan_max,), sock=self.sock, core=self.core) as udt:
-            desc = HeaderInfo()
-            desc.set_tuning(self.tuning)
-            desc.set_nsrc(6)
-            for iseq in self.iring.read():
-                ihdr = json.loads(iseq.header.tostring())
+        udts = []
+        for sock in self.socks:
+            udt = UDPTransmit('ibeam%i_%i' % (1, self.nchan_max,), sock=sock, core=self.core)
+            udts.append(udt)
+            
+        desc = HeaderInfo()
+        desc.set_tuning(self.tuning)
+        desc.set_nsrc(4)
+        for iseq in self.iring.read():
+            ihdr = json.loads(iseq.header.tostring())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Retransmit: Start of new sequence: %s", str(ihdr))
+            
+            chan0   = ihdr['chan0']
+            nchan   = ihdr['nchan']
+            nstand  = ihdr['nstand']
+            npol    = ihdr['npol']
+            nstdpol = nstand * npol
+            igulp_size = self.ntime_gulp*nchan*nstdpol*8        # complex64
+            igulp_shape = (self.ntime_gulp,nchan,nstand,npol)
+            
+            seq0 = ihdr['seq0']
+            seq = seq0
+            
+            desc.set_nchan(nchan)
+            desc.set_chan0(chan0)
+            
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
+                curr_time = time.time()
+                acquire_time = curr_time - prev_time
+                prev_time = curr_time
                 
-                self.sequence_proclog.update(ihdr)
-                
-                self.log.info("Retransmit: Start of new sequence: %s", str(ihdr))
-                
-                chan0   = ihdr['chan0']
-                nchan   = ihdr['nchan']
-                nstand  = ihdr['nstand']
-                npol    = ihdr['npol']
-                nstdpol = nstand * npol
-                igulp_size = self.ntime_gulp*nchan*nstdpol*8        # complex64
-                igulp_shape = (self.ntime_gulp,nchan,nstdpol)
-                
-                seq0 = ihdr['seq0']
-                seq = seq0
-                
-                desc.set_nchan(nchan)
-                desc.set_chan0(chan0)
-                
-                prev_time = time.time()
-                for ispan in iseq.read(igulp_size):
-                    if ispan.size < igulp_size:
-                        continue # Ignore final gulp
-                    curr_time = time.time()
-                    acquire_time = curr_time - prev_time
-                    prev_time = curr_time
-                    
-                    idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                    idata = idata.reshape(self.ntime_gulp,1,nchan*nstdpol)
+                idata = ispan.data_view(np.complex64).reshape(igulp_shape)
+                idata = idata.reshape(self.ntime_gulp,1,nchan,nstand,npol)
+                for i,udt in enumerate(udts):
+                    sdata = idata[:,[0],:,[i],:]
+                    sdata = sdata.copy()
                     try:
-                        udt.send(desc, seq, 1, self.server-1, 1, idata)
+                        udt.send(desc, seq, 1, self.server-1, 1, sdata)
                     except Exception as e:
                         print(type(self).__name__, 'Sending Error', str(e))
                         
-                    seq += self.ntime_gulp
-                    
-                    curr_time = time.time()
-                    process_time = curr_time - prev_time
-                    prev_time = curr_time
-                    self.perf_proclog.update({'acquire_time': acquire_time, 
-                                              'reserve_time': -1, 
-                                              'process_time': process_time,})
-                    
-        del udt
+                seq += self.ntime_gulp
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+                
+        while len(udts):
+            udt = udts.pop()
+            del udt
+            
 
 class PacketizeOp(object):
     # Note: Input data are: [time,beam,pol,iq]
@@ -1358,7 +1353,7 @@ def main(argv):
     obuf_size  = tbf_buffer_secs*25000 *nchan_max*256*2
     tbf_ring.resize(ogulp_size, obuf_size)
     
-    ops.append(CaptureOp(log, fmt="chips", sock=isock, ring=capture_ring,
+    ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
                          nsrc=nsnap, src0=snap0, max_payload_size=9000,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0),
                          utc_start=utc_start_dt))

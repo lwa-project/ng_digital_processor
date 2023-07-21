@@ -27,6 +27,7 @@
     },
     "drx": [
             {
+                "first_channel":     640,
                 "capture_bandwidth": 18.375e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
@@ -37,6 +38,7 @@
                 "gpus":              [0]
             }, 
             {
+                "first_channel":     1408,
                 "capture_bandwidth": 18.375e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
@@ -47,6 +49,7 @@
                 "gpus":              [0]
             },
             {
+                "first_channel":     2176,
                 "capture_bandwidth": 18.375e6,
                 "beam_count":        4,
                 "pipeline_idx":      2,
@@ -57,6 +60,7 @@
                 "gpus":              [0]
             },
             {
+                "first_channel":     2944,
                 "capture_bandwidth": 18.375e6,
                 "beam_count":        4,
                 "pipeline_idx":      3,
