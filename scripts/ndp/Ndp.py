@@ -10,7 +10,6 @@ from .ConsumerThread import ConsumerThread
 from .SequenceDict import SequenceDict
 from .ThreadPool import ThreadPool
 from .ThreadPool import ObjectPool
-#from .Cache      import threadsafe_lru_cache as lru_cache
 from .Cache      import lru_cache_method
 from .NdpRoach   import NdpRoach
 from .iptools    import *
@@ -581,7 +580,7 @@ class NdpServerMonitorClient(object):
 
 
 # TODO: Rename this (and possibly refactor)
-class Roach2MonitorClient(object):
+class Snap2MonitorClient(object):
     def __init__(self, config, log, num, syncFunction=None):
         # Note: num is 1-based index of the snap
         self.config = config
@@ -715,62 +714,11 @@ class Roach2MonitorClient(object):
             delay += currDelay
         self.snap.configure_adc_delay(index, delay)
         
-    @ISC.logException
-    def tune_drx(self, tuning, cfreq, shift_factor=None):
-        bw = self.config['drx'][tuning]['capture_bandwidth']
-        bw = round(bw, 3) # Round to mHz to avoid precision errors
-        nsubband      = len(self.config['host']['servers-data'])
-        subband_nchan = int(math.ceil(bw / CHAN_BW / nsubband))
-        chan0         = int(round(cfreq / CHAN_BW)) - nsubband*subband_nchan//2
-        
-        scale_factor = self.config['snap']['scale_factor']
-        if shift_factor is None:
-            shift_factor = self.config['snap']['shift_factor']
-            
-        gbe = self.GBE_DRX_0 if tuning == 0 else self.GBE_DRX_1
-        self.snap.configure_fengine(gbe, chan0, scale_factor=scale_factor, shift_factor=shift_factor,
-                                                 equalizer_coeffs=self.equalizer_coeffs)
-        return chan0
-        
-    @ISC.logException
-    def tune_tbn(self, cfreq, shift_factor=None):
-        bw = self.config['tbn']['capture_bandwidth']
-        bw = round(bw, 3) # Round to mHz to avoid precision errors
-        nsubband = 1
-        subband_nchan = int(math.ceil(bw / CHAN_BW / nsubband))
-        chan0         = int(round(cfreq / CHAN_BW)) - subband_nchan//2
-        
-        scale_factor = self.config['snap']['scale_factor']
-        if shift_factor is None:
-            shift_factor = self.config['snap']['shift_factor']
-            
-        self.snap.configure_fengine(self.GBE_TBN, chan0, scale_factor=scale_factor, shift_factor=shift_factor,
-                                                          equalizer_coeffs=self.equalizer_coeffs)
-        return chan0
-        
     def reset(self):
         self.snap.reset(syncFunction=self.syncFunction)
         
-    def start_processing(self):
-        self.snap.start_processing(syncFunction=self.syncFunction)
-        
-    def stop_processing(self):
-        self.snap.stop_processing()
-        
     def processing_started(self):
         return self.snap.processing_started()
-        
-    def enable_drx_data(self, tuning):
-        gbe = self.GBE_DRX_0 if tuning == 0 else self.GBE_DRX_1
-        self.snap.enable_data(gbe)
-        
-    def disable_drx_data(self, tuning):
-        gbe = self.GBE_DRX_0 if tuning == 0 else self.GBE_DRX_1
-        self.snap.disable_data(gbe)
-        
-    def drx_data_enabled(self, tuning):
-        gbe = self.GBE_DRX_0 if tuning == 0 else self.GBE_DRX_1
-        return self.snap.data_enabled(gbe)
         
     # TODO: Configure channel selection (based on FST)
     # TODO: start/stop data flow (remember to call snap.reset() before start)
@@ -819,17 +767,14 @@ class MsgProcessor(ConsumerThread):
         #                           for host in self.config['host']['snaps']])
         #nsnap = len(self.config['host']['snaps'])
         nsnap = NBOARD
-        self.snaps = ObjectPool([Roach2MonitorClient(config, log, num+1)
+        self.snaps = ObjectPool([Snap2MonitorClient(config, log, num+1)
                                 for num in range(nsnap)])
-        for arc in self.snaps:
-            arc.syncFunction = self.snaps[0].snap.wait_for_pps
-            
+        
         #self.fst = Fst(config, log)
-        self.drx = Drx(config, log, self.messageServer, self.servers, self.snaps)
-        self.tbf = Tbf(config, log, self.messageServer, self.servers, self.snaps)
-        self.bam = Bam(config, log, self.messageServer, self.servers, self.snaps)
-        self.cor = Cor(config, log, self.messageServer, self.servers, self.snaps)
-        self.tbn = Tbn(config, log, self.messageServer, self.servers, self.snaps)
+        self.drx = Drx(config, log, self.messageServer, self.servers)
+        self.tbf = Tbf(config, log, self.messageServer, self.servers)
+        self.bam = Bam(config, log, self.messageServer, self.servers)
+        self.cor = Cor(config, log, self.messageServer, self.servers)
 
         self.serial_number = '1'
         self.version = str(__version__)
@@ -858,13 +803,6 @@ class MsgProcessor(ConsumerThread):
         self.start_synchronizer_thread()
         self.start_lock_thread()
         self.start_internal_trigger_thread()
-        
-    def start_synchronizer_thread(self):
-        self.run_synchronizer_thread = threading.Thread(target=self.tbn_sync_server.run)
-        self.run_synchronizer_thread.start()
-        
-    def stop_synchronizer_thread(self):
-        self.run_synchronizer_thread.join()
         
     @ISC.logException
     def start_lock_thread(self):
@@ -974,11 +912,11 @@ class MsgProcessor(ConsumerThread):
                     
         ## Stop the pipelines
         self.log.info('Stopping pipelines')
-        for tuning in range(2):
+        for tuning in range(4):
             self.servers.stop_drx(tuning=tuning)
-            self.headnode.stop_tengine(tuning=tuning)
-        self.servers.stop_tbn()
-        
+        for beam in range(4):
+            self.headnode.stop_tengine(beam=beam)
+            
         ## Make sure the pipelines have stopped
         try:
             self._wait_until_pipelines_stopped(max_wait=40)
@@ -1279,7 +1217,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Starting slot execution thread")
         slot = MCS2.get_current_slot()
         while not self.shutdown_event.is_set():
-            for cmd_processor in [self.drx, self.tbf, self.bam, self.cor, self.tbn]:#, self.fst, self.bam]
+            for cmd_processor in [self.drx, self.tbf, self.bam, self.cor]:#, self.fst]
                 self.thread_pool.add_task(cmd_processor.execute_commands,
                                         slot)
             while MCS2.get_current_slot() == slot:
@@ -1313,7 +1251,7 @@ class MsgProcessor(ConsumerThread):
             
             if self.ready:
                 ## Check the servers
-                found = {'drx':[], 'tbn':[], 'tengine':[]}
+                found = {'drx':[], 'tengine':[]}
                 for host in list(pipelines.keys()):
                     ### Basic information about what to expect
                     n_expected = n_beams if host == 'localhost' else n_tunings
