@@ -16,7 +16,7 @@ from uuid import uuid4
 from collections import deque
 
 
-__version__ = '0.3'
+__version__ = '0.4'
 __all__ = ['logException', 'PipelineMessageServer', 'StartTimeClient', 'TriggerClient',
            'TBNConfigurationClient', 'DRXConfigurationClient', 'BAMConfigurationClient',
            'CORConfigurationClient', 'PipelineSynchronizationServer',
@@ -112,53 +112,51 @@ class PipelineMessageServer(object):
         
         self.socket.send_string('TBN %.6f %i %i' % (frequency, filter, gain))
         
-    def drxConfig(self, tuning, frequency, filter, gain):
+    def drxConfig(self, beam, tuning, frequency, filter, gain):
         """
         Send DRX configuration information out to the clients.  This 
         includes:
+          * the beam number this update applied to
           * the tuning number this update applied to
           * frequency in Hz
           * filter code
           * gain setting
         """
         
-        self.socket.send_string('DRX %i %.6f %i %i' % (tuning, frequency, filter, gain))
+        self.socket.send_string('DRX %i %i %.6f %i %i' % (beam, tuning, frequency, filter, gain))
         
-    def bamConfig(self, beam, delays, gains, tuning, subslot):
+    def bamConfig(self, beam, delays, gains, subslot):
         """
         Send BAM configuration information out to the clients.  This includes:
           * the beam number this update applies to
           * the delays as a 1-D numpy array
           * the gains as a 3-D numpy array
-          * the tuning number this update applied to
           * the subslot in which the configuration is implemented
         """
         
         bDelays = binascii.hexlify( delays.tostring() )
         bGains = binascii.hexlify( gains.tostring() )
-        self.socket.send_string('BAM %i %s %s %i %i' % (beam, bDelays, bGains, tuning, subslot))
+        self.socket.send_string('BAM %i %s %s %i' % (beam, bDelays, bGains, subslot))
         
-    def corConfig(self, navg, tuning, gain, subslot):
+    def corConfig(self, navg, gain, subslot):
         """
         Send COR configuration information out the clients.  This includes:
           * the integration time in units of subslots
-          * the tuning number the update applies to
           * the gain
           * the subslot in which the configuration is implemented
         """
         
-        self.socket.send_string('COR %i %i %i %i' % (navg, tuning, gain, subslot))
+        self.socket.send_string('COR %i %i %i' % (navg, gain, subslot))
         
-    def trigger(self, trigger, samples, mask, local=False):
+    def trigger(self, trigger, samples, local=False):
         """
         Send a trigger to start dumping TBF data.  This includes:
           * the trigger time
           * the number of samples to dump
-          * the DRX tuning mask to use
           * whether or not to dump to disk
         """
         
-        self.socket.send_string('TRIGGER %i %i %i %i' % (trigger, samples, mask, local))
+        self.socket.send_string('TRIGGER %i %i %i' % (trigger, samples, local))
         
     def close(self):
         self.socket.close()
@@ -301,11 +299,12 @@ class DRXConfigurationClient(PipelineMessageClient):
         else:
             # Unpack
             fields    = msg.split(None, 4)
-            tuning    = int(fields[1], 10)
-            frequency = float(fields[2])
-            filter    = int(fields[3], 10)
-            gain      = int(fields[4], 10)
-            return tuning, frequency, filter, gain
+            beam      = int(fields[1], 10)
+            tuning    = int(fields[2], 10)
+            frequency = float(fields[3])
+            filter    = int(fields[4], 10)
+            gain      = int(fields[5], 10)
+            return beam, tuning, frequency, filter, gain
 
 
 class BAMConfigurationClient(PipelineMessageClient):
@@ -330,9 +329,8 @@ class BAMConfigurationClient(PipelineMessageClient):
             delays.shape = (512,)
             gains = numpy.fromstring( binascii.unhexlify(fields[3]), dtype='>H' )
             gains.shape = (256,2,2)
-            tuning = int(fields[4], 10)
-            subslot = int(fields[5], 10)
-            return beam, delays, gains, tuning, subslot
+            subslot = int(fields[4], 10)
+            return beam, delays, gains, subslot
 
 
 class CORConfigurationClient(PipelineMessageClient):
@@ -353,10 +351,9 @@ class CORConfigurationClient(PipelineMessageClient):
             # Unpack
             fields  = msg.split(None, 3)
             navg    = int(fields[0], 10)
-            tuning  = int(fields[1], 10)
-            gain    = int(fields[2], 10)
-            subslot = int(fields[3], 10)
-            return navg, tuning, gain, subslot
+            gain    = int(fields[1], 10)
+            subslot = int(fields[2], 10)
+            return navg, gain, subslot
 
 
 class PipelineSynchronizationServer(object):
@@ -733,12 +730,8 @@ class InternalTrigger(object):
         
         # Save the ID
         self.id = self.socket.getsockopt(zmq.IDENTITY)
-        try:
-            self.id = self.id.decode()
-        except AttributeError:
-            # Python2 catch
-            pass
-            
+        self.id = self.id.decode()
+        
     def __call__(self, timestamp):
         """
         Send the event's timestamp as a DP/ADP/NDP timestamp value, i.e., 
@@ -763,7 +756,7 @@ class InternalTriggerProcessor(object):
     them, and actually act on the trigger.
     """
     
-    def __init__(self, port=5835, coincidence_window=5e-4, min_coincident=6, deadtime=60.0, callback=None, context=None):
+    def __init__(self, port=5835, coincidence_window=5e-4, min_coincident=4, deadtime=60.0, callback=None, context=None):
         # Set the port to use
         self.port = port
         
