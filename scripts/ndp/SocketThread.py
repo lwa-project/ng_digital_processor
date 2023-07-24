@@ -1,14 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import print_function
-
 import threading
 import socket
-try:
-    import queue
-except NameError:
-    import Queue as queue
-    
+import queue
+
 class UDPRecvThread(threading.Thread):
     #STOP = '__UDPRecvThread_STOP__'
     def __init__(self, address, bufsize=16384):
