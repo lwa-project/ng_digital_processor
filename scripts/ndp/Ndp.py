@@ -675,8 +675,8 @@ class Snap2MonitorClient(object):
         sconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
                               'fft_shift': self.config['snap']['fft_shift'],
                               'chans_per_packet': 96},
-                 'xengines:' {'arp': {},
-                              'chans': {}}
+                 'xengines': {'arp': {},
+                              'chans': {}}}
                  
         ### Equalizer coefficints (global)
         if self.equalizer_coeffs is not None:
@@ -729,7 +729,7 @@ class Snap2MonitorClient(object):
             time.sleep(t_int+0.1)
             
             for i in range(4):
-                spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i)
+                spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
         return np.array(spectra)
         
     # TODO: Configure channel selection (based on FST)
