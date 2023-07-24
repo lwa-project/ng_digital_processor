@@ -1,15 +1,16 @@
 
-from socket import gethostbyname
+from socket import inet_aton, inet_ntoa, gethostbyname
+import struct
 
 def ip2int(ipaddr):
-    """ Convert IP address to integer for ROACH programming """
-    ipb = [int(ipbit) for ipbit in ipaddr.split('.')]
-    assert len(ipb) == 4
-    int_addr = ipb[0]*(1<<24) + ipb[1]*(1<<16) + ipb[2]*(1<<8) + ipb[3]
-    return int_addr
+    """ Convert IP address to integer for Snap2 programming """
+    return struct.unpack('>L', inet_aton(ipaddr))[0]
+
+def int2ip(int_addr):
+    return inet_ntoa(struct.pack('>L', int_addr))
 
 def mac2int(macaddr):
-    """ Convert IP address to integer for ROACH programming
+    """ Convert IP address to integer for Snap2 programming
     Address should be of form 00:01:02:03:04:05"""
     m = [int(mb, 16) for mb in macaddr.split(':')]
     assert len(m) == 6

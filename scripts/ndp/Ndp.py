@@ -10,7 +10,7 @@ from .ConsumerThread import ConsumerThread
 from .SequenceDict import SequenceDict
 from .ThreadPool import ThreadPool
 from .ThreadPool import ObjectPool
-from .NdpRoach   import NdpRoach
+from .NdpSnap    import *
 from .iptools    import *
 
 from . import ISC
@@ -579,20 +579,13 @@ class NdpServerMonitorClient(object):
             return False
 
 
-# TODO: Rename this (and possibly refactor)
 class Snap2MonitorClient(object):
     def __init__(self, config, log, num, syncFunction=None):
         # Note: num is 1-based index of the snap
         self.config = config
         self.log    = log
-        self.snap  = NdpRoach(num, config['snap']['port'])
-        self.host   = self.snap.hostname
-        self.device = ROACH2Device(self.host)
+        self.snap  = connect_to_snap(f"snap{num}")
         self.num = num
-        self.syncFunction = syncFunction
-        self.GBE_DRX_0 = 0
-        self.GBE_DRX_1 = 1
-        self.GBE_TBN = 2
         
         self.equalizer_coeffs = None
         try:
@@ -601,124 +594,107 @@ class Snap2MonitorClient(object):
             self.log.warning("Failed to load equalizer coefficients: %s", str(e))
             
     def unprogram(self, reboot=False):
-        if not reboot:
-            self.snap.unprogram()
-            return
-        
-        password = self.config['snap']['password']
-        try:
-            subprocess.check_output(['sshpass', '-p', password,
-                                     'ssh', '-o', 'StrictHostKeyChecking=no',
-                                     'root@'+self.host,
-                                     'shutdown -r now'])
-        except subprocess.CalledProcessError as e:
-            try:
-                # Note: The above shutdown command didn't always work,
-                #         so this does a forced reboot.
-                subprocess.check_output(['sshpass', '-p', password,
-                                         'ssh', '-o', 'StrictHostKeyChecking=no',
-                                         'root@'+self.host,
-                                         '{ sleep 1; reboot -f; } >/dev/null &'])
-            except subprocess.CalledProcessError as e:
-                self.log.info("Failed to reboot snap %s: %s", self.host, str(e))
-                raise RuntimeError("Roach reboot command failed")
-                
+        if self.snap.is_connected:
+            self.snap.deprogram()
+            
     def get_samples(self, slot, stand, pol, nsamps=None):
         return self.get_samples_all(slot, nsamps)[stand,pol]
         
     @lru_cache(maxsize=4)
     def get_samples_all(self, slot, nsamps=None):
         """Returns an NDArray of shape (stand,pol,sample)"""
-        return self.device.samples_all(nsamps).transpose([1,2,0])
+        samps0 = self.snap.adp.get_snapshot_interleaved(0, signed=True, trigger=True)
+        samps1 = self.snap.adp.get_snapshot_interleaved(1, signed=True, trigger=False)
+        samps = np.vstack([samps0, samps1])
+        
+        return samps.reshape(32,2,-1)
         
     @lru_cache(maxsize=4)
     def get_temperatures(self, slot):
-        try:
-            return self.device.temperatures()
-        except:
-            return {'error': float('nan')}
-            
+        # Return a dictionary of temperatures on the Snap2 board
+        temp = {'error': float('nan')}
+        if self.snap.is_connected:
+            try:
+                summary, flags = self.snap.fpga.get_status()
+                temp = {'fpga': summary['temp']}
+            except Exception as e:
+                pass
+        return temp
+        
+    @lru_cache(maxsize=4)
+    def get_clock_rate(self):
+        # Estimate the FPGA clock rate in MHz
+        rate = float('nan')
+        if self.snap.is_connected:
+            try:
+                rate = self.snap.fpga.get_fpga_clock()
+            except Exception as e:
+                pass
+        return rate
+        
     def program(self):
         # Program with NDP firmware
-        # Note: ADCs must be re-calibrated after doing this
         
         ## Firmware
-        boffile        = self.config['snap']['firmware']
-        ## Channel setup for each GbE interfaces
-        nsubband0      = len(self.config['host']['servers-data'])
-        subband_nchan0 = int(math.ceil(self.config['drx'][0]['capture_bandwidth'] / CHAN_BW / nsubband0))
-        nsubband1      = len(self.config['host']['servers-data'])
-        subband_nchan1 = int(math.ceil(self.config['drx'][1]['capture_bandwidth'] / CHAN_BW / nsubband1))
-        nsubband2      = 1
-        subband_nchan2 = int(math.ceil(self.config['tbn']['capture_bandwidth'] / CHAN_BW / nsubband2))
-        ## ADC digital gain
-        adc_gain       = self.config['snap']['adc_gain']
-        adc_gain_bits  = ( adc_gain       | (adc_gain <<  4) |
-                         (adc_gain << 8) | (adc_gain << 12) )
-        adc_gain_reg   = 0x2a
-        adc_registers  = {adc_gain_reg: adc_gain_bits}
-        ## Maximum number of attempts to try and program
-        max_attempts   = self.config['snap']['max_program_attempts']
-        ## Whether or not to bypass the PFB on the FFT
-        bypass_pfb     =  self.config['snap']['bypass_pfb']
+        firmware        = self.config['snap']['firmware']
         
-        self.snap.program(boffile, nsubband0, subband_nchan0, nsubband1, subband_nchan1, nsubband2, subband_nchan2, 
-                        adc_registers=adc_registers, max_attempts=max_attempts, bypass_pfb=bypass_pfb)
-                        
+        # Go!
+        success = False
+        if self.snap.is_connected:
+            for i in range(self.config['snap']['max_program_attempts']):
+                try:
+                    self.snap.program(firmware)
+                    sucesss = True
+                    break
+                except Exception as e:
+                    pass
+                    
+        return success
+        
     def is_programmed(self):
+        # Has the FPGA been programmed?
+        
         status = False
-        try:
-            self.snap.check_link(0)
-            status = True
-        except:
-            pass
+        if self.snap.is_connected:
+            try:
+                status = self.snap.fpga.is_programmed()
+            except Exception as e:
+                pass
         return status
         
-    def configure_dual_mode(self):
-        try:
-            self.snap.stop_processing()
-            # DRX, tuning 0 on gbe0, DRX, tuning 1 on gbe1, TBN on gbe2
-            drx_dst_hosts   = self.config['host']['servers-data']
-            tbn_dst_hosts   = [self.config['host']['servers-tbn'][self.num-1]]
-            src_ip_base     = self.config['snap']['data_ip_base']
-            src_port_base   = self.config['snap']['data_port_base']
-            dst_ports       = self.config['server']['data_ports']
-            drx_dst_ips     = [host2ip(host) for host in drx_dst_hosts]
-            tbn_dst_ips     = [host2ip(host) for host in tbn_dst_hosts]
-            macs = load_ethers()
-            try:
-                drx_dst_macs    = [macs[ip] for ip in drx_dst_ips]
-                tbn_dst_macs    = [macs[ip] for ip in tbn_dst_ips]
-            except KeyError:
-                ## Catch for multicast addresses that do not have MACs
-                drx_dst_macs    = [macs[host2ip(ip)] for ip in self.config['host']['servers']]
-                tbn_dst_macs    = [macs[host2ip(ip)] for ip in self.config['host']['servers']]
-            drx_arp_table   = gen_arp_table(drx_dst_ips, drx_dst_macs)
-            tbn_arp_table   = gen_arp_table(tbn_dst_ips, tbn_dst_macs)
-            drx_0_dst_ports = [dst_ports[0] for i in range(len(drx_dst_ips))]
-            drx_1_dst_ports = [dst_ports[1] for i in range(len(drx_dst_ips))]
-            tbn_dst_ports   = [dst_ports[2]] * len(tbn_dst_ips)
-            ret0 = self.snap.configure_10gbe(self.GBE_DRX_0, drx_dst_ips, drx_0_dst_ports, drx_arp_table, src_ip_base, src_port_base)
-            ret1 = self.snap.configure_10gbe(self.GBE_DRX_1, drx_dst_ips, drx_1_dst_ports, drx_arp_table, src_ip_base, src_port_base)
-            ret2 = self.snap.configure_10gbe(self.GBE_TBN, tbn_dst_ips, tbn_dst_ports, tbn_arp_table, src_ip_base, src_port_base)
-            if not ret0 or not ret1 or not ret2:
-                raise RuntimeError("Configuring Roach 10GbE ports failed")
-        except:
-            self.log.exception("Configuring snap failed")
-            raise
+    def configure():
+        # Configure the FPGA and start data flowing
+        
+        ## Configuration
+        configname      = '/tmp/snap.yaml'
+        write_snap_config(self.config, configname)
+        
+        # Go!
+        success = False
+        if self.snap.is_connected and self.snap.fpga.is_programmed():
+            for i in range(self.config['snap']['max_program_attempts']):
+                try:
+                    self.snap.cold_start_from_config(configname) 
+                    sucesss = True
+                    break
+                except Exception as e:
+                    pass
+                    
+        return success
+        
+    def get_spectra(self, t_int=0.1):
+        # Return a 2-D array of auto-correlation spectra
+        
+        acc_len = int(round(CHAN_BW * t_int))
+        
+        spectra = []
+        if self.snap.is_connected and self.snap.fpga.is_programmed():
+            self.snap.autocorr.set_acc_len(acc_len)
+            time.sleep(t_int+0.1)
             
-    @ISC.logException
-    def configure_adc_delay(self, index, delay, relative=False):
-        if relative:
-            currDelay = self.snap.read_adc_delay(index)
-            delay += currDelay
-        self.snap.configure_adc_delay(index, delay)
-        
-    def reset(self):
-        self.snap.reset(syncFunction=self.syncFunction)
-        
-    def processing_started(self):
-        return self.snap.processing_started()
+            for i in range(4):
+                spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i)
+        return np.array(spectra)
         
     # TODO: Configure channel selection (based on FST)
     # TODO: start/stop data flow (remember to call snap.reset() before start)
@@ -997,9 +973,14 @@ class MsgProcessor(ConsumerThread):
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: self.snaps.configure_dual_mode(),
-                                  'Configuring FPGAs',
-                                  self.snaps.host):
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i == 0],
+                                  'Configuring master FPGA',
+                                  [s.host for i,s in enumerate(self.snaps) if i == 0]):
+            if 'FORCE' not in arg:
+                return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i != 0],
+                                  'Configuring remaining FPGAs',
+                                  [s.host for i,s in enumerate(self.snaps) if i != 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
@@ -1023,41 +1004,7 @@ class MsgProcessor(ConsumerThread):
         # Wait until we're in the middle of the init sec
         wait_until_utc_sec(utc_init_str)
         time.sleep(0.5)
-        self.state['lastlog'] = "Starting processing now"
-        self.log.info("Starting FPGA processing now")
-        if not self.check_success(lambda: self.snaps.start_processing(),
-                                  'Starting FPGA processing',
-                                  self.snaps.host):
-            if 'FORCE' not in arg:
-                return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: self.snaps.start_processing(),
-                                  'Starting FPGA processing',
-                                  self.snaps.host):
-                        if 'FORCE' not in arg:
-                                return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        time.sleep(0.1)
-        self.log.info("Checking FPGA processing")
-        if not all(self.snaps.processing_started()):
-            if 'FORCE' not in arg:
-                return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-                
-        # Check for a time skew on the snap boards and the start time
-        self.snaps[0].snap.wait_for_pps()
-        self.snaps[0].snap.wait_for_pps()
-        markS = time.time()
-        markP = self.snaps[0].snap.fpga.read_uint('pkt_gbe0_eof_cnt')
-        markN = self.snaps[0].snap.fpga.read_uint('pkt_gbe0_n_subband')
-        markR = self.snaps[0].snap.fpga.read_uint('adc_sync_count')
-        self.log.info("Server: %i + %.6f", int(markS), markS-int(markS))
-        self.log.info("Roach: %i + %.6f", markR, 1.0*(markP/markN)/CHAN_BW)
-        utc_start     = datetime.datetime.utcfromtimestamp(int(markS) - markR) + datetime.timedelta(seconds=1)
-        utc_start_str = utc_start.strftime(DATE_FORMAT)
-        self.state['lastlog'] = "Processing started at UTC "+utc_start_str
-        self.log.info("Processing started at UTC "+utc_start_str)
-        if utc_start_str != self.utc_start_str:
-            self.log.error("Processing start time mis-match")
-            return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-            
+        
         # Check and make sure that *all* of the pipelines started
         self.log.info("Checking pipeline processing")
         ## DRX
@@ -1080,6 +1027,9 @@ class MsgProcessor(ConsumerThread):
                 if 'FORCE' not in arg:
                     return self.raise_error_state('INI', 'PIPELINE_STARTUP_FAILED')
         self.log.info('Checking pipeline processing succeeded')
+        
+        #self.log.info("Starting correlator")
+        # TODO: Should we do something here?
         
         self.log.info("INI finished in %.3f s", time.time() - start_time)
         self.ready = True
@@ -1524,7 +1474,7 @@ class MsgProcessor(ConsumerThread):
         
     def _get_snap_config(self):
         sub_config = {}
-        for key in ('firmware', 'adc_gain', 'scale_factor', 'shift_factor', 'equalizer_coeffs', 'bypass_pfb'):
+        for key in ('firmware', 'fft_shift', 'equalizer_coeffs', 'bypass_pfb'):
             sub_config[key] = self.config['snap'][key]
         sub_config['equalizer_coeffs_md5'] = ''
         

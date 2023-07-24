@@ -16,7 +16,7 @@
         }
     },
     "host": {
-        "servers": ["ndp1","ndp2","ndp3","ndp4","ndp5","ndp6"],
+        "servers": ["ndp1", "ndp2"],
         "snaps": ["snap1", "snap2"],
         "servers-data": ["mcg40s1-data", "mcg40s2-data"],
         "tengines": ["ndp-data", "ndp-data", "ndp-data", "ndp-data"]
@@ -106,17 +106,11 @@
         "temperature_scram":    90.0
     },
     "snap": {
-        "port":                 7147,
-        "username":             "root",
-        "password":             "130Jy/K",
-        "data_ip_base":         "192.168.40.50",
+        "data_ip_base":         "192.168.40.100",
         "data_port_base":       4000,
-        "firmware_old":         "sevietta_devel_2017h_2017_May_02_1407.bof",
         "firmware":             "sevietta_devel_2018e_2018_May_10_0619.bof", 
         "max_program_attempts": 15,
-        "adc_gain":             4,
-        "scale_factor":         1.295,
-        "shift_factor":         28,
+        "fft_shift":            2047,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
         "bypass_pfb":           false,
         "temperatures":         ["ambient", "ppc", "fpga", "inlet", "outlet"],
