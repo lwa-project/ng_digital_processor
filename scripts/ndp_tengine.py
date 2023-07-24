@@ -843,7 +843,7 @@ def main(argv):
     parser.add_argument('-v', '--verbose',    action='count', default=0, help='Increase verbosity')
     parser.add_argument('-q', '--quiet',      action='count', default=0, help='Decrease verbosity')
     args = parser.parse_args()
-    tuning = args.tuning
+    beam = args.beam
     
     # Fork, if requested
     if args.fork:
@@ -851,9 +851,8 @@ def main(argv):
         daemonize(stdin='/dev/null', stdout='/dev/null', stderr=stderr)
         
     config = Ndp.parse_config_file(args.configfile)
-    beam = args.beam
     ntuning = 2
-    drxConfigs = config['drx']
+    drxConfig = config['drx'][0]
     
     log = logging.getLogger(__name__)
     logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
@@ -912,7 +911,7 @@ def main(argv):
     log.info("Server index: %i", server_idx)
     
     # Network - input
-    tengine_idx  = drxConfig['tengine_idx']
+    tengine_idx  = drxConfig['tengine_idx'][beam]
     tngConfig    = config['tengine'][tengine_idx]
     iaddr        = config['host']['tengines'][tengine_idx]
     iport        = config['server']['data_ports' ][tngConfig['pipeline_idx']]
@@ -925,7 +924,6 @@ def main(argv):
         
     nserver = len(config['host']['servers'])
     server0 = 0
-    nbeam = len(config['drx'][0]['beam_count'])
     cores = tngConfig['cpus']
     gpus  = tngConfig['gpus']
     pfb_inverter = True
@@ -976,7 +974,7 @@ def main(argv):
     rsock.connect(raddr)
     ops.append(PacketizeOp(log, tengine_ring,
                            osock=rsock,
-                           nbeam_max=1, beam0=beam,
+                           nbeam_max=1, beam0=beam+1,
                            npkt_gulp=32, core=cores.pop(0)))
     
     threads = [threading.Thread(target=op.main) for op in ops]

@@ -1,5 +1,5 @@
 [Unit]
-Description=NDP DRX Pipeline - Tuning 1
+Description=NDP DRX Pipeline - Tuning 3
 After=network-online.target
 Wants=network-online.target
 
@@ -17,7 +17,7 @@ TimeoutStopSec=20
 # Logging
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=ndp-drx-1
+SyslogIdentifier=ndp-drx-3
 
 # Run before process
 ExecStartPre=/bin/bash -c '[ -d /home/ndp/log ] || mkdir -p /home/ndp/log'
@@ -30,7 +30,7 @@ Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_verbs_py3/pyt
 Environment=LD_PRELOAD=libvma.so
 Environment=VMA_TRACELEVEL=0
 Environment=VMA_RX_POLL=1000
-Environment=VMA_INTERNAL_THREAD_AFFINITY=8
+Environment=VMA_INTERNAL_THREAD_AFFINITY=0
 Environment=VMA_RX_PREFETCH_BYTES=128
 Environment=VMA_THREAD_MODE=0
 Environment=VMA_MTU=9000 
@@ -40,9 +40,9 @@ Environment=PYTHONUNBUFFERED=1
 ExecStart=/bin/bash -ec 'cd /usr/local/bin && \
 numactl --cpunodebind=1 --membind=1 -- \
 python3 /usr/local/bin/ndp_drx.py \
-	 --tuning     1 \
+	 --tuning     3 \
 	 --configfile /usr/local/share/ndp/ndp_config.json \
-	 --logfile    /home/ndp/log/ndp-drx-1.%H.log'
+	 --logfile    /home/ndp/log/ndp-drx-3.%H.log'
 
 [Install]
 WantedBy=multi-user.target

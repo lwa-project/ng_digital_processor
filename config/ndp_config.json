@@ -18,8 +18,8 @@
     "host": {
         "servers": ["ndp1", "ndp2"],
         "snaps": ["snap1", "snap2"],
-        "servers-data": ["mcg40s1-data", "mcg40s2-data"],
-        "tengines": ["ndp-data", "ndp-data", "ndp-data", "ndp-data"]
+        "servers-data": ["mcg40s1-data1", "mcg40s1-data2", "mcg40s2-data1", "mcg40s2-data2"],
+        "tengines": ["ndp-data1", "ndp-data1", "ndp-data2", "ndp-data2"]
     },
     "ipmi": {
         "username": "admin",
