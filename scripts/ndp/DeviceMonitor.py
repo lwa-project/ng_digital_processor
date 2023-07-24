@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 
 """
 Disk, CPU, and GPU device monitoring

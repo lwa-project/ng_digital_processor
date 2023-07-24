@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 from ndp import MCS2 as MCS
 from ndp import Ndp

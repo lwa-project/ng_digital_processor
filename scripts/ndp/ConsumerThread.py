@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
 
 import threading
 
@@ -56,4 +53,3 @@ if __name__ == "__main__":
     q.put('world!')
     time.sleep(0.2)
     m.request_stop()
-    

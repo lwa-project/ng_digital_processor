@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
 
 """
 Inter-Server Communication (ISC) for NDP.  This allows messages to be send to 
 the different servers for on-the-fly pipeline reconfiguration.
 """
-
-from __future__ import print_function, absolute_import
 
 import zmq
 import time
@@ -16,7 +13,7 @@ from uuid import uuid4
 from collections import deque
 
 
-__version__ = '0.4'
+__version__ = '0.5'
 __all__ = ['logException', 'PipelineMessageServer', 'StartTimeClient', 'TriggerClient',
            'TBNConfigurationClient', 'DRXConfigurationClient', 'BAMConfigurationClient',
            'CORConfigurationClient', 'PipelineSynchronizationServer',

@@ -13,20 +13,11 @@ Features: Worker threads created on-demand and then re-used
           Exceptions in tasks are caught and returned as result values
 """
 
-from __future__ import print_function, absolute_import
-try:
-    range = xrange
-except NameError:
-    pass
-    
 # Note: No need to join() workers here as long as wait() is always
 #       called at the end. The daemon threads will just block on
 #       the empty queue and get inconsequentially killed at exit.
 
-try:
-    from queue import Queue#, Empty
-except ImportError:
-    from Queue import Queue#, Empty
+from queue import Queue#, Empty
 #from StoppableThread import StoppableThread
 from .ConsumerThread import ConsumerThread
 import time

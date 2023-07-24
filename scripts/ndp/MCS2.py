@@ -1,21 +1,11 @@
-# -*- coding: utf-8 -*-
 
-from __future__ import print_function, division, absolute_import
-try:
-    range = xrange
-    def data_to_hex(data):
-        return data.encode('hex')
-except NameError:
-    def data_to_hex(data):
-        try:
-            return data.hex()
-        except TypeError:
-            return data.encode().hex()
+def data_to_hex(data):
+    try:
+        return data.hex()
+    except TypeError:
+        return data.encode().hex()
             
-try:
-    import queue
-except ImportError:
-    import Queue as queue
+import queue
 import time
 from datetime import datetime
 import socket

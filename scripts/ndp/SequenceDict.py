@@ -1,6 +1,4 @@
 
-from __future__ import print_function
-
 from bisect import bisect
 from collections import defaultdict
 
