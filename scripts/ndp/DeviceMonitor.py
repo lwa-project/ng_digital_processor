@@ -1,27 +1,13 @@
 # -*- coding: utf-8 -*-
 
 """
-Disk, CPU, GPU and ROACH2 device monitoring
+Disk, CPU, and GPU device monitoring
 
 TODO: `impmitool sensor list` shows there are also thermal-region and PSU temps available
 """
 
-from __future__ import print_function
-try:
-    range = xrange
-except NameError:
-    pass
-    
 import os
-# TODO: Replace this with katcp (commands remain the same)
-#from telnetlib import Telnet # For reading ROACH2 sensors
-try:
-    import corr
-except ImportError:
-    # Not going to work with Python3
-    print("ERROR: Module 'corr' not installed; roaches cannot be monitored")
 import time
-import subprocess            # For calling adc16_dump_chans
 import numpy as np
 # Available at https://pypi.python.org/pypi/nvidia-ml-py/
 try:
@@ -102,116 +88,3 @@ class GPUDevice(object):
     def fan_speed(self):
         """Returns percentage"""
         return nvmlDeviceGetFanSpeed(self.handle)
-
-from collections import defaultdict
-
-class ROACH2Device(object):
-    def __init__(self, host, port=7147):
-        self.host = host
-        self.port = port
-        self.fpga = corr.katcp_wrapper.FpgaClient(host, port)
-        time.sleep(0.1)
-    def samples(self, stand, pol, nsamps=None):
-        if nsamps > 1024:
-            raise ValueError("Requested nsamps exceeds limit of 1024")
-        data = self._read_samples(nsamps)
-        return data[:,stand,pol]
-    def samples_all(self, nsamps=None):
-        if nsamps is None:
-            nsamps = 1024
-        if nsamps > 1024:
-            raise ValueError("Requested nsamps exceeds limit of 1024")
-        return self._read_samples(nsamps)
-    def _read_samples(self, nsamps=1024):
-        """Returns an array of shape (nsamps, nstand, npol) dtype=np.int8"""
-        nstand = 16 # Not changeable
-        npol   = 2  # Not changeable
-        data_shape = (nsamps, nstand, npol)
-        cmd    = "adc16_dump_chans.rb"
-        try:
-            out = subprocess.check_output([cmd, "-l", str(nsamps), self.host])#,
-                                    #shell=True)
-        except subprocess.CalledProcessError:
-            return np.zeros(data_shape, dtype=np.int8)
-        #cmd = ' '.join([cmd, "-l", str(nsamps), self.host])
-        #print(cmd)
-        #out = subprocess.check_output(cmd)
-        data = np.fromstring(out, sep=' ', dtype=np.int8)
-        try:
-            data = data.reshape(data_shape)
-        except ValueError:
-            return np.zeros(data_shape, dtype=np.int8)
-        return data
-    def temperatures(self):
-        sensors = self._read_sensors()
-        return {name: sensors['raw.temp.'+name]['value']/1000.
-                for name in ['ambient', 'ppc', 'fpga', 'inlet', 'outlet']}
-    def fan_speeds(self):
-        sensors = self._read_sensors()
-        return {name: sensors['raw.fan.'+name]['value']/1.
-                for name in ['chs0', 'chs1', 'chs2', 'fpga']}
-    def voltages(self):
-        sensors = self._read_sensors()
-        return {name: sensors['raw.voltage.'+name]['value']/1000.
-                for name in ['1v', '1v5', '1v8', '2v5', '3v3',
-                             '5v', '12v', '3v3aux', '5vaux']}
-    def currents(self):
-        sensors = self._read_sensors()
-        return {name: sensors['raw.current.'+name]['value']/1000.
-                for name in ['1v', '1v5', '1v8', '2v5', '3v3',
-                             '5v', '12v']}
-    def _read_raw(self, command, *args):
-        """Connects via Telnet and reads the raw text output of a command"""
-        tel = Telnet(self.host, self.port)
-        command_line = command
-        argstr = ' '.join(args)
-        if len(args):
-            command_line += ' '+argstr
-            tel.write('?%s\n' % command_line)
-            response = tel.read_until('!%s' % command)
-            status = tel.read_until('\n')[:-1].split()[0]
-            if status != 'ok':
-                raise KeyError(argstr+': '+status)
-            return response
-    def _read_sensors(self):
-        """Returns a dictionary of all current sensor values
-            along with descriptions, units, types and statuses."""
-        results = {}
-        """
-        try:
-            response = self._read_raw('sensor-list')
-        except:
-            # HACK to avoid having to catch exceptions all the time
-            return defaultdict(lambda : {'value': float('nan')})
-        for line in response.split('\n'):
-        """
-        status, response = self.fpga._request('sensor-list', 1)
-        response = [str(x) for x in response]
-        for line in response:
-            if line.startswith('#sensor-list'):
-                vals = line.split()
-                name = vals[1]
-                results[name] = {}
-                results[name]['desc']  = vals[2].replace(r'\_',' ')
-                results[name]['units'] = vals[3]
-                results[name]['type']  = vals[4]
-        """
-        try:
-            response = self._read_raw('sensor-value')
-        except:
-            # HACK see above
-            return defaultdict(lambda : {'value': float('nan')})
-        for line in response.split('\n'):
-        """
-        status, response = self.fpga._request('sensor-value', 1)
-        response = [str(x) for x in response]
-        for line in response:
-            if line.startswith('#sensor-value'):
-                vals = line.split()
-                name   = vals[-3]
-                results[name]['status'] = vals[-2]
-                if results[name]['type'] == 'integer':
-                    results[name]['value']  = int(vals[-1])
-                else:
-                    results[name]['value']  = vals[-1]
-        return results

@@ -4,7 +4,6 @@ from .NdpConfig  import *
 from .NdpLogging import *
 
 from . import MCS2
-from .DeviceMonitor import ROACH2Device
 from .PipelineMonitor import BifrostPipelines
 from .ConsumerThread import ConsumerThread
 from .SequenceDict import SequenceDict
@@ -775,9 +774,6 @@ class MsgProcessor(ConsumerThread):
         self.headnode = ObjectPool([NdpServerMonitorClient(config, log, 'ndp'),])
         self.servers = ObjectPool([NdpServerMonitorClient(config, log, host)
                                 for host in self.config['host']['servers']])
-        #self.snaps = ObjectPool([Roach2MonitorClient(config, log, host)
-        #                           for host in self.config['host']['snaps']])
-        #nsnap = len(self.config['host']['snaps'])
         nsnap = NBOARD
         self.snaps = ObjectPool([Snap2MonitorClient(config, log, num+1)
                                 for num in range(nsnap)])
@@ -1353,7 +1349,7 @@ class MsgProcessor(ConsumerThread):
                 snaps_programmed = self.snaps.is_programmed()
                 if not all(snaps_programmed):
                     problems_found = True
-                    msg = "Found %s ROACH2 board(s) not programmed" % (len(snaps_programmed) - sum(snaps_programmed),)
+                    msg = "Found %s SNAP2 board(s) not programmed" % (len(snaps_programmed) - sum(snaps_programmed),)
                     self.state['lastlog'] = msg
                     self.state['status']  = 'ERROR'
                     self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
