@@ -581,13 +581,16 @@ class NdpServerMonitorClient(object):
             return False
 
 
+STAT_SAMP_SIZE = 256
+
 class Snap2MonitorClient(object):
-    def __init__(self, config, log, num, syncFunction=None):
+    def __init__(self, config, log, num):
         # Note: num is 1-based index of the snap
         self.config = config
         self.log    = log
-        self.snap   = snap2_fengine.Snap2Fengine(f"snap{num}")
         self.num    = num
+        self.host   = f"snap{self.num}"
+        self.snap   = snap2_fengine.Snap2Fengine(self.host)
         
         self.equalizer_coeffs = None
         try:
@@ -669,24 +672,25 @@ class Snap2MonitorClient(object):
         
         ## Configuration
         ### Overall structure + base F-engine config.
-        yconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
+        sconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
                               'fft_shift': self.config['snap']['fft_shift'],
                               'chans_per_packet': 96},
-                 'xengines:' {'arp': {}, 'chans': {}}
+                 'xengines:' {'arp': {},
+                              'chans': {}}
                  
         ### Equalizer coefficints (global)
         if self.equalizer_coeffs is not None:
-            yconfig['fengines']['eq_coeffs'] = list(equalizer_coeffs)
+            sconf['fengines']['eq_coeffs'] = list(equalizer_coeffs)
         
         ### Antenna and IP source
         for i,snap in enumerate(self.config['host']['snaps']):
-            yconf['fengines'][snap]['ants'] = [i*32, (i+1)*32]
-            yconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
-            yconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
+            sconf['fengines'][snap]['ants'] = [i*32, (i+1)*32]
+            sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
+            sconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
             
         ### X-engine MAC addresses
         macs = load_ethers()
-        yconfig['xengines']['arp'].update(macs)
+        sconfig['xengines']['arp'].update(macs)
         
         ### X-engine channel mapping
         for i,ip in enumerate(macs.keys()):
@@ -695,10 +699,11 @@ class Snap2MonitorClient(object):
                 nchan = int(round(self.config['drx'][2*i + j]['capture_bandwidth'] / CHAN_BW))
                 port = 10000*(i+1)
             
-                yconfig['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
+                sconfig['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
                 
         ### Save
-        yaml.dump(yconfig, '/tmp/snap.yaml')
+        configname = '/tmp/snap_config.yaml'
+        yaml.dump(sconfig, configname)
         
         # Go!
         success = False
@@ -1583,6 +1588,11 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_DELAY
         #  BEAM%i_GAIN
         #  BEAM%i_TUNING # Note: (NDP only)
+        if args[0] == 'HEALTH' and args[1] == 'CHECK':
+            spectra = self.snaps.spectra()
+            freq = np.arange(spectra.shape[0]) * CHAN_BW
+            np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
+            return '/tmp/health_check.npz'
         if args[0] == 'BOARD':
             board = args[1]-1
             if not (0 <= board < NBOARD):
@@ -1663,6 +1673,7 @@ class MsgProcessor(ConsumerThread):
             #'BEAM_DCOFFSET':      lambda x: struct.pack('>f', x),
             #'BEAM_PEAK':          lambda x: struct.pack('>i', x),
             # TODO: In the spec this is >I ?
+            'HEALTH_CHECK':       lambda x: truncate_message(x, 1024),
             'BOARD_STAT':         lambda x: struct.pack('>L', x),
             'BOARD_TEMP_MAX':     lambda x: struct.pack('>f', x),
             'BOARD_TEMP_MIN':     lambda x: struct.pack('>f', x),
