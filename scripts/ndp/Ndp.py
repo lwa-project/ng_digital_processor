@@ -10,10 +10,11 @@ from .ConsumerThread import ConsumerThread
 from .SequenceDict import SequenceDict
 from .ThreadPool import ThreadPool
 from .ThreadPool import ObjectPool
-from .NdpSnap    import *
 from .iptools    import *
 
 from . import ISC
+
+from lwa_f import snap2_fengine
 
 from queue import Queue
 import numpy as np
@@ -29,6 +30,7 @@ import zmq
 import threading
 import socket # For socket.error
 import json
+import yaml
 import hashlib
 
 __version__    = "0.3"
@@ -584,8 +586,8 @@ class Snap2MonitorClient(object):
         # Note: num is 1-based index of the snap
         self.config = config
         self.log    = log
-        self.snap  = connect_to_snap(f"snap{num}")
-        self.num = num
+        self.snap   = snap2_fengine.Snap2Fengine(f"snap{num}")
+        self.num    = num
         
         self.equalizer_coeffs = None
         try:
@@ -662,12 +664,41 @@ class Snap2MonitorClient(object):
                 pass
         return status
         
-    def configure():
+    def configure(self):
         # Configure the FPGA and start data flowing
         
         ## Configuration
-        configname      = '/tmp/snap.yaml'
-        write_snap_config(self.config, configname)
+        ### Overall structure + base F-engine config.
+        yconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
+                              'fft_shift': self.config['snap']['fft_shift'],
+                              'chans_per_packet': 96},
+                 'xengines:' {'arp': {}, 'chans': {}}
+                 
+        ### Equalizer coefficints (global)
+        if self.equalizer_coeffs is not None:
+            yconfig['fengines']['eq_coeffs'] = list(equalizer_coeffs)
+        
+        ### Antenna and IP source
+        for i,snap in enumerate(self.config['host']['snaps']):
+            yconf['fengines'][snap]['ants'] = [i*32, (i+1)*32]
+            yconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
+            yconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
+            
+        ### X-engine MAC addresses
+        macs = load_ethers()
+        yconfig['xengines']['arp'].update(macs)
+        
+        ### X-engine channel mapping
+        for i,ip in enumerate(macs.keys()):
+            for j in range(2):
+                chan0 = self.config['drx'][2*i + j]['first_channel']
+                nchan = int(round(self.config['drx'][2*i + j]['capture_bandwidth'] / CHAN_BW))
+                port = 10000*(i+1)
+            
+                yconfig['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
+                
+        ### Save
+        yaml.dump(yconfig, '/tmp/snap.yaml')
         
         # Go!
         success = False
