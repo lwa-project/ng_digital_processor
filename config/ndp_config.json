@@ -108,7 +108,7 @@
     "snap": {
         "data_ip_base":         "192.168.40.100",
         "data_port_base":       4000,
-        "firmware":             "sevietta_devel_2018e_2018_May_10_0619.bof", 
+        "firmware":             "snap2_f_200msps_64i_4096c_2023-04-26_1706.fpg", 
         "max_program_attempts": 15,
         "fft_shift":            2047,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
