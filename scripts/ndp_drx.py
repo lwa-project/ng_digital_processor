@@ -1297,11 +1297,13 @@ def main(argv):
     vport        = recConfig['port']
     vbw          = recConfig['max_bytes_per_sec']
     ## Network - T engine
-    tengine_idx  = drxConfig['tengine_idx']
-    tngConfig    = config['tengine'][tengine_idx]
-    taddr        = config['host']['tengines'][tengine_idx]
-    tport        = config['server']['data_ports' ][tngConfig['pipeline_idx']]
-    
+    tengine_ids  = drxConfig['tengine_idx']
+    taddrs, tports = [], []
+    for tengine_idx in tengine_ids:
+        tngConfig    = config['tengine'][tengine_idx]
+        taddrs.append( config['host']['tengines'][tengine_idx] )
+        tports.append( config['server']['data_ports' ][tngConfig['pipeline_idx']] )
+        
     nsnap_tot = len(config['host']['snaps'])
     nserver    = len(config['host']['servers'])
     nsnap, snap0 = nsnap_tot, 0
@@ -1312,7 +1314,8 @@ def main(argv):
     log.info("Src address:  %s:%i", iaddr, iport)
     log.info("TBF address:  %s:%i", oaddr, oport)
     log.info("COR address:  %s:%i", vaddr, vport)
-    log.info("TNG address:  %s:%i", taddr, tport)
+    for taddr,tport in zip(taddrs, tports):
+        log.info("TNG address:  %s:%i", taddr, tport)
     log.info("Snaps:      %i-%i", snap0+1, snap0+nsnap)
     log.info("Tunings:      %i (of %i)", tuning+1, ntuning)
     log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
@@ -1338,10 +1341,12 @@ def main(argv):
     vsock = UDPSocket()
     vsock.connect(vaddr)
     
-    taddr = Address(taddr, tport)
-    tsock = UDPSocket()
-    tsock.connect(taddr)
-    
+    tsocks = []
+    for taddr,tport in zip(taddrs, tports):
+        ctaddr = Address(taddr, tport)
+        tsocks.append( UDPSocket() )
+        tsocks[-1].connect(ctaddr)
+        
     nchan_max = int(round(drxConfig['capture_bandwidth']/CHAN_BW/nserver))
     tbf_bw_max    = obw/nserver/ntuning
     cor_bw_max    = vbw/nserver/ntuning
@@ -1368,7 +1373,7 @@ def main(argv):
                             tuning=tuning, ntime_gulp=GSIZE,
                             nchan_max=nchan_max, nbeam_max=nbeam, 
                             core=cores.pop(0), gpu=gpus.pop(0)))
-    ops.append(RetransmitOp(log=log, osock=tsock, iring=tengine_ring, 
+    ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring, 
                             tuning=tuning, nchan_max=nchan_max, 
                             ntime_gulp=50, nbeam_max=nbeam, 
                             core=cores.pop(0)))
