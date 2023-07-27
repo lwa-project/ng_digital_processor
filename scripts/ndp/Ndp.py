@@ -640,7 +640,7 @@ class Snap2MonitorClient(object):
         # Program with NDP firmware
         
         ## Firmware
-        firmware        = self.config['snap']['firmware']
+        firmware = self.config['snap']['firmware']
         
         # Go!
         success = False
