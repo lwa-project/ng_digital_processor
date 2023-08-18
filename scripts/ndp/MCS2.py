@@ -124,13 +124,8 @@ class Msg(object):
                       self.slot))
     def decode(self, pkt):
         hdr = pkt[:38]
-        try:
-            hdr = hdr.decode()
-        except Exception as e:
-            # Python2 catch/binary data catch
-            print('hdr error:', str(e), '@', hdr)
-            pass
-            
+        hdr = hdr.decode()
+        
         self.slot = get_current_slot()
         self.dst  = hdr[:3]
         self.src  = hdr[3:6]
@@ -141,6 +136,10 @@ class Msg(object):
         self.mpm  = int(hdr[28:37])
         space     = hdr[37]
         self.data = pkt[38:38+datalen]
+        try:
+            self.data = self.data.decode()
+        except UnicodeDecodeError:
+            pass
         # WAR for DATALEN parameter being wrong for BAM commands (FST too?)
         broken_commands = ['BAM']#, 'FST']
         if self.cmd in broken_commands:
@@ -155,16 +154,8 @@ class Msg(object):
         #msg.mjd, msg.mpm = getTime()
         response = 'A' if accept else 'R'
         msg.data = response + str(status).rjust(7)
-        try:
-            msg.data = msg.data.encode()
-        except AttributeError:
-            # Python2 catch
-            pass
-        try:
-            data = data.encode()
-        except (AttributeError, UnicodeDecodeError):
-            # Python2/binary data catch
-            pass
+        msg.data = msg.data.encode()
+        data = data.encode()
         msg.data = msg.data+data
         return msg
     def is_valid(self):
@@ -187,16 +178,8 @@ class Msg(object):
                str(self.mjd      ).rjust(6) +
                str(self.mpm      ).rjust(9) +
                ' ')
-        try:
-            pkt = pkt.encode()
-        except (AttributeError, UnicodeDecodeError):
-            # Python2 catch
-            pass
-        try:
-            self.data = self.data.encode()
-        except (AttributeError, UnicodeDecodeError):
-            # Python2 catch
-            pass
+        pkt = pkt.encode()
+        self.data = self.data.encode()
         return pkt+self.data
 
 class MsgReceiver(UDPRecvThread):
