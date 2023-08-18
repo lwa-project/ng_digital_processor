@@ -808,7 +808,6 @@ class MsgProcessor(ConsumerThread):
         self.run_failsafe_thread.daemon = True
         self.run_failsafe_thread.start()
         
-        self.start_synchronizer_thread()
         self.start_lock_thread()
         self.start_internal_trigger_thread()
         
@@ -946,14 +945,6 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Forcing CPUs into performance mode")
         self.headnode._shell_command('/root/fixCPU.sh')
         self.servers._shell_command('/root/fixCPU.sh')
-        
-        # WAR for synchronizer getting into a bad state when clients are killed
-        self.log.info("Stopping Synchronizer thread")
-        self.stop_synchronizer_thread()
-        time.sleep(3)
-        # WAR for synchronizer getting into a bad state when clients are killed
-        self.log.info("Starting Synchronizer thread")
-        self.start_synchronizer_thread()
         
         self.log.info("Stopping Lock thread")
         self.stop_lock_thread()
