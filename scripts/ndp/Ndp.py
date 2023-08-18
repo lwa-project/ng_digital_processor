@@ -1043,7 +1043,7 @@ class MsgProcessor(ConsumerThread):
         ## T-engine
         for beam in range(self.config['drx'][0]['beam_count']):
             pipeline_pids = [p for s in self.headnode.pid_tengine(beam=beam) for p in s]
-            pipeline_pids = filter(lambda x: x>0, pipeline_pids)
+            pipeline_pids = list(filter(lambda x: x>0, pipeline_pids))
             print('TEngine-%i:' % beam, len(pipeline_pids), pipeline_pids)
             if len(pipeline_pids) != 1:
                 self.log.error('Found %i TEngine-%i pipelines running, expected %i', len(pipeline_pids), beam,  1)
@@ -1179,7 +1179,7 @@ class MsgProcessor(ConsumerThread):
             for beam in range(4):
                 for server in self.headnode:
                     pids.extend( server.pid_tengine(beam=beam) )
-            nRunning = len( filter(lambda x: x > 0, pids) )
+            nRunning = len( list(filter(lambda x: x > 0, pids)) )
             
             t1 = time.time()
             if t1-t0 >= max_wait:
@@ -1380,7 +1380,7 @@ class MsgProcessor(ConsumerThread):
             slot = MCS2.get_current_slot()
             
             # Note: Actually just flattening lists, not summing
-            server_temps = sum(self.servers.get_temperatures(slot).values(), [])
+            server_temps = sum(list(self.servers.get_temperatures(slot).values()), [])
             # Remove error values before reducing
             server_temps = [val for val in server_temps if not math.isnan(val)]
             if len(server_temps) == 0: # If all values were nan (exceptional!)
