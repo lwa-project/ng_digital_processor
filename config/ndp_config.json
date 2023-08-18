@@ -22,8 +22,8 @@
         "tengines": ["ndp-data1", "ndp-data1", "ndp-data2", "ndp-data2"]
     },
     "ipmi": {
-        "username": "admin",
-        "password": "admin"
+        "username": "root",
+        "password": "admin@123"
     },
     "drx": [
             {
