@@ -17,7 +17,7 @@
     },
     "host": {
         "servers": ["ndp1", "ndp2"],
-        "snaps": ["snap1", "snap2"],
+        "snaps": ["snap01", "snap02"],
         "servers-data": ["mcg40s1-data1", "mcg40s1-data2", "mcg40s2-data1", "mcg40s2-data2"],
         "tengines": ["ndp-data1", "ndp-data1", "ndp-data2", "ndp-data2"]
     },
@@ -106,9 +106,9 @@
         "temperature_scram":    90.0
     },
     "snap": {
-        "data_ip_base":         "192.168.40.100",
+        "data_ip_base":         "192.168.40.101",
         "data_port_base":       4000,
-        "firmware":             "snap2_f_200msps_64i_4096c_2023-04-26_1706.fpg", 
+        "firmware":             "/home/ndp/ng_digital_processor/caltech-lwa/snap2_f_200msps_64i_4096c/outputs/snap2_f_200msps_64i_4096c_2023-04-26_1706.fpg", 
         "max_program_attempts": 15,
         "fft_shift":            2047,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
