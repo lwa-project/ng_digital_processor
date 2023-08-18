@@ -696,9 +696,6 @@ class Snap2MonitorClient(object):
         ### X-engine channel mapping
         i = 0
         for ip in macs.keys():
-            if ip in ('192.168.40.10', '192.168.40.210'):
-                continue
-                
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = 10000*(i//2+1)
@@ -707,14 +704,10 @@ class Snap2MonitorClient(object):
             i += 1
             
         ### Save
+        sconf = yaml.dump(sconf)
         configname = '/tmp/snap_config.yaml'
         with open(configname, 'w') as fh:
-            yaml.dump(sconf, fh)
-        with open(configname, 'r') as fh:
-            sconf = fh.read()
-            sconf = sconf.replace("'", '')
-        with open(configname, 'w') as fh:
-            fh.write(sconf)
+            fh.write(sconf.replace("'", ''))
             
         # Go!
         success = False
