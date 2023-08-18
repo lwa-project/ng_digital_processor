@@ -607,8 +607,8 @@ class Snap2MonitorClient(object):
     @lru_cache(maxsize=4)
     def get_samples_all(self, slot, nsamps=None):
         """Returns an NDArray of shape (stand,pol,sample)"""
-        samps0 = self.snap.adp.get_snapshot_interleaved(0, signed=True, trigger=True)
-        samps1 = self.snap.adp.get_snapshot_interleaved(1, signed=True, trigger=False)
+        samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
+        samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
         samps = np.vstack([samps0, samps1])
         
         return samps.reshape(32,2,-1)
