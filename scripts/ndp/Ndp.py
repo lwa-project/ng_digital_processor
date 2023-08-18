@@ -684,13 +684,14 @@ class Snap2MonitorClient(object):
         ### Antenna and IP source
         for i,snap in enumerate(self.config['host']['snaps']):
             sconf['fengines'][snap] = {}
-            sconf['fengines'][snap]['ants'] = str([i*32, (i+1)*32])
+            sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
             sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
             sconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
             
         ### X-engine MAC addresses
         macs = load_ethers()
-        sconf['xengines']['arp'].update(macs)
+        for ip,mac in macs.items():
+            sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
         
         ### X-engine channel mapping
         i = 0
@@ -700,10 +701,9 @@ class Snap2MonitorClient(object):
                 
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = 10000*(i%2+1)
+            port = 10000*(i//2+1)
         
-            sconf['xengines']['chans'][f"{ip}-{port}"] = str([chan0, chan0+nchan])
-                
+            sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]")
             i += 1
             
         ### Save
@@ -1590,6 +1590,7 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_TUNING # Note: (NDP only)
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
             spectra = self.snaps.get_spectra()
+            self.log.info(str(spectra.shape))
             freq = np.arange(spectra.shape[0]) * CHAN_BW
             np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
             return '/tmp/health_check.npz'
