@@ -1599,7 +1599,6 @@ class MsgProcessor(ConsumerThread):
             spectra = self.snaps.get_spectra()
             spectra = np.array(list(spectra))
             spectra = spectra.reshape(-1, spectra.shape[-1])
-            self.log.info(str(spectra.shape))
             freq = np.arange(spectra.shape[-1]) * CHAN_BW
             np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
             return '/tmp/health_check.npz'
