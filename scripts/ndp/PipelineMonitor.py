@@ -428,7 +428,7 @@ class BifrostRemotePipeline(BifrostPipeline):
             self._corr_active = False
 
 if __name__ == "__main__":
-    pipes = BifrostPipelines('adp1')
+    pipes = BifrostPipelines('ndp1')
     for pipe in pipes.pipelines():
         print(pipe, pipe.is_alive(), pipe.rx_rate(), pipe.rx_loss(), pipe.tx_rate())
     
