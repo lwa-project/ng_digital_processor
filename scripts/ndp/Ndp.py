@@ -1380,7 +1380,7 @@ class MsgProcessor(ConsumerThread):
             slot = MCS2.get_current_slot()
             
             # Note: Actually just flattening lists, not summing
-            server_temps = sum(list(self.servers.get_temperatures(slot).values()), [])
+            server_temps = sum([v for v in self.servers.get_temperatures(slot).values()], [])
             # Remove error values before reducing
             server_temps = [val for val in server_temps if not math.isnan(val)]
             if len(server_temps) == 0: # If all values were nan (exceptional!)
