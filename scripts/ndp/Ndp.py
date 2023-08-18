@@ -588,7 +588,7 @@ class Snap2MonitorClient(object):
         self.config = config
         self.log    = log
         self.num    = num
-        self.host   = f"snap{self.num}"
+        self.host   = f"snap{self.num:02d}"
         self.snap   = snap2_fengine.Snap2Fengine(self.host)
         
         self.equalizer_coeffs = None
