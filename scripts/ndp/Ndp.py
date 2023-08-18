@@ -708,8 +708,9 @@ class Snap2MonitorClient(object):
             
         ### Save
         configname = '/tmp/snap_config.yaml'
-        yaml.dump(sconf, configname)
-        
+        with open(configname, 'w') as fh:
+            yaml.dump(sconf, fh)
+            
         # Go!
         success = False
         if self.snap.is_connected and self.snap.fpga.is_programmed():
@@ -1410,6 +1411,12 @@ class MsgProcessor(ConsumerThread):
                     
             # Note: Actually just flattening lists, not summing
             snap_temps  = sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
+            # Save to the logfile
+            try:
+                with open('/home/ndp/log/snap.txt', 'a') as fh:
+                    fh.write("%s,%s,%s\n" % (time.time(), *snap_temps))
+            except OSError:
+                pass
             # Remove error values before reducing
             snap_temps  = [val for val in snap_temps  if not math.isnan(val)]
             if len(snap_temps) == 0: # If all values were nan (exceptional!)
