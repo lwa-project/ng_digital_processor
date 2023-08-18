@@ -1034,7 +1034,7 @@ class MsgProcessor(ConsumerThread):
         pipeline_pids = []
         for tuning in range(len(self.config['drx'])):
             pipeline_pids = [p for s in self.servers.pid_drx(tuning=tuning) for p in s]
-            pipeline_pids = filter(lambda x: x>0, pipeline_pids)
+            pipeline_pids = list(filter(lambda x: x>0, pipeline_pids))
             print('DRX-%i:' % tuning, len(pipeline_pids), pipeline_pids)
             if len(pipeline_pids) != len(self.servers):
                 self.log.error('Found %i DRX-%i pipelines running, expected %i', len(pipeline_pids), tuning, len(self.servers))
