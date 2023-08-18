@@ -2,7 +2,7 @@
 def data_to_hex(data):
     try:
         return data.hex()
-    except TypeError:
+    except (AttributeError, TypeError):
         return data.encode().hex()
             
 import queue
