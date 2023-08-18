@@ -1380,7 +1380,7 @@ class MsgProcessor(ConsumerThread):
             slot = MCS2.get_current_slot()
             
             # Note: Actually just flattening lists, not summing
-            server_temps = sum([v for v in self.servers.get_temperatures(slot).values()], [])
+            server_temps = sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
             # Remove error values before reducing
             server_temps = [val for val in server_temps if not math.isnan(val)]
             if len(server_temps) == 0: # If all values were nan (exceptional!)
@@ -1533,7 +1533,7 @@ class MsgProcessor(ConsumerThread):
         if key == 'SUBSYSTEM':         return SUBSYSTEM
         if key == 'SERIALNO':          return self.serial_number
         if key == 'VERSION':           return self.version
-        if key == 'SNAP_CONFIG':      return self._get_snap_config()
+        if key == 'SNAP_CONFIG':       return self._get_snap_config()
         if key == 'TENGINE_CONFIG':    return self._get_tengine_config()
         # TODO: TBF_STATUS
         #       TBF_TUNING_MASK
