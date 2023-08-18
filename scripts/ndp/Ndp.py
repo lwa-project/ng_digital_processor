@@ -1598,7 +1598,7 @@ class MsgProcessor(ConsumerThread):
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
             spectra = self.snaps.get_spectra()
             self.log.info(str(spectra.shape))
-            freq = np.arange(spectra.shape[1]) * CHAN_BW
+            freq = np.arange(spectra[0].shape[1]) * CHAN_BW
             np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
             return '/tmp/health_check.npz'
         if args[0] == 'BOARD':
