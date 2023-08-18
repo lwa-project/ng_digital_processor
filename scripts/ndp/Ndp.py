@@ -683,6 +683,7 @@ class Snap2MonitorClient(object):
         
         ### Antenna and IP source
         for i,snap in enumerate(self.config['host']['snaps']):
+            sconf['fengines'][snap] = {}
             sconf['fengines'][snap]['ants'] = [i*32, (i+1)*32]
             sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
             sconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
@@ -1403,7 +1404,7 @@ class MsgProcessor(ConsumerThread):
                                                                 'Server temperature warning')
                     
             # Note: Actually just flattening lists, not summing
-            snap_temps  = sum(self.snaps.get_temperatures(slot).values(), [])
+            snap_temps  = sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
             # Remove error values before reducing
             snap_temps  = [val for val in snap_temps  if not math.isnan(val)]
             if len(snap_temps) == 0: # If all values were nan (exceptional!)
