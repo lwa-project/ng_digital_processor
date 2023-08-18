@@ -741,7 +741,9 @@ class Snap2MonitorClient(object):
             
             for i in range(4):
                 spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
-        return np.array(spectra)
+        spectra = np.array(list(spectra))
+        spectra = spectra.reshape(-1, spectra.shape[-1])
+        return spectra
         
     # TODO: Configure channel selection (based on FST)
     # TODO: start/stop data flow (remember to call snap.reset() before start)
@@ -1596,7 +1598,7 @@ class MsgProcessor(ConsumerThread):
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
             spectra = self.snaps.get_spectra()
             self.log.info(str(spectra.shape))
-            freq = np.arange(spectra.shape[0]) * CHAN_BW
+            freq = np.arange(spectra.shape[1]) * CHAN_BW
             np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
             return '/tmp/health_check.npz'
         if args[0] == 'BOARD':
