@@ -703,7 +703,7 @@ class Snap2MonitorClient(object):
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = 10000*(i//2+1)
         
-            sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]")
+            sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
             i += 1
             
         ### Save
