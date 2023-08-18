@@ -690,7 +690,7 @@ class Snap2MonitorClient(object):
             
         ### X-engine MAC addresses
         macs = load_ethers()
-        sconfig['xengines']['arp'].update(macs)
+        sconf['xengines']['arp'].update(macs)
         
         ### X-engine channel mapping
         for i,ip in enumerate(macs.keys()):
@@ -699,11 +699,11 @@ class Snap2MonitorClient(object):
                 nchan = int(round(self.config['drx'][2*i + j]['capture_bandwidth'] / CHAN_BW))
                 port = 10000*(i+1)
             
-                sconfig['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
+                sconf['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
                 
         ### Save
         configname = '/tmp/snap_config.yaml'
-        yaml.dump(sconfig, configname)
+        yaml.dump(sconf, configname)
         
         # Go!
         success = False
