@@ -11,9 +11,9 @@
 
 192.168.40.10 ndp-data1
 192.168.40.11 ndp1-data1
-192.168.40.12 ndp2-data2
+192.168.40.12 ndp2-data1
 192.168.40.210 ndp-data2
-192.168.40.211 ndp1-data1
+192.168.40.211 ndp1-data2
 192.168.40.212 ndp2-data2
 
 # The following lines are desirable for IPv6 capable hosts
