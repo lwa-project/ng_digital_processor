@@ -698,12 +698,11 @@ class Snap2MonitorClient(object):
             if ip in ('192.168.40.10', '192.168.40.210'):
                 continue
                 
-            for j in range(2):
-                chan0 = self.config['drx'][2*i + j]['first_channel']
-                nchan = int(round(self.config['drx'][2*i + j]['capture_bandwidth'] / CHAN_BW))
-                port = 10000*(i+1)
-            
-                sconf['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
+            chan0 = self.config['drx'][i]['first_channel']
+            nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
+            port = 10000*(i%2+1)
+        
+            sconf['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
                 
             i += 1
             
