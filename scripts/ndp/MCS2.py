@@ -155,7 +155,10 @@ class Msg(object):
         response = 'A' if accept else 'R'
         msg.data = response + str(status).rjust(7)
         msg.data = msg.data.encode()
-        data = data.encode()
+        try:
+            data = data.encode()
+        except AttributeError:
+            pass
         msg.data = msg.data+data
         return msg
     def is_valid(self):
@@ -179,7 +182,10 @@ class Msg(object):
                str(self.mpm      ).rjust(9) +
                ' ')
         pkt = pkt.encode()
-        self.data = self.data.encode()
+        try:
+            self.data = self.data.encode()
+        except AttributeError:
+            pass
         return pkt+self.data
 
 class MsgReceiver(UDPRecvThread):
@@ -220,7 +226,7 @@ class MsgSender(ConsumerThread):
         msg.src  = self.subsystem
         try:
             pkt      = msg.encode()
-        except UnicodeDecodeError:
+        except AttributeError:
             pkt      = msg.data
         dst_ip   = msg.dst_ip if msg.dst_ip is not None else self.dst_ip
         dst_addr = (dst_ip, self.dst_port)
@@ -311,19 +317,11 @@ class Synchronizer(object):
         self.socket.connect(addr)
         self.socket.settimeout(10) # Prevent recv() from blocking indefinitely
         msg = 'GROUP:'+str(group)
-        try:
-            msg = msg.encode()
-        except AttributeError:
-            # Python2 catch
-            pass
+        msg = msg.encode()
         self.socket.send(msg)
     def __call__(self, tag=None):
         msg = 'TAG:'+str(tag)
-        try:
-            msg = msg.encode()
-        except AttributeError:
-            # Python2 catch
-            pass
+        msg = msg.encode()
         self.socket.send(msg)
         reply = self.socket.recv(4096)
         try:
