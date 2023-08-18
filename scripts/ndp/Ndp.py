@@ -684,7 +684,7 @@ class Snap2MonitorClient(object):
         ### Antenna and IP source
         for i,snap in enumerate(self.config['host']['snaps']):
             sconf['fengines'][snap] = {}
-            sconf['fengines'][snap]['ants'] = [i*32, (i+1)*32]
+            sconf['fengines'][snap]['ants'] = str([i*32, (i+1)*32])
             sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
             sconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
             
@@ -702,7 +702,7 @@ class Snap2MonitorClient(object):
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = 10000*(i%2+1)
         
-            sconf['xengines']['chans'][f"{ip}-{port}"] = [chan0, chan0+nchan]
+            sconf['xengines']['chans'][f"{ip}-{port}"] = str([chan0, chan0+nchan])
                 
             i += 1
             
@@ -1589,7 +1589,7 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_GAIN
         #  BEAM%i_TUNING # Note: (NDP only)
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
-            spectra = self.snaps.spectra()
+            spectra = self.snaps.get_spectra()
             freq = np.arange(spectra.shape[0]) * CHAN_BW
             np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
             return '/tmp/health_check.npz'
