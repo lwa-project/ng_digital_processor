@@ -98,9 +98,9 @@
         "data_ports":      [4015, 4016, 4017, 4018],
         "data_ifaces":     ["p5p1", "p5p1", "p5p1", "p5p1"],
         "startup_timeout": 240,
-        "temperatures": ["CPU1 Temperature", "CPU2 Temperature",
-                         "TR1 Temperature",  "TR2 Temperature",
-                         "PSU1 Temperature", "PSU2 Temperature"],
+        "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
+                         "SYS_Air_Inlet",  "SYS_Air_Outlet",
+                         "PSU0_Temp", "PSU1_Temp"],
         "temperature_warning":  80.0,
         "temperature_shutdown": 85.0,
         "temperature_scram":    90.0
