@@ -679,7 +679,7 @@ class Snap2MonitorClient(object):
                  
         ### Equalizer coefficints (global)
         if self.equalizer_coeffs is not None:
-            sconf['fengines']['eq_coeffs'] = list(equalizer_coeffs)
+            sconf['fengines']['eq_coeffs'] = list(self.equalizer_coeffs)
         
         ### Antenna and IP source
         for i,snap in enumerate(self.config['host']['snaps']):
@@ -1589,12 +1589,17 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_GAIN
         #  BEAM%i_TUNING # Note: (NDP only)
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
+            t_now = datetime.datetime.utcnow()
             spectra = self.snaps.get_spectra()
             spectra = np.array(list(spectra))
             spectra = spectra.reshape(-1, spectra.shape[-1])
-            freq = np.arange(spectra.shape[-1]) * CHAN_BW
-            np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
-            return '/tmp/health_check.npz'
+            spectra = spectra.astype(np.float32)
+            
+            checkname = f"/tmp/{t_now.strftime("%y%m%d_%H%M%S")}_snapspecs.dat"
+            with open(checkname, 'wb') as fh:
+                fh.write(struct.pack('ll'), spectra.shape[0]//2, spectra.shape[1])
+                spectra.tofile(fh)
+            return checkname
         if args[0] == 'BOARD':
             board = args[1]-1
             if not (0 <= board < NBOARD):
