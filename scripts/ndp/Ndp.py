@@ -741,7 +741,7 @@ class Snap2MonitorClient(object):
             
             for i in range(4):
                 spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
-        spectra = np.array(list(spectra))
+        spectra = np.array(spectra)
         spectra = spectra.reshape(-1, spectra.shape[-1])
         return spectra
         
@@ -1597,8 +1597,10 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_TUNING # Note: (NDP only)
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
             spectra = self.snaps.get_spectra()
+            spectra = np.array(spectra)
+            spectra = spectra.reshape(-1, spectra.shape[-1])
             self.log.info(str(spectra.shape))
-            freq = np.arange(spectra[0].shape[1]) * CHAN_BW
+            freq = np.arange(spectra.shape[1]) * CHAN_BW
             np.savez('/tmp/health_check.npz', freq=freq, spectra=spectra)
             return '/tmp/health_check.npz'
         if args[0] == 'BOARD':
