@@ -711,7 +711,7 @@ class Snap2MonitorClient(object):
         with open(configname, 'w') as fh:
             yaml.dump(sconf, fh)
         with open(configname, 'r') as fh:
-            sconf = sconf.read()
+            sconf = fh.read()
             sconf = sconf.replace("'", '')
         with open(configname, 'w') as fh:
             fh.write(sconf)
