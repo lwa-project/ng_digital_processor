@@ -15,7 +15,7 @@ TYPE = "SSLOG"
 
 # Send the update to lwalab
 r = os.path.realpath(sys.argv[1])
-f = signed_post(LWA_AUTH_KEYS.get('adp', kind='private'), URL,
+f = signed_post(LWA_AUTH_KEYS.get('ndp', kind='private'), URL,
                 data={'site': SITE, 'type': TYPE, 'subsystem': 'NDP'},
                 files={'file': open(r, 'rb')},
                 verify=False) # We don't have a certiticate for lda10g.unm.edu
