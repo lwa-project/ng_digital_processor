@@ -14,6 +14,7 @@ from .iptools    import *
 from . import ISC
 
 from lwa_f import snap2_fengine
+from .FileLock import FileLock
 
 from queue import Queue
 import numpy as np
@@ -597,18 +598,23 @@ class Snap2MonitorClient(object):
         except Exception as e:
             self.log.warning("Failed to load equalizer coefficients: %s", str(e))
             
-    def unprogram(self, reboot=False):
-        if self.snap.is_connected:
-            self.snap.deprogram()
-            
-    def get_samples(self, slot, stand, pol, nsamps=None):
-        return self.get_samples_all(slot, nsamps)[stand,pol]
+        self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
         
+    def unprogram(self, reboot=False):
+        with self.access_lock:
+            if self.snap.is_connected:
+                self.snap.deprogram()
+                
+    def get_samples(self, slot, stand, pol, nsamps=None):
+        with self.access_lock:
+            return self.get_samples_all(slot, nsamps)[stand,pol]
+            
     @lru_cache(maxsize=4)
     def get_samples_all(self, slot, nsamps=None):
         """Returns an NDArray of shape (stand,pol,sample)"""
-        samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
-        samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
+        with self.access_lock:
+            samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
+            samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
         samps = np.vstack([samps0, samps1])
         
         return samps.reshape(32,2,-1)
@@ -617,23 +623,25 @@ class Snap2MonitorClient(object):
     def get_temperatures(self, slot):
         # Return a dictionary of temperatures on the Snap2 board
         temp = {'error': float('nan')}
-        if self.snap.is_connected:
-            try:
-                summary, flags = self.snap.fpga.get_status()
-                temp = {'fpga': summary['temp']}
-            except Exception as e:
-                pass
+        with self.access_lock:
+            if self.snap.is_connected:
+                try:
+                    summary, flags = self.snap.fpga.get_status()
+                    temp = {'fpga': summary['temp']}
+                except Exception as e:
+                    pass
         return temp
         
     @lru_cache(maxsize=4)
     def get_clock_rate(self):
         # Estimate the FPGA clock rate in MHz
         rate = float('nan')
-        if self.snap.is_connected:
-            try:
-                rate = self.snap.fpga.get_fpga_clock()
-            except Exception as e:
-                pass
+        with self.access_lock:
+            if self.snap.is_connected:
+                try:
+                    rate = self.snap.fpga.get_fpga_clock()
+                except Exception as e:
+                    pass
         return rate
         
     def program(self):
@@ -644,26 +652,28 @@ class Snap2MonitorClient(object):
         
         # Go!
         success = False
-        if self.snap.is_connected:
-            for i in range(self.config['snap']['max_program_attempts']):
-                try:
-                    self.snap.program(firmware)
-                    sucesss = True
-                    break
-                except Exception as e:
-                    pass
-                    
+        with self.access_lock:
+            if self.snap.is_connected:
+                for i in range(self.config['snap']['max_program_attempts']):
+                    try:
+                        self.snap.program(firmware)
+                        sucesss = True
+                        break
+                    except Exception as e:
+                        pass
+                        
         return success
         
     def is_programmed(self):
         # Has the FPGA been programmed?
         
         status = False
-        if self.snap.is_connected:
-            try:
-                status = self.snap.fpga.is_programmed()
-            except Exception as e:
-                pass
+        with self.access_lock:
+            if self.snap.is_connected:
+                try:
+                    status = self.snap.fpga.is_programmed()
+                except Exception as e:
+                    pass
         return status
         
     def configure(self):
@@ -711,15 +721,16 @@ class Snap2MonitorClient(object):
             
         # Go!
         success = False
-        if self.snap.is_connected and self.snap.fpga.is_programmed():
-            for i in range(self.config['snap']['max_program_attempts']):
-                try:
-                    self.snap.cold_start_from_config(configname) 
-                    sucesss = True
-                    break
-                except Exception as e:
-                    pass
-                    
+        with self.access_lock:
+            if self.snap.is_connected and self.snap.fpga.is_programmed():
+                for i in range(self.config['snap']['max_program_attempts']):
+                    try:
+                        self.snap.cold_start_from_config(configname) 
+                        sucesss = True
+                        break
+                    except Exception as e:
+                        pass
+                        
         return success
         
     def get_spectra(self, t_int=0.1):
@@ -728,12 +739,13 @@ class Snap2MonitorClient(object):
         acc_len = int(round(CHAN_BW * t_int))
         
         spectra = []
-        if self.snap.is_connected and self.snap.fpga.is_programmed():
-            self.snap.autocorr.set_acc_len(acc_len)
-            time.sleep(t_int+0.1)
-            
-            for i in range(4):
-                spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
+        with self.access_lock:
+            if self.snap.is_connected and self.snap.fpga.is_programmed():
+                self.snap.autocorr.set_acc_len(acc_len)
+                time.sleep(t_int+0.1)
+                
+                for i in range(4):
+                    spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
         spectra = np.array(spectra)
         spectra = spectra.reshape(-1, spectra.shape[-1])
         return spectra
@@ -1411,12 +1423,6 @@ class MsgProcessor(ConsumerThread):
                     
             # Note: Actually just flattening lists, not summing
             snap_temps  = sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
-            # Save to the logfile
-            try:
-                with open('/home/ndp/log/snap.txt', 'a') as fh:
-                    fh.write("%s,%s,%s\n" % (time.time(), *snap_temps))
-            except OSError:
-                pass
             # Remove error values before reducing
             snap_temps  = [val for val in snap_temps  if not math.isnan(val)]
             if len(snap_temps) == 0: # If all values were nan (exceptional!)
