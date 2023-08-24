@@ -77,13 +77,14 @@ class SlotCommandProcessor(object):
 
 class DrxCommand(object):
     def __init__(self, msg):
-        self.beam, self.tuning, self.freq, self.filt, self.gain \
-            = struct.unpack('>BBfBh', msg.data)
+        self.beam, self.tuning, self.freq, self.filt, self.gain self.subslot \
+            = struct.unpack('>BBfBhB', msg.data)
         assert( 1 <= self.beam <= 4 )
         assert( 1 <= self.tuning <= 2 )
         # TODO: Check allowed range of freq
-        assert( 0 <= self.filt   <= 8 )
-        assert( 0 <= self.gain   <= 15 )
+        assert( 0 <= self.filt    <= 8 )
+        assert( 0 <= self.gain    <= 15 )
+        assert( 0 <= self.subslot <= 99)
 
 
 class Drx(SlotCommandProcessor):
@@ -118,20 +119,20 @@ class Drx(SlotCommandProcessor):
             
         return rets
         
-    def start(self, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1):
+    def start(self, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Starting DRX %i data: freq=%f,filt=%i,gain=%i" % (tuning, freq,filt,gain))
+        self.log.info("Starting DRX %i data: freq=%f,filt=%i,gain=%i,subslot=%i" % (tuning, freq,filt,gain,subslot))
         
-        self.messenger.drxConfig(beam, tuning, freq, filt, gain)
+        self.messenger.drxConfig(beam, tuning, freq, filt, gain, subslot)
         
         return rets
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain)
+            self.start(cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain, cmd.subslot)
             
     def stop(self):
         self.log.info("Stopping DRX data")

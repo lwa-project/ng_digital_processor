@@ -390,9 +390,9 @@ class TEngineOp(object):
             if beam != self.beam:
                 return False
                 
-            ## Set the configuration time - DRX commands are for the first slot in the next second
-            slot = 0 / 100.0
-            config_time = int(time.time()) + 1 + slot
+            ## Set the configuration time - DRX commands are for the specified subslot in the next second
+            subslot = config[-1] / 100.0
+            config_time = int(time.time()) + 1 + subslot
             
             ## Is this command from the future?
             if pipeline_time < config_time:
@@ -423,7 +423,7 @@ class TEngineOp(object):
                 
         if config:
             self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[0], config[1], (pipeline_time-config_time)*100.0)
-            beam, tuning, freq, filt, gain = config
+            beam, tuning, freq, filt, gain, subslot = config
             if beam != self.beam:
                 self.log.info("TEngine: Not for this beam, skipping")
                 return False

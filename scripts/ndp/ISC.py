@@ -109,7 +109,7 @@ class PipelineMessageServer(object):
         
         self.socket.send_string('TBN %.6f %i %i' % (frequency, filter, gain))
         
-    def drxConfig(self, beam, tuning, frequency, filter, gain):
+    def drxConfig(self, beam, tuning, frequency, filter, gain, subslot):
         """
         Send DRX configuration information out to the clients.  This 
         includes:
@@ -118,9 +118,10 @@ class PipelineMessageServer(object):
           * frequency in Hz
           * filter code
           * gain setting
+          * execution subslot
         """
         
-        self.socket.send_string('DRX %i %i %.6f %i %i' % (beam, tuning, frequency, filter, gain))
+        self.socket.send_string('DRX %i %i %.6f %i %i' % (beam, tuning, frequency, filter, gain, subslot))
         
     def bamConfig(self, beam, delays, gains, subslot):
         """
