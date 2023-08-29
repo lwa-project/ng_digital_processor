@@ -18,7 +18,7 @@
     "host": {
         "servers": ["ndp1", "ndp2"],
         "snaps": ["snap01", "snap02"],
-        "servers-data": ["mcg40s1-data1", "mcg40s1-data2", "mcg40s2-data1", "mcg40s2-data2"],
+        "servers-data": ["enp129s0", "enp1s0", "enp129s0", "enp1s0"],
         "tengines": ["ndp-data1", "ndp-data1", "ndp-data2", "ndp-data2"]
     },
     "ipmi": {
@@ -96,7 +96,7 @@
         "gpu_ids":         [0, 1],
         "disk_ids":        ["/"],
         "data_ports":      [4015, 4016, 4017, 4018],
-        "data_ifaces":     ["p5p1", "p5p1", "p5p1", "p5p1"],
+        "data_ifaces":     ["enp129s0", "enp1s0", "enp129s0", "enp1s0"],
         "startup_timeout": 240,
         "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
                          "SYS_Air_Inlet",  "SYS_Air_Outlet",
@@ -150,27 +150,27 @@
     ],
     "recorder": [
                 {
-                    "host":              "mcg40-dr1", 
+                    "host":              "192.168.40.41",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "mcg40-dr2", 
+                    "host":              "192.168.40.42",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "mcg40-dr3", 
+                    "host":              "192.168.40.43",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "mcg40-dr4", 
+                    "host":              "192.168.40.44",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "orville",
+                    "host":              "192.168.40.45"
                     "port":              11000,
                     "max_bytes_per_sec": 104851000
                 }
