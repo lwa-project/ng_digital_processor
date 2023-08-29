@@ -466,15 +466,19 @@ class BeamformerOp(object):
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
         self.ldata = BFArray(shape=self.bdata.shape, dtype=self.bdata.dtype, space='cuda_host')
         
-        ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
-        hostname = socket.gethostname()
-        cgainsFile = '/home/ndp/complexGains_%s.npz' % hostname
-        self.complexGains = np.load(cgainsFile)['cgains'][:,:8,:,:]
-	
-        ##Figure out which indices to pull for the given tuning
-        good = np.where(np.arange(self.complexGains.shape[1]) // 2 % 2 == self.tuning)[0]
-        self.complexGains = self.complexGains[:,good,:,:]
-
+        try:
+            ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
+            hostname = socket.gethostname()
+            cgainsFile = '/home/ndp/complexGains_%s.npz' % hostname
+            self.complexGains = np.load(cgainsFile)['cgains'][:,:8,:,:]
+    	
+            ##Figure out which indices to pull for the given tuning
+            good = np.where(np.arange(self.complexGains.shape[1]) // 2 % 2 == self.tuning)[0]
+            self.complexGains = self.complexGains[:,good,:,:]
+        except Exception as e:
+            self.log.error("Error loading custom beamforming coefficients: %s", str(e))
+            self.complexGains = None
+            
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
 
         if self.gpu != -1:
@@ -535,7 +539,7 @@ class BeamformerOp(object):
                     self.cgains[2*(beam-1)+0,:,:] = self.complexGains[pointing-1,2*(beam-1)+0,:,:]
                     self.cgains[2*(beam-1)+1,:,:] = self.complexGains[pointing-1,2*(beam-1)+1,:,:]
                     self.log.info("Beamformer: Custom complex gains set for pointing number %i of beam %i", pointing, beam)
-                except IndexError:
+                except (TypeError, IndexError):
                     self.cgains[2*(beam-1)+0,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
                     self.cgains[2*(beam-1)+1,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
                     self.log.info("Beamformer: Ran out of pointings...setting complex gains to zero.")
