@@ -1,23 +1,40 @@
 127.0.0.1 localhost
 
+# Management network
 169.254.128.1  ndp0 ndp
 169.254.128.11 ndp1
 169.254.128.12 ndp2
 
+# Management IPMI
 169.254.128.31 ndp1-ipmi
 169.254.128.32 ndp2-ipmi
 
+# SNAP2 ethernet
 169.254.128.101 snap01
 169.254.128.102 snap02
 
+# Switch management
 169.254.128.150 arista
 
-192.168.40.10 ndp-data1
+# Data network
+192.168.40.10 ndp0-data1 ndp-data1
 192.168.40.11 ndp1-data1
 192.168.40.12 ndp2-data1
-192.168.40.210 ndp-data2
+192.168.40.210 ndp0-data2 ndp-data2
 192.168.40.211 ndp1-data2
 192.168.40.212 ndp2-data2
+192.168.40.41 dr1
+192.168.40.42 dr2
+192.168.40.43 dr3
+192.168.40.44 dr4
+192.168.40.46 orville
+
+# Multicast data network
+239.168.40.41   mcg40s41-data mcg40-dr1
+239.168.40.42   mcg40s42-data mcg40-dr2
+239.168.40.43   mcg40s43-data mcg40-dr3
+239.168.40.44   mcg40s44-data mcg40-dr4
+239.168.40.46   mcg40s46-data mcg40-orville
 
 # The following lines are desirable for IPv6 capable hosts
 ::1     ip6-localhost ip6-loopback
