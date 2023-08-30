@@ -1012,7 +1012,7 @@ class RetransmitOp(object):
                 sdata = idata.transpose(2,0,1,3)
                 sdata = sdata.copy()
                 for i,udt in enumerate(udts):
-                    bdata = bdata[i,:,:,:]
+                    bdata = sdata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,nchan*npol)
                     try:
                         udt.send(desc, seq, 1, self.server-1, 1, bdata)
