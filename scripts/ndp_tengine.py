@@ -721,7 +721,7 @@ class PacketizeOp(object):
         
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
-        with UDPTransmit('drx8', sock=self.osock, core=self.core) as udt:
+        with UDPTransmit('drx', sock=self.osock, core=self.core) as udt:
             desc0 = HeaderInfo()
             desc1 = HeaderInfo()
             
