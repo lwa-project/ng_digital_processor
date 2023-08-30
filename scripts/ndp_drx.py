@@ -57,29 +57,24 @@ class CaptureOp(object):
         self.log    = log
         self.args   = args
         self.kwargs = kwargs
-        self.utc_start = self.kwargs['utc_start']
-        del self.kwargs['utc_start']
+        self.nsnap = self.kwargs['nsnap']
+        del self.kwargs['nsnap']
         self.shutdown_event = threading.Event()
-        ## HACK TESTING
-        #self.seq_callback = None
     def shutdown(self):
         self.shutdown_event.set()
     def seq_callback(self, seq0, chan0, nchan, nsrc,
                      time_tag_ptr, hdr_ptr, hdr_size_ptr):
-        timestamp0 = int((self.utc_start - NDP_EPOCH).total_seconds())
-        time_tag0  = timestamp0 * int(FS)
-        time_tag   = time_tag0 + seq0*(int(FS)//int(CHAN_BW))
+        time_tag = time_tag_ptr[0]
         print("++++++++++++++++ seq0     =", seq0)
         print("                 time_tag =", time_tag)
-        time_tag_ptr[0] = time_tag
+        nchan = nchan * (self.kwargs['nsrc'] // self.nsnap)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
                'nchan':    nchan,
                'cfreq':    (chan0 + 0.5*(nchan-1))*CHAN_BW,
                'bw':       nchan*CHAN_BW,
-               'nstand':   nsrc*32,
-               #'stand0':   src0*32, # TODO: Pass src0 to the callback too(?)
+               'nstand':   nsnap*32,
                'npol':     2,
                'complex':  True,
                'nbit':     4}
@@ -466,15 +461,19 @@ class BeamformerOp(object):
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
         self.ldata = BFArray(shape=self.bdata.shape, dtype=self.bdata.dtype, space='cuda_host')
         
-        ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
-        hostname = socket.gethostname()
-        cgainsFile = '/home/ndp/complexGains_%s.npz' % hostname
-        self.complexGains = np.load(cgainsFile)['cgains'][:,:8,:,:]
-	
-        ##Figure out which indices to pull for the given tuning
-        good = np.where(np.arange(self.complexGains.shape[1]) // 2 % 2 == self.tuning)[0]
-        self.complexGains = self.complexGains[:,good,:,:]
-
+        try:
+            ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
+            hostname = socket.gethostname()
+            cgainsFile = '/home/ndp/complexGains_%s.npz' % hostname
+            self.complexGains = np.load(cgainsFile)['cgains'][:,:8,:,:]
+    	
+            ##Figure out which indices to pull for the given tuning
+            good = np.where(np.arange(self.complexGains.shape[1]) // 2 % 2 == self.tuning)[0]
+            self.complexGains = self.complexGains[:,good,:,:]
+        except Exception as e:
+            self.log.warn("Failed to load custom beamforming coefficients: %s", str(e))
+            self.complexGains = None
+            
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
 
         if self.gpu != -1:
@@ -535,7 +534,7 @@ class BeamformerOp(object):
                     self.cgains[2*(beam-1)+0,:,:] = self.complexGains[pointing-1,2*(beam-1)+0,:,:]
                     self.cgains[2*(beam-1)+1,:,:] = self.complexGains[pointing-1,2*(beam-1)+1,:,:]
                     self.log.info("Beamformer: Custom complex gains set for pointing number %i of beam %i", pointing, beam)
-                except IndexError:
+                except (TypeError, IndexError):
                     self.cgains[2*(beam-1)+0,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
                     self.cgains[2*(beam-1)+1,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
                     self.log.info("Beamformer: Ran out of pointings...setting complex gains to zero.")
@@ -606,12 +605,13 @@ class BeamformerOp(object):
                 
                 self.sequence_proclog.update(ihdr)
                 
+                status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
+                
+                self.log.info("Beamformer: Start of new sequence: %s", str(ihdr))
+                
                 nchan  = ihdr['nchan']
                 nstand = ihdr['nstand']
                 npol   = ihdr['npol']
-                
-                status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
-                
                 igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
                 ogulp_size = self.ntime_gulp*nchan*self.nbeam_max*npol*8    # complex64
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
@@ -1010,7 +1010,8 @@ class RetransmitOp(object):
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 idata = idata.reshape(self.ntime_gulp,1,nchan,nstand,npol)
                 for i,udt in enumerate(udts):
-                    sdata = idata[:,[0],:,[i],:]
+                    sdata = idata[:,[0],:,i,:]
+                    sdata = sdata.reshape(-1,1,nchan*npol)
                     sdata = sdata.copy()
                     try:
                         udt.send(desc, seq, 1, self.server-1, 1, sdata)
@@ -1264,11 +1265,7 @@ def main(argv):
                 signal.SIGTERM,
                 signal.SIGTSTP]:
         signal.signal(sig, handle_signal_terminate)
-    
-    log.info("Waiting to get UTC_START")
-    utc_start_dt = get_utc_start(shutdown_event)
-    log.info("UTC_START:    %s", utc_start_dt.strftime(DATE_FORMAT))
-    
+        
     hostname = socket.gethostname()
     try:
         server_idx = get_numeric_suffix(hostname) - 1
@@ -1307,6 +1304,7 @@ def main(argv):
     nsnap_tot = len(config['host']['snaps'])
     nserver    = len(config['host']['servers'])
     nsnap, snap0 = nsnap_tot, 0
+    nstand = nsnap*32
     nbeam = drxConfig['beam_count']
     cores = drxConfig['cpus']
     gpus  = drxConfig['gpus']
@@ -1347,35 +1345,35 @@ def main(argv):
         tsocks.append( UDPSocket() )
         tsocks[-1].connect(ctaddr)
         
-    nchan_max = int(round(drxConfig['capture_bandwidth']/CHAN_BW/nserver))
-    tbf_bw_max    = obw/nserver/ntuning
-    cor_bw_max    = vbw/nserver/ntuning
+    nchan_max  = int(round(drxConfig['capture_bandwidth']/CHAN_BW))
+    nsrc       = nchan_max // 96 * nsnap
+    tbf_bw_max = obw/ntuning
+    cor_bw_max = vbw//ntuning
     
     # TODO:  Figure out what to do with this resize
     GSIZE = 500
-    ogulp_size = GSIZE *nchan_max*256*2
-    obuf_size  = tbf_buffer_secs*25000 *nchan_max*256*2
+    ogulp_size = GSIZE *nchan_max*nstand*2
+    obuf_size  = tbf_buffer_secs*25000*nchan_max*nstand*2
     tbf_ring.resize(ogulp_size, obuf_size)
     
     ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
-                         nsrc=nsnap, src0=snap0, max_payload_size=9000,
-                         buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0),
-                         utc_start=utc_start_dt))
+                         nsrc=nsrc, nsnap=nsnap, src0=snap0, max_payload_size=6500,
+                         buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
     ops.append(CopyOp(log, capture_ring, tbf_ring,
                       tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
                       guarantee=False, core=cores.pop(0)))
-    ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbf_ring, 
+    ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbf_ring,
                                ntime_gulp=GSIZE, ntime_buf=int(25000*tbf_buffer_secs/2500)*2500,
-                               tuning=tuning, nchan_max=nchan_max, 
-                               core=cores.pop(0), 
+                               tuning=tuning, nchan_max=nchan_max,
+                               core=cores.pop(0),
                                max_bytes_per_sec=tbf_bw_max))
-    ops.append(BeamformerOp(log=log, iring=capture_ring, oring=tengine_ring, 
+    ops.append(BeamformerOp(log=log, iring=capture_ring, oring=tengine_ring,
                             tuning=tuning, ntime_gulp=GSIZE,
-                            nchan_max=nchan_max, nbeam_max=nbeam, 
+                            nsnap=nsnap, nchan_max=nchan_max, nbeam_max=nbeam,
                             core=cores.pop(0), gpu=gpus.pop(0)))
-    ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring, 
-                            tuning=tuning, nchan_max=nchan_max, 
-                            ntime_gulp=50, nbeam_max=nbeam, 
+    ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
+                            tuning=tuning, nchan_max=nchan_max,
+                            ntime_gulp=50, nbeam_max=nbeam,
                             core=cores.pop(0)))
     if tuning == 0:
         ccore = ops[2].core
@@ -1385,11 +1383,11 @@ def main(argv):
             pcore = ccore
         ops.append(CorrelatorOp(log=log, iring=capture_ring, oring=vis_ring, 
                                 tuning=tuning, ntime_gulp=GSIZE,
-                                nchan_max=nchan_max, 
+                                nsnap=nsnap, nchan_max=nchan_max,
                                 core=ccore, gpu=tuning))
         ops.append(PacketizeOp(log=log, iring=vis_ring, osock=vsock,
-                               tuning=tuning, nchan_max=nchan_max//4, npkt_gulp=1, 
-                               core=pcore, gpu=tuning,
+                               tuning=tuning, nsnap=nsnap, nchan_max=nchan_max//4,
+                               npkt_gulp=1, core=pcore, gpu=tuning,
                                max_bytes_per_sec=cor_bw_max))
         
     threads = [threading.Thread(target=op.main) for op in ops]
