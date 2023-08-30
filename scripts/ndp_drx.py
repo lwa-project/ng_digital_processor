@@ -89,7 +89,7 @@ class CaptureOp(object):
         return 0
     def main(self):
         seq_callback = PacketCaptureCallback()
-        seq_callback.set_chips(self.seq_callback)
+        seq_callback.set_snap2(self.seq_callback)
         with UDPCapture(*self.args,
                         sequence_callback=seq_callback,
                         **self.kwargs) as capture:
