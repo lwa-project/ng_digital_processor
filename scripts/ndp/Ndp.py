@@ -186,7 +186,7 @@ class BamCommand(object):
         self.beam = struct.unpack('>H', msg.data[0:2])[0]
         self.delays = np.ndarray((512,), dtype='>H', buffer=msg.data[2:1026])
         self.gains = np.ndarray((256,2,2), dtype='>H', buffer=msg.data[1026:3074])
-        self.subslot = struct.unpack('>B', msg.data[3074:3075])
+        self.subslot = struct.unpack('>B', msg.data[3074:3075])[0]
 
 
 class Bam(SlotCommandProcessor):
