@@ -93,9 +93,8 @@ class CaptureOp(object):
         self.shutdown_event.set()
     def seq_callback(self, seq0, chan0, nchan, nsrc,
                      time_tag_ptr, hdr_ptr, hdr_size_ptr):
-        timestamp0 = int((self.utc_start - NDP_EPOCH).total_seconds())
-        time_tag0  = timestamp0 * int(FS)
-        time_tag   = time_tag0 + seq0*(int(FS)//int(CHAN_BW))
+        time_tag = seq0 * 2*NCHAN # spectrum number -> samples
+        time_tag_ptr[0] = time_tag
         print("++++++++++++++++ seq0     =", seq0)
         print("                 time_tag =", time_tag)
         time_tag_ptr[0] = time_tag
@@ -105,7 +104,7 @@ class CaptureOp(object):
                'nchan':    nchan,
                'cfreq':    (chan0 + 0.5*(nchan-1))*CHAN_BW,
                'bw':       nchan*CHAN_BW,
-               'nstand':   nsrc,
+               'nstand':   1,
                'npol':     2,
                'complex':  True,
                'nbit':     32}
