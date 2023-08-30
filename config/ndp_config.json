@@ -18,7 +18,7 @@
     "host": {
         "servers": ["ndp1", "ndp2"],
         "snaps": ["snap01", "snap02"],
-        "servers-data": ["enp129s0", "enp1s0", "enp129s0", "enp1s0"],
+        "servers-data": ["ndp1-data1", "ndp1-data2", "ndp2-data1", "ndp2-data2"],
         "tengines": ["ndp-data1", "ndp-data1", "ndp-data2", "ndp-data2"]
     },
     "ipmi": {
@@ -45,8 +45,8 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbf_recorder_idx":  0,
                 "cor_recorder_idx":  4,
-                "cpus":              [0, 2, 3, 4, 5],
-                "gpus":              [0]
+                "cpus":              [15, 17, 18, 19, 20],
+                "gpus":              [1]
             },
             {
                 "first_channel":     2176,
@@ -67,7 +67,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbf_recorder_idx":  0,
                 "cor_recorder_idx":  4,
-                "cpus":              [8, 9, 10, 11, 12],
+                "cpus":              [15, 17, 18, 19, 20],
                 "gpus":              [1]
             }
     ],
@@ -95,8 +95,8 @@
         "cpu_ids":         [0, 1],
         "gpu_ids":         [0, 1],
         "disk_ids":        ["/"],
-        "data_ports":      [4015, 4016, 4017, 4018],
-        "data_ifaces":     ["enp129s0", "enp1s0", "enp129s0", "enp1s0"],
+        "data_ports":      [10000, 10000, 10000, 10000],
+        "data_ifaces":     ["enp1s0", "enp129s0", "enp1s0", "enp129s0"],
         "startup_timeout": 240,
         "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
                          "SYS_Air_Inlet",  "SYS_Air_Outlet",
@@ -113,6 +113,7 @@
         "fft_shift":            2047,
         "equalizer_coeffs":     "",
         "bypass_pfb":           false,
+        "nchan_packet":         96,
         "temperatures":         ["ambient", "ppc", "fpga", "inlet", "outlet"],
         "temperature_warning":  80.0,
         "temperature_shutdown": 85.0,
@@ -129,7 +130,7 @@
                 {
                     "pipeline_idx":      1,
                     "recorder_idx":      1,
-                    "cpus":              [8, 9, 10],
+                    "cpus":              [15, 17, 18],
                     "gpus":              [1],
                     "pfb_inverter":      true
                 },
@@ -143,34 +144,34 @@
                 {
                     "pipeline_idx":      3,
                     "recorder_idx":      3,
-                    "cpus":              [8, 9, 10],
+                    "cpus":              [15, 17, 18],
                     "gpus":              [1],
                     "pfb_inverter":      true
                 }
     ],
     "recorder": [
                 {
-                    "host":              "192.168.40.41",
+                    "host":              "dr1",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "192.168.40.42",
+                    "host":              "dr2",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "192.168.40.43",
+                    "host":              "dr3",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "192.168.40.44",
+                    "host":              "dr4",
                     "port":              10000,
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "192.168.40.45",
+                    "host":              "orville",
                     "port":              11000,
                     "max_bytes_per_sec": 104851000
                 }
