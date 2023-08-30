@@ -709,8 +709,8 @@ class CorrelatorOp(object):
         ## Start time reference
         if self.utc_start_dt is None:
             self.utc_start_dt = datetime.datetime.utcnow()
-        self.start_time_tag = calendar.timegm(self.utc_start_dt.timetuple())
-        self.start_time_tag = (self.start_time_tag // (2*CHAN_BW)) * 2*NCHAN
+        self.start_time_tag = calendar.timegm(self.utc_start_dt.timetuple()) * int(FS)
+        self.start_time_tag = int(round(self.start_time_tag // (2*CHAN_BW))) * 2*NCHAN
         ## Metadata
         self.decim = 4
         nchan = self.nchan_max
@@ -824,6 +824,8 @@ class CorrelatorOp(object):
                 sOffset = tOffset // (2*NCHAN)
                 if sOffset != 0:
                     sOffset = (self.navg_tt - tOffset) // (2*NCHAN)
+                    while sOffset > CHAN_BW:
+                        sOffset -= self.ntime_gulp * 2*NCHAN
                 bOffset = sOffset * nchan*nstand*npol
                 print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
                 
@@ -838,12 +840,12 @@ class CorrelatorOp(object):
                 self.oring.resize(ogulp_size)
                 
                 prev_time = time.time()
-                iseq_spans = iseq.read(igulp_size, begin=boffset)
+                iseq_spans = iseq.read(igulp_size, begin=bOffset)
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
                     nAccumulate = (base_time_tag - self.start_time_tag) % self.navg_tt
-                    if base_time_tag == last_time_tag:
+                    if base_time_tag == last_base_time_tag:
                         base_time_tag = base_time_tag + self.navg_tt
                         nAccumulate = -self.navg_tt
                     
@@ -1395,6 +1397,7 @@ def main(argv):
     for thread in threads:
         #thread.daemon = True
         thread.start()
+        time.sleep(0.005)
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")
