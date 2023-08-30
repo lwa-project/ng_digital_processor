@@ -967,7 +967,7 @@ def main(argv):
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
                          beam=beam, ntime_gulp=GSIZE, 
-                         nchan_max=nchan_max, ntuning=ntuning, 
+                         ntuning=ntuning, 
                          core=cores.pop(0), gpu=gpus.pop(0)))
     raddr = Address(oaddr, oport)
     rsock = UDPSocket()
