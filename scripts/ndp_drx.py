@@ -37,7 +37,7 @@ import threading
 import json
 import socket
 import struct
-#import time
+import calendar
 import datetime
 from collections import deque
 
@@ -672,13 +672,14 @@ class BeamformerOp(object):
 
 class CorrelatorOp(object):
     # Note: Input data are: [time,chan,ant,pol,cpx,8bit]
-    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nsnap=16, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
+    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nsnap=16, ntime_gulp=2500, utc_start_dt=None, guarantee=True, core=-1, gpu=-1):
         self.log   = log
         self.iring = iring
         self.oring = oring
         self.tuning = tuning
         ninput_max = nsnap*32#*2
         self.ntime_gulp = ntime_gulp
+        self.utc_start_dt = utc_start_dt
         self.guarantee = guarantee
         self.core = core
         self.gpu = gpu
@@ -699,12 +700,18 @@ class CorrelatorOp(object):
             return None
         self.configMessage = null_config#ISC.CORConfigurationClient(addr=('ndp',5832))
         self._pending = deque()
-        self.navg = 5*100
+        self.navg = int(round(5 * NCHAN))   # ~5 s integrations
         self.gain = 0
         
         # Setup the correlator
         if self.gpu != -1:
             BFSetGPU(self.gpu)
+        ## Start time reference
+        if self.utc_start_dt is None:
+            self.utc_start_dt = datetime.datetime.utcnow()
+        self.start_time_tag = calendar.timegm(self.utc_start_dt.timetuple())
+        self.start_time_tag = self.start_time_tag*int(FS)
+        self.start_time_tag = (self.start_time_tag // self.navg // int(FS)) * self.navg * int(FS)
         ## Metadata
         self.decim = 4
         nchan = self.nchan_max
@@ -812,16 +819,8 @@ class CorrelatorOp(object):
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
                 oshape = (ochan,nstand*(nstand+1)//2*npol*npol)
                 
-                # Figure out where we need to be in the buffer to be at a second boundary
-                ticksPerTime = int(FS) // int(CHAN_BW)
-                toffset = iseq.time_tag % int(FS)
-                soffset = toffset * int(CHAN_BW) // int(FS)
-                if soffset != 0:
-                    soffset = int(CHAN_BW) - soffset
-                boffset = soffset * nchan*nstand*npol
-                print('!!', '@', 'cor', iseq.time_tag, toffset, '->', soffset, ' and ', boffset)
-                
-                base_time_tag = iseq.time_tag + soffset*ticksPerTime        # Correct for offset
+                base_time_tag = iseq.time_tag
+                ticksPerTime = int(round(FS/CHAN_BW))
                 
                 ohdr = ihdr.copy()
                 ohdr['nchan'] = ochan
@@ -836,32 +835,15 @@ class CorrelatorOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
-                    nAccumulate = 0
+                    nAccumulate = (base_time_tag - self.start_time_tag) // (self.navg * int(FS))
                     
-                    navg_seq = self.navg * int(CHAN_BW/100.0)
-                    navg_seq = int(navg_seq / self.ntime_gulp) * self.ntime_gulp
                     gain_act = 1.0 / 2**self.gain / navg_seq
-                    navg = navg_seq // int(CHAN_BW/100.0)
-                    
-                    navg_mod_value = navg_seq * int(FS) // int(CHAN_BW)
-                    print('??', '@', base_time_tag, last_base_time_tag)
-                    if base_time_tag == last_base_time_tag:
-                        ## Sometimes we get into a situation where the frequency changes
-                        ## in less than an integration period.  To deal with this we need to 
-                        ## skip forward to the next integration boundary and go from there
-                        base_time_tag = base_time_tag + navg_mod_value
-                        nAccumulate = -navg_mod_value // ticksPerTime
-                        print('&&', '@', base_time_tag, 'with', nAccumulate)
-                    start_time_tag = int(base_time_tag / navg_mod_value) * navg_mod_value
-                    nAccumulate += (base_time_tag - start_time_tag) // ticksPerTime
-                    print('&&&&', '@', start_time_tag, 'with', nAccumulate)
                     
                     ohdr['time_tag']  = base_time_tag
-                    ohdr['start_tag'] = int(base_time_tag / navg_mod_value) * navg_mod_value
+                    ohdr['start_tag'] = self.start_time_tag
                     ohdr['navg']      = navg
                     ohdr['gain']      = self.gain
                     ohdr_str = json.dumps(ohdr)
-                    print('->', '@', 'cor', ohdr['time_tag'], 'vs', ohdr['start_tag'])
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
                         for ispan in iseq_spans:
@@ -906,17 +888,17 @@ class CorrelatorOp(object):
                             
                             ## Correlate
                             corr_dump = 0
-                            if base_time_tag % navg_mod_value == 0:
+                            if nAccumulate == (self.navg * int(FS)):
                                 corr_dump = 1
                             self.bfcc.execute(self.udata, self.cdata, corr_dump)
-                            nAccumulate += self.ntime_gulp
+                            nAccumulate += self.ntime_gulp*ticksPerTime
                             
                             curr_time = time.time()
                             process_time = curr_time - prev_time
                             prev_time = curr_time
                             
                             ## Dump?
-                            if base_time_tag % navg_mod_value == 0:
+                            if nAccumulate == (self.navg * int(FS)):
                                 with oseq.reserve(ogulp_size) as ospan:
                                     odata = ospan.data_view('ci32').reshape(oshape)
                                     odata[...] = self.cdata
@@ -1268,6 +1250,10 @@ def main(argv):
                 signal.SIGTSTP]:
         signal.signal(sig, handle_signal_terminate)
         
+    log.info('Waiting to get correlator UTC_START')
+    utc_start_dt = get_utc_start(shutdown_event)
+    log.info("UTC_START: %s", utc_start_dt.strftime(DATE_FORMAT))
+    
     hostname = socket.gethostname()
     try:
         server_idx = get_numeric_suffix(hostname) - 1
@@ -1386,6 +1372,7 @@ def main(argv):
         ops.append(CorrelatorOp(log=log, iring=capture_ring, oring=vis_ring, 
                                 tuning=tuning, ntime_gulp=GSIZE,
                                 nsnap=nsnap, nchan_max=nchan_max,
+                                utc_start_dt=utc_start_dt,
                                 core=ccore, gpu=tuning))
         ops.append(PacketizeOp(log=log, iring=vis_ring, osock=vsock,
                                tuning=tuning, nsnap=nsnap, nchan_max=nchan_max//4,

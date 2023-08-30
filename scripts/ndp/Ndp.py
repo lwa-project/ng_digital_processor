@@ -1029,23 +1029,12 @@ class MsgProcessor(ConsumerThread):
                 
         self.log.info("  Finished configuring FPGAs")
         
-        start_delay = 5.
-        utc_now   = datetime.datetime.utcnow()
-        utc_start = utc_now + datetime.timedelta(0, start_delay)
-        utc_init  = utc_start - datetime.timedelta(0, 1) # 1 sec before
-        utc_init_str  = utc_start.strftime(DATE_FORMAT)
-        utc_start = utc_start + datetime.timedelta(0, 3) # 3 sec after
+        utc_start   = datetime.datetime.utcnow()
         utc_start_str = utc_start.strftime(DATE_FORMAT)
         self.utc_start     = utc_start
         self.utc_start_str = utc_start_str
-        self.state['lastlog'] = "Starting processing at UTC "+utc_start_str
-        self.log.info("Starting processing at UTC "+utc_start_str)
-        
-        # TODO: Tell server pipelines the value of utc_start_str and have them
-        #         await imminent data.
-        
-        # Wait until we're in the middle of the init sec
-        wait_until_utc_sec(utc_init_str)
+        self.state['lastlog'] = "Starting correlator processing at UTC "+utc_start_str
+        self.log.info("Starting correlator processing at UTC "+utc_start_str)
         time.sleep(0.5)
         
         # Check and make sure that *all* of the pipelines started
