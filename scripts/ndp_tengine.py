@@ -964,7 +964,7 @@ def main(argv):
                          utc_start=utc_start_dt))
     ops.append(ReChannelizerOp(log, capture_ring, rechan_ring, ntime_gulp=GSIZE,
                                pfb_inverter=args.pfb_inverter,
-                               core=cores.pop(0), gpu=gpus.pop(0)))))
+                               core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
                          beam=beam, ntime_gulp=GSIZE, 
                          nchan_max=nchan_max, ntuning=ntuning, 
