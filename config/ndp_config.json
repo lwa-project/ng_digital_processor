@@ -96,7 +96,7 @@
         "gpu_ids":         [0, 1],
         "disk_ids":        ["/"],
         "data_ports":      [10000, 10000, 10000, 10000],
-        "data_ifaces":     ["enp1s0", "enp129s0", "enp1s0", "enp129s0"],
+        "data_ifaces":     ["enp1s0np0", "enp129s0np0", "enp1s0np0", "enp129s0np0"],
         "startup_timeout": 240,
         "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
                          "SYS_Air_Inlet",  "SYS_Air_Outlet",

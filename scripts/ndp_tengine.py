@@ -7,7 +7,7 @@ from ndp import ISC
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
-from bifrost.packet_capture import PacketCaptureCallback, UDPCapture
+from bifrost.packet_capture import PacketCaptureCallback, UDPVerbsCapture as UDPCapture
 from bifrost.packet_writer import HeaderInfo, UDPTransmit
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
