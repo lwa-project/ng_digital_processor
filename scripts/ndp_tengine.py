@@ -86,8 +86,6 @@ class CaptureOp(object):
         self.kwargs = kwargs
         self.nbeam_max = self.kwargs['nbeam_max']
         del self.kwargs['nbeam_max']
-        self.utc_start = self.kwargs['utc_start']
-        del self.kwargs['utc_start']
         self.shutdown_event = threading.Event()
         ## HACK TESTING
         #self.seq_callback = None
@@ -851,8 +849,9 @@ def main(argv):
         daemonize(stdin='/dev/null', stdout='/dev/null', stderr=stderr)
         
     config = Ndp.parse_config_file(args.configfile)
-    ntuning = 2
-    drxConfig = config['drx'][0]
+    ntuning = 4
+    drxConfigs = config['drx']
+    drxConfig = drxConfigs[0]
     
     log = logging.getLogger(__name__)
     logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
@@ -924,6 +923,7 @@ def main(argv):
         
     nserver = len(config['host']['servers'])
     server0 = 0
+    nbeam = drxConfig['beam_count']
     cores = tngConfig['cpus']
     gpus  = tngConfig['gpus']
     pfb_inverter = True
@@ -958,10 +958,9 @@ def main(argv):
     nchan_max = int(round(sum([c['capture_bandwidth'] for c in drxConfigs])/CHAN_BW))    # Subtly different from what is in ndp_drx.py
     
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
-                         nsrc=nserver, src0=server0, max_payload_size=9000,
+                         nsrc=ntuning, src0=server0, max_payload_size=6500,
                          nbeam_max=nbeam, 
-                         buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0),
-                         utc_start=utc_start_dt))
+                         buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, capture_ring, rechan_ring, ntime_gulp=GSIZE,
                                pfb_inverter=args.pfb_inverter,
                                core=cores.pop(0), gpu=gpus.pop(0)))
