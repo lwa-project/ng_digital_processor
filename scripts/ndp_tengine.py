@@ -105,6 +105,7 @@ class CaptureOp(object):
                'cfreq':    (chan0 + 0.5*(nchan-1))*CHAN_BW,
                'bw':       nchan*CHAN_BW,
                'nstand':   1,
+               'nbeam':    1,
                'npol':     2,
                'complex':  True,
                'nbit':     32}
