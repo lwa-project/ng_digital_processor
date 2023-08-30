@@ -1221,6 +1221,7 @@ def main(argv):
     config = Ndp.parse_config_file(args.configfile)
     ntuning = len(config['drx'])
     drxConfig = config['drx'][tuning]
+    snapConfig = config['snap']
     
     log = logging.getLogger(__name__)
     logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
@@ -1346,7 +1347,7 @@ def main(argv):
         tsocks[-1].connect(ctaddr)
         
     nchan_max  = int(round(drxConfig['capture_bandwidth']/CHAN_BW))
-    nsrc       = nchan_max // 96 * nsnap
+    nsrc       = nchan_max // snapConfig['nchan_packet'] * nsnap
     tbf_bw_max = obw/ntuning
     cor_bw_max = vbw//ntuning
     

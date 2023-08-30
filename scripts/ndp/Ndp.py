@@ -684,7 +684,7 @@ class Snap2MonitorClient(object):
         ### Overall structure + base F-engine config.
         sconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
                               'fft_shift': self.config['snap']['fft_shift'],
-                              'chans_per_packet': 96},
+                              'chans_per_packet': self.config['snap']['nchan_packet']},
                  'xengines': {'arp': {},
                               'chans': {}}}
                  
@@ -709,7 +709,7 @@ class Snap2MonitorClient(object):
         for ip in macs.keys():
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = 10000*(i//2+1)
+            port = 10000
         
             sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
             i += 1
