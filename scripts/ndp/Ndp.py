@@ -709,7 +709,7 @@ class Snap2MonitorClient(object):
         for ip in macs.keys():
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = 10000
+            port = self.config['server']['data_ports'][i]
         
             sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
             i += 1
