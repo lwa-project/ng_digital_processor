@@ -75,7 +75,7 @@ class CaptureOp(object):
                'nchan':    nchan,
                'cfreq':    (chan0 + 0.5*(nchan-1))*CHAN_BW,
                'bw':       nchan*CHAN_BW,
-               'nstand':   nsnap*32,
+               'nstand':   self.nsnap*32,
                'npol':     2,
                'complex':  True,
                'nbit':     4}
