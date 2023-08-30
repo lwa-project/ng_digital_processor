@@ -690,7 +690,7 @@ class PacketizeOp(object):
     def __init__(self, log, iring, osock, beam0=1, npkt_gulp=128, nbeam_max=1, ntune_max=2, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
-        self.osock      = sock
+        self.osock      = osock
         self.beam0      = beam0
         self.npkt_gulp  = npkt_gulp
         self.nbeam_max  = nbeam_max
