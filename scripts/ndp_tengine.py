@@ -325,11 +325,11 @@ class ReChannelizerOp(object):
                 pass
 
 class TEngineOp(object):
-    def __init__(self, log, iring, oring, beam0=1, ntime_gulp=2500, guarantee=True, core=None, gpu=None):
+    def __init__(self, log, iring, oring, beam=1, ntime_gulp=2500, guarantee=True, core=None, gpu=None):
         self.log        = log
         self.iring      = iring
         self.oring      = oring
-        self.beam0      = beam0
+        self.beam       = beam
         self.ntime_gulp = ntime_gulp
         self.guarantee  = guarantee
         self.core       = core
