@@ -826,6 +826,8 @@ class CorrelatorOp(object):
                     sOffset = (self.navg_tt - tOffset) // (2*NCHAN)
                     while sOffset > CHAN_BW:
                         sOffset -= self.ntime_gulp * 2*NCHAN
+                    while sOffset < 0:
+                        sOffset += self.ntime_gulp * 2*NCHAN
                 bOffset = sOffset * nchan*nstand*npol
                 print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
                 
