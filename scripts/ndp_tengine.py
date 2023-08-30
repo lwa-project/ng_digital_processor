@@ -926,7 +926,7 @@ def main(argv):
     server0 = 0
     nbeam = drxConfig['beam_count']
     cores = tngConfig['cpus']
-    gpus  = tngConfig['gpus']
+    gpus  = tngConfig['gpus']*len(cores)
     pfb_inverter = True
     if 'pfb_inverter' in tngConfig:
         pfb_inverter = tngConfig['pfb_inverter']
