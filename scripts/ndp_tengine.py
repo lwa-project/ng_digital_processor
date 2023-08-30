@@ -155,12 +155,12 @@ class ReChannelizerOp(object):
         ## Metadata
         nbeam, npol = self.nbeam_max, 2
         ## PFB data arrays
-        self.fdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
-        self.gdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
-        self.gdata2 = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        self.fdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=np.complex64, space='cuda')
+        self.gdata = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=np.complex64, space='cuda')
+        self.gdata2 = BFArray(shape=(self.ntime_gulp,NCHAN,nbeam*npol), dtype=np.complex64, space='cuda')
         ## PFB inversion matrix
-        matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64)
-        self.imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=numpy.complex64, space='cuda')
+        matrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=np.complex64)
+        self.imatrix = BFArray(shape=(self.ntime_gulp//4,4,NCHAN,nbeam*npol), dtype=np.complex64, space='cuda')
         
         pfb = pfb_window(NCHAN)
         pfb = pfb.reshape(4, -1)
@@ -242,8 +242,8 @@ class ReChannelizerOp(object):
                             reserve_time = curr_time - prev_time
                             prev_time = curr_time
                             
-                            idata = ispan.data_view(numpy.complex64).reshape(ishape)
-                            odata = ospan.data_view(numpy.complex64).reshape(oshape)
+                            idata = ispan.data_view(np.complex64).reshape(ishape)
+                            odata = ospan.data_view(np.complex64).reshape(oshape)
                             
                             ### From here until going to the output ring we are on the GPU
                             t0 = time.time()
@@ -295,7 +295,7 @@ class ReChannelizerOp(object):
                             try:
                                 ffft.execute(self.gdata, rdata, inverse=False)
                             except NameError:
-                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam*npol), dtype=numpy.complex64, space='cuda')
+                                rdata = BFArray(shape=(otime_gulp,ochan,nbeam*npol), dtype=np.complex64, space='cuda')
                                 
                                 ffft = Fft()
                                 ffft.init(self.gdata, rdata, axes=1, apply_fftshift=True)
@@ -352,12 +352,12 @@ class TEngineOp(object):
         self.filt = 7
         self.nchan_out = FILTER2CHAN[self.filt]
         
-        coeffs = numpy.array([ 0.0111580, -0.0074330,  0.0085684, -0.0085984,  0.0070656, -0.0035905, 
-                              -0.0020837,  0.0099858, -0.0199800,  0.0316360, -0.0443470,  0.0573270, 
-                              -0.0696630,  0.0804420, -0.0888320,  0.0941650,  0.9040000,  0.0941650, 
-                              -0.0888320,  0.0804420, -0.0696630,  0.0573270, -0.0443470,  0.0316360, 
-                              -0.0199800,  0.0099858, -0.0020837, -0.0035905,  0.0070656, -0.0085984,  
-                               0.0085684, -0.0074330,  0.0111580], dtype=numpy.float64)
+        coeffs = np.array([ 0.0111580, -0.0074330,  0.0085684, -0.0085984,  0.0070656, -0.0035905, 
+                           -0.0020837,  0.0099858, -0.0199800,  0.0316360, -0.0443470,  0.0573270, 
+                           -0.0696630,  0.0804420, -0.0888320,  0.0941650,  0.9040000,  0.0941650, 
+                           -0.0888320,  0.0804420, -0.0696630,  0.0573270, -0.0443470,  0.0316360, 
+                           -0.0199800,  0.0099858, -0.0020837, -0.0035905,  0.0070656, -0.0085984,  
+                            0.0085684, -0.0074330,  0.0111580], dtype=np.float64)
         
         # Setup the T-engine
         if self.gpu is not None:
@@ -366,13 +366,13 @@ class TEngineOp(object):
         nbeam, ntune, npol = 1, 2, 2
         ## Coefficients
         coeffs.shape += (1,)
-        coeffs = numpy.repeat(coeffs, nbeam*ntune*npol, axis=1)
+        coeffs = np.repeat(coeffs, nbeam*ntune*npol, axis=1)
         coeffs.shape = (coeffs.shape[0],nbeam,ntune,npol)
         self.coeffs = BFArray(coeffs, space='cuda')
         ## Phase rotator state
-        phaseState = numpy.array([0,]*ntune, dtype=numpy.float64)
+        phaseState = np.array([0,]*ntune, dtype=np.float64)
         self.phaseState = BFArray(phaseState, space='cuda')
-        sampleCount = numpy.array([0,]*ntune, dtype=numpy.int64)
+        sampleCount = np.array([0,]*ntune, dtype=np.int64)
         self.sampleCount = BFArray(sampleCount, space='cuda')
         
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
@@ -511,7 +511,7 @@ class TEngineOp(object):
                 
                 ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
-                sample_count = numpy.array([0,]*ntune, dtype=numpy.int64)
+                sample_count = np.array([0,]*ntune, dtype=np.int64)
                 copy_array(self.sampleCount, sample_count)
                 
                 ohdr = {}
@@ -543,7 +543,7 @@ class TEngineOp(object):
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 12
                     act_gain1 = self.gain[1] + 12
-                    rel_gain = numpy.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=numpy.float32)
+                    rel_gain = np.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=np.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
@@ -560,8 +560,8 @@ class TEngineOp(object):
                                 prev_time = curr_time
                                 
                                 ## Setup and load
-                                idata = ispan.data_view(numpy.complex64).reshape(ishape)
-                                odata = ospan.data_view(numpy.int8).reshape(oshape)
+                                idata = ispan.data_view(np.complex64).reshape(ishape)
+                                odata = ospan.data_view(np.int8).reshape(oshape)
                                 
                                 ## Prune the data ahead of the IFFT
                                 try:
@@ -569,7 +569,7 @@ class TEngineOp(object):
                                     pdata[:,:,:,1,:] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
                                 except NameError:
                                     pshape = (self.ntime_gulp,self.nchan_out,nbeam,ntune,npol)
-                                    pdata = BFArray(shape=pshape, dtype=numpy.complex64, space='cuda_host')
+                                    pdata = BFArray(shape=pshape, dtype=np.complex64, space='cuda_host')
                                     
                                     pdata[:,:,:,0,:] = idata[:,tchan0:tchan0+self.nchan_out,:,:]
                                     pdata[:,:,:,1,:] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
@@ -585,7 +585,7 @@ class TEngineOp(object):
                                     gdata = gdata.reshape(*bdata.shape)
                                     bfft.execute(bdata, gdata, inverse=True)
                                 except NameError:
-                                    gdata = BFArray(shape=bdata.shape, dtype=numpy.complex64, space='cuda')
+                                    gdata = BFArray(shape=bdata.shape, dtype=np.complex64, space='cuda')
                                     
                                     bfft = Fft()
                                     bfft.init(bdata, gdata, axes=1, apply_fftshift=True)
@@ -615,17 +615,17 @@ class TEngineOp(object):
                                     
                                 ## Quantization
                                 try:
-                                    Quantize(fdata, qdata, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
+                                    Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                 except NameError:
                                     qdata = BFArray(shape=fdata.shape, native=False, dtype='ci8', space='cuda')
-                                    Quantize(fdata, qdata, scale=8./(2**act_gain0 * numpy.sqrt(self.nchan_out)))
+                                    Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                     
                                 ## Save
                                 try:
                                     copy_array(tdata, qdata)
                                 except NameError:
                                     tdata = qdata.copy('system')
-                                odata[...] = tdata.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol,2)
+                                odata[...] = tdata.view(np.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol,2)
                                 
                             ## Update the base time tag
                             base_time_tag += self.ntime_gulp*ticksPerTime
