@@ -653,6 +653,7 @@ class Snap2MonitorClient(object):
         with self.access_lock:
             if self.snap.is_connected and self.snap.fpga.is_programmed():
                 tt = self.snap.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
+                tt = tt[0]
         return tt
         
     def program(self):
