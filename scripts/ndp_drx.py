@@ -472,7 +472,7 @@ class BeamformerOp(object):
             good = np.where(np.arange(self.complexGains.shape[1]) // 2 % 2 == self.tuning)[0]
             self.complexGains = self.complexGains[:,good,:,:]
         except Exception as e:
-            self.log.warn("Failed to load custom beamforming coefficients: %s", str(e))
+            self.log.warning("Failed to load custom beamforming coefficients: %s", str(e))
             self.complexGains = None
             
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
