@@ -613,11 +613,13 @@ class Snap2MonitorClient(object):
     @lru_cache(maxsize=4)
     def get_samples_all(self, slot, nsamps=None):
         """Returns an NDArray of shape (stand,pol,sample)"""
+        samps = np.zeros((32,2,STAT_SAMP_SIZE))
         with self.access_lock:
-            samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
-            samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
-        samps = np.vstack([samps0, samps1])
-        
+            if self.snap.is_connected and self.snap.fpga.is_programmed():
+                samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
+                samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
+                samps = np.vstack([samps0, samps1])
+                
         return samps.reshape(32,2,-1)
         
     @lru_cache(maxsize=4)
@@ -644,6 +646,14 @@ class Snap2MonitorClient(object):
                 except Exception as e:
                     pass
         return rate
+        
+    def get_tt_of_sync(self, wait_for_sync=True):
+        # Return the timetag corresponding to a sync pulse.
+        tt = None
+        with self.access_lock:
+            if self.snap.is_connected and self.snap.fpga.is_programmed():
+                tt = self.snap.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
+        return tt
         
     def program(self):
         # Program with NDP firmware
@@ -1029,7 +1039,7 @@ class MsgProcessor(ConsumerThread):
                 
         self.log.info("  Finished configuring FPGAs")
         
-        utc_start   = datetime.datetime.utcfromtimestamp(self.snaps[0].snap.sync.get_tt_of_sync(wait_for_sync=True)/FS)
+        utc_start   = datetime.datetime.utcfromtimestamp(self.snaps[0].get_tt_of_sync()/FS)
         utc_start_str = utc_start.strftime(DATE_FORMAT)
         self.utc_start     = utc_start
         self.utc_start_str = utc_start_str
