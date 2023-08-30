@@ -700,7 +700,7 @@ class CorrelatorOp(object):
             return None
         self.configMessage = null_config#ISC.CORConfigurationClient(addr=('ndp',5832))
         self._pending = deque()
-        self.navg = int(round(5 * NCHAN))   # ~5 s integrations
+        self.navg_tt = int(round(5 * CHAN_BW * 2*NCHAN))
         self.gain = 0
         
         # Setup the correlator
@@ -710,8 +710,7 @@ class CorrelatorOp(object):
         if self.utc_start_dt is None:
             self.utc_start_dt = datetime.datetime.utcnow()
         self.start_time_tag = calendar.timegm(self.utc_start_dt.timetuple())
-        self.start_time_tag = self.start_time_tag*int(FS)
-        self.start_time_tag = (self.start_time_tag // self.navg // int(FS)) * self.navg * int(FS)
+        self.start_time_tag = (self.start_time_tag // (2*CHAN_BW)) * 2*NCHAN
         ## Metadata
         self.decim = 4
         nchan = self.nchan_max
@@ -772,7 +771,7 @@ class CorrelatorOp(object):
             self.log.info("Correlator: New configuration received for tuning %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
             navg, gain, slot = config
             
-            self.navg = navg
+            self.navg_tt = int(round(navg/100 * CHAN_BW * 2*NCHAN))
             self.log.info('  Averaging time set')
             self.gain = gain
             self.log.info('  Gain set')
@@ -819,8 +818,16 @@ class CorrelatorOp(object):
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
                 oshape = (ochan,nstand*(nstand+1)//2*npol*npol)
                 
-                base_time_tag = iseq.time_tag
-                ticksPerTime = int(round(FS/CHAN_BW))
+                # Figure out where we need to be in the buffer to be a integration boundary
+                ticksPerTime = 2*NCHAN
+                tOffset = (iseq.time_tag - self.start_time_tag) % (self.navg_tt)
+                sOffset = tOffset // (2*NCHAN)
+                if sOffset != 0:
+                    sOffset = (self.navg_tt - tOffset) // (2*NCHAN)
+                bOffset = sOffset * nchan*nstand*npol
+                print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
+                
+                base_time_tag = iseq.time_tag + sOffset*ticksPerTime
                 
                 ohdr = ihdr.copy()
                 ohdr['nchan'] = ochan
@@ -835,13 +842,16 @@ class CorrelatorOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
-                    nAccumulate = (base_time_tag - self.start_time_tag) // (self.navg * int(FS))
+                    nAccumulate = (base_time_tag - self.start_time_tag) % self.navg_tt
+                    if base_time_tag == last_time_tag:
+                        base_time_tag = base_time_tag + self.navg_tt
+                        nAccumulate = -self.navg_tt
                     
-                    gain_act = 1.0 / 2**self.gain / navg_seq
+                    gain_act = 1.0 / 2**self.gain / (self.navg_tt // (2*NCHAN))
                     
                     ohdr['time_tag']  = base_time_tag
                     ohdr['start_tag'] = self.start_time_tag
-                    ohdr['navg']      = navg
+                    ohdr['navg']      = int(round(self.navg_tt / FS * 100))
                     ohdr['gain']      = self.gain
                     ohdr_str = json.dumps(ohdr)
                     
@@ -888,7 +898,7 @@ class CorrelatorOp(object):
                             
                             ## Correlate
                             corr_dump = 0
-                            if nAccumulate == (self.navg * int(FS)):
+                            if nAccumulate == self.navg_tt:
                                 corr_dump = 1
                             self.bfcc.execute(self.udata, self.cdata, corr_dump)
                             nAccumulate += self.ntime_gulp*ticksPerTime
@@ -898,7 +908,7 @@ class CorrelatorOp(object):
                             prev_time = curr_time
                             
                             ## Dump?
-                            if nAccumulate == (self.navg * int(FS)):
+                            if nAccumulate == self.navg_tt:
                                 with oseq.reserve(ogulp_size) as ospan:
                                     odata = ospan.data_view('ci32').reshape(oshape)
                                     odata[...] = self.cdata

@@ -1029,7 +1029,7 @@ class MsgProcessor(ConsumerThread):
                 
         self.log.info("  Finished configuring FPGAs")
         
-        utc_start   = datetime.datetime.utcnow()
+        utc_start   = datetime.datetime.utcfromtimestamp(self.snaps[0].sync.get_tt_of_sync(wait_for_sync=True)/FS)
         utc_start_str = utc_start.strftime(DATE_FORMAT)
         self.utc_start     = utc_start
         self.utc_start_str = utc_start_str
