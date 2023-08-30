@@ -64,7 +64,8 @@ class CaptureOp(object):
         self.shutdown_event.set()
     def seq_callback(self, seq0, chan0, nchan, nsrc,
                      time_tag_ptr, hdr_ptr, hdr_size_ptr):
-        time_tag = time_tag_ptr[0]
+        time_tag = seq0 * 2*NCHAN # spectrum number -> samples
+        time_tag_ptr[0] = time_tag
         print("++++++++++++++++ seq0     =", seq0)
         print("                 time_tag =", time_tag)
         nchan = nchan * (self.kwargs['nsrc'] // self.nsnap)
