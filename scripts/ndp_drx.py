@@ -1377,7 +1377,7 @@ def main(argv):
                             tuning=tuning, nchan_max=nchan_max,
                             ntime_gulp=50, nbeam_max=nbeam,
                             core=cores.pop(0)))
-    if tuning == 0:
+    if tuning % 2 == 0:
         ccore = ops[2].core
         try:
             pcore = cores.pop(0)
@@ -1387,10 +1387,10 @@ def main(argv):
                                 tuning=tuning, ntime_gulp=GSIZE,
                                 nsnap=nsnap, nchan_max=nchan_max,
                                 utc_start_dt=utc_start_dt,
-                                core=ccore, gpu=tuning))
+                                core=ccore, gpu=tuning % 2))
         ops.append(PacketizeOp(log=log, iring=vis_ring, osock=vsock,
                                tuning=tuning, nsnap=nsnap, nchan_max=nchan_max//4,
-                               npkt_gulp=1, core=pcore, gpu=tuning,
+                               npkt_gulp=1, core=pcore, gpu=tuning % 2,
                                max_bytes_per_sec=cor_bw_max))
         
     threads = [threading.Thread(target=op.main) for op in ops]
