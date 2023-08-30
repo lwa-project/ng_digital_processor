@@ -77,7 +77,7 @@ class SlotCommandProcessor(object):
 
 class DrxCommand(object):
     def __init__(self, msg):
-        self.beam, self.tuning, self.freq, self.filt, self.gain self.subslot \
+        self.beam, self.tuning, self.freq, self.filt, self.gain, self.subslot \
             = struct.unpack('>BBfBhB', msg.data)
         assert( 1 <= self.beam <= 4 )
         assert( 1 <= self.tuning <= 2 )

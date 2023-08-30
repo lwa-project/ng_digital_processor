@@ -276,12 +276,12 @@ class TriggeredDumpOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
-        ninput_max = 512
+        ninput_max = 128
         frame_nbyte_max = self.nchan_max*ninput_max
         #self.iring.resize(self.ntime_gulp*frame_nbyte_max,
         #                  self.ntime_buf *frame_nbyte_max)
                           
-        self.udt = UDPTransmit('tbf', sock=self.sock, core=self.core)
+        self.udt = UDPTransmit('tbf_%i' % (ninput_max//2,), sock=self.sock, core=self.core)
         self.desc = HeaderInfo()
         while not self.iring.writing_ended():
             config = self.configMessage(block=False)
