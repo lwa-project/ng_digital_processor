@@ -1005,12 +1005,11 @@ class RetransmitOp(object):
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 sdata = idata.transpose(2,0,1,3)
-                sdata = sdata.copy()
                 for i,udt in enumerate(udts):
                     bdata = sdata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,nchan*npol)
                     try:
-                        udt.send(desc, seq, 1, self.server-1, 1, bdata)
+                        udt.send(desc, seq, 1, self.server-1, 1, bdata.copy(space='system'))
                     except Exception as e:
                         print(type(self).__name__, 'Sending Error', str(e))
                         
