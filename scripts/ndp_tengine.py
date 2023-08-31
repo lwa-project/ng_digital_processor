@@ -18,6 +18,7 @@ from bifrost.fir import Fir
 from bifrost.quantize import quantize as Quantize
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
+from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
 BFNoSpinZone()
