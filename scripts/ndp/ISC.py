@@ -13,9 +13,9 @@ from uuid import uuid4
 from collections import deque
 
 
-__version__ = '0.5'
+__version__ = '0.6'
 __all__ = ['logException', 'PipelineMessageServer', 'StartTimeClient', 'TriggerClient',
-           'TBNConfigurationClient', 'DRXConfigurationClient', 'BAMConfigurationClient',
+           'DRXConfigurationClient', 'BAMConfigurationClient',
            'CORConfigurationClient', 'PipelineSynchronizationServer',
            'PipelineSynchronizationClient', 'PipelineEventServer', 'PipelineEventClient']
 
@@ -98,17 +98,6 @@ class PipelineMessageServer(object):
             pass
         self.socket.send_string('UTC %s' % utcStartTime)
         
-    def tbnConfig(self, frequency, filter, gain):
-        """
-        Send TBN configuration information out to the clients.  This 
-        includes:
-          * frequency in Hz
-          * filter code
-          * gain setting
-        """
-        
-        self.socket.send_string('TBN %.6f %i %i' % (frequency, filter, gain))
-        
     def drxConfig(self, beam, tuning, frequency, filter, gain, subslot):
         """
         Send DRX configuration information out to the clients.  This 
@@ -132,8 +121,8 @@ class PipelineMessageServer(object):
           * the subslot in which the configuration is implemented
         """
         
-        bDelays = binascii.hexlify( delays.tostring() )
-        bGains = binascii.hexlify( gains.tostring() )
+        bDelays = binascii.hexlify( delays.tostring() ).decode()
+        bGains = binascii.hexlify( gains.tostring() ).decode()
         self.socket.send_string('BAM %i %s %s %i' % (beam, bDelays, bGains, subslot))
         
     def corConfig(self, navg, gain, subslot):
@@ -255,29 +244,6 @@ class TriggerClient(PipelineMessageClient):
             mask    = int(fields[3], 10)
             local   = bool(int(fields[4], 10))
             return trigger, samples, mask, local
-
-
-class TBNConfigurationClient(PipelineMessageClient):
-    """
-    Sub-class of PipelineMessageClient that is specifically for TBN 
-    configuration information.
-    """
-    
-    def __init__(self, addr=('ndp', 5832), context=None):
-        super(TBNConfigurationClient, self).__init__('TBN', addr=addr, context=context)
-        
-    def __call__(self):
-        msg = super(TBNConfigurationClient, self).__call__(block=False)
-        if not msg:
-            # Nothing to report
-            return False
-        else:
-            # Unpack
-            fields    = msg.split(None, 3)
-            frequency = float(fields[1])
-            filter    = int(fields[2], 10)
-            gain      = int(fields[3], 10)
-            return frequency, filter, gain
 
 
 class DRXConfigurationClient(PipelineMessageClient):
