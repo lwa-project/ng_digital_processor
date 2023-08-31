@@ -64,3 +64,6 @@
  10. **"DRX" Pipelines Fight** - 2023/8/31: All four pipelines are running but packet loss is huge.
  11. **T-engines RX rate 0.0 B/s** - 2023/8/31: All four pipelines show no packets.  _Do the T-engines not
      understand the packet format?_
+
+## The Future
+How does the current system scale to 256 antennas?
