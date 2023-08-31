@@ -47,15 +47,18 @@
       - LWA-SV is 500 spectra * 132 channels * 256 stands * 2 pol for a base ring size of ~32 MB
       - LWA-NA is 500 spectra * 768 channels * 64 stands * 2 pol for a base size of ~47 MB
    
-    Not a huge difference but it seems to matter?  I currently have the buffer factor dropped by a factor
-    of two from 10 to 5.
- 5. **TBF Output** - The format needs to be updated/adpated to work with both LWA-SV and LWA-NA.  Support
+    Not a huge difference but it seems to matter?
+      - 2023/8/31: I currently have the buffer factor dropped by a factor of two from 10 to 5 but this still
+        seems to have problems sometimes.
+ 6. **TBF Output** - The format needs to be updated/adpated to work with both LWA-SV and LWA-NA.  Support
     for packets containing only 64 stands is currently hacked into `src/packet_writer.hpp` and
     `src/formats/tbf.hpp` (this change is to set a 0x04 flag so that LSL knows which `fC` to use).
- 7. **Beam packetizer** - There seems to be a problem getting the intermediate beamformer data out of
+ 7. **Correlator Sync-ing** - We need a robust way to keep the correlator integrations/dumps in sync
+    across pipeline restarts.
+ 8. **Beam Packetizer** - There seems to be a problem getting the intermediate beamformer data out of
     the "DRX" pipelines and into the T-engines.  This could be causing some back pressure that is
     interferring with the packet capture. _Is this something where verbs transmit could help?_
- 8. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
+ 9. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
     to what's at OVRO-LWA.  _Are all of the changes actually working?_  _Is the PFB inverter inverting
     correctly?_
- 
+ 10. **"DRX" Pipelines Fight** - 2023/8/31: All four pipelines are running but packet loss is huge.
