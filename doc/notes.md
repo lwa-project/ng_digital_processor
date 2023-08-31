@@ -61,7 +61,8 @@
  9. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
     to what's at OVRO-LWA.  _Are all of the changes actually working?_  _Is the PFB inverter inverting
     correctly?_
- 10. **"DRX" Pipelines Fight** - 2023/8/31: All four pipelines are running but packet loss is huge.
+ 10. **"DRX" Pipelines Fight** - 2023/8/31: ~~All four pipelines are running but packet loss is huge.~~ It's
+     related to (8).  Dropping down to sending only the first two beams helps.
  11. **T-engines RX rate 0.0 B/s** - 2023/8/31: All four pipelines show no packets.  _Do the T-engines not
      understand the packet format?_
 
