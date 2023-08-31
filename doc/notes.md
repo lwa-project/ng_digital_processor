@@ -68,7 +68,9 @@
  12. **T-engines RX rate 0.0 B/s** - 2023/8/31: ~~All four pipelines show no packets.  _Do the T-engines not
      understand the packet format?_~~ You can't send all 768 channels in a `ibeam1` packet because it is too
      large.  We need to split it up into chunks of 384 packets (about the same size as a SNAP2 packet) but
-     there are some formatting/unpacking issues still at the T-engine.
+     there are some formatting/unpacking issues still at the T-engine.  Yes, even 384 is a bad idea because
+     the current `ibeam` format stores `nchan` as `uint8_t`.  The format may need an update.  Plus, the odd size
+     of the header is annoying.
 
 ## The Future
 How does the current system scale to 256 antennas?
