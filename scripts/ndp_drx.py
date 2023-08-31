@@ -699,7 +699,7 @@ class CorrelatorOp(object):
             return None
         self.configMessage = null_config#ISC.CORConfigurationClient(addr=('ndp',5832))
         self._pending = deque()
-        self.navg_tt = (int(round(5 * FS)) // (2*NCHAN)) * (2*NCHAN)
+        self.navg_tt = int(round(5 * FS // (2*NCHAN*self.ntime_gulp))) * (2*NCHAN*self.ntime_gulp)
         self.navg_seq = self.navg_tt // (2*NCHAN)
         self.gain = 0
         
@@ -709,7 +709,7 @@ class CorrelatorOp(object):
         ## Start time reference
         if utc_start_tt is None:
             utc_start_tt = int(round(time.time() * FS))
-        self.start_time_tag = int(round(utc_start_tt // (2*CHAN_BW))) * 2*NCHAN
+        self.start_time_tag = int(round(utc_start_tt // (2*CHAN_BW*self.ntime_gulp))) * 2*NCHAN*self.ntime_gulp
         ## Metadata
         self.decim = 4
         nchan = self.nchan_max
@@ -819,13 +819,13 @@ class CorrelatorOp(object):
                 
                 # Figure out where we need to be in the buffer to be a integration boundary
                 ticksPerTime = 2*NCHAN
-                sOffset = ((iseq.time_tag - self.start_time_tag) // (2*NCHAN)) % self.navg_seq
+                sOffset = ((self.start_time_tag - iseq.time_tag) // (2*NCHAN)) % self.navg_seq
                 if sOffset != 0:
                     sOffset = self.navg_seq - sOffset
                     while sOffset > CHAN_BW:
-                        sOffset -= self.ntime_gulp * 2*NCHAN
+                        sOffset -= self.ntime_gulp
                     while sOffset < 0:
-                        sOffset += self.ntime_gulp * 2*NCHAN
+                        sOffset += self.ntime_gulp
                 tOffset = sOffset * 2*NCHAN
                 bOffset = sOffset * nchan*nstand*npol
                 print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
@@ -1006,12 +1006,12 @@ class RetransmitOp(object):
                 prev_time = curr_time
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                sdata = idata.transpose(3,0,1,2,4)
+                sdata = idata.transpose(3,1,0,2,4)
                 for i,udt in enumerate(udts):
                     if i > 2:
                         continue
                     bdata = sdata[i,:,:,:,:]
-                    bdata = bdata.reshape(self.ntime_gulp,nblock_send,nchan_send*npol)
+                    bdata = bdata.reshape(nblock_send,self.ntime_gulp,nchan_send*npol)
                     try:
                         udt.send(desc, seq, 1, 2*(self.server-1), 1, bdata.copy(space='system'))
                     except Exception as e:
