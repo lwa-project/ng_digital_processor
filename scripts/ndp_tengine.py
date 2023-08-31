@@ -915,7 +915,7 @@ def main(argv):
     tengine_idx  = drxConfig['tengine_idx'][beam]
     tngConfig    = config['tengine'][tengine_idx]
     iaddr        = config['host']['tengines'][tengine_idx]
-    iport        = config['server']['data_ports' ][tngConfig['pipeline_idx']]
+    iport        = config['server']['data_ports' ][tngConfig['pipeline_idx']] + beam + 1
     # Network - output
     recorder_idx = tngConfig['recorder_idx']
     recConfig    = config['recorder'][recorder_idx]
