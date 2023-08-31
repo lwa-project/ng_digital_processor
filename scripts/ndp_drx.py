@@ -1316,7 +1316,7 @@ def main(argv):
     log.info("COR address:  %s:%i", vaddr, vport)
     for taddr,tport in zip(taddrs, tports):
         log.info("TNG address:  %s:%i", taddr, tport)
-    log.info("Snaps:      %i-%i", snap0+1, snap0+nsnap)
+    log.info("Snaps:        %i-%i", snap0+1, snap0+nsnap)
     log.info("Tunings:      %i (of %i)", tuning+1, ntuning)
     log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
     log.info("GPUs:         %s", ' '.join([str(v) for v in gpus]))
