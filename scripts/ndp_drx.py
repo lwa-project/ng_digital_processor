@@ -1380,7 +1380,7 @@ def main(argv):
                             tuning=tuning, nchan_max=nchan_max,
                             ntime_gulp=50, nbeam_max=nbeam,
                             core=cores.pop(0)))
-    if tuning % 2 == 0:
+    if True:
         ccore = ops[2].core
         try:
             pcore = cores.pop(0)
