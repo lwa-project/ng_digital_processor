@@ -959,8 +959,11 @@ def main(argv):
     GSIZE = 2500
     nchan_max = int(round(sum([c['capture_bandwidth'] for c in drxConfigs])/CHAN_BW))    # Subtly different from what is in ndp_drx.py
     
+    nblock = int(round(drxConfig['capture_bandwidth']/CHAN_BW)) // 384
+    nblock = max([nblock, 1])
+    
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
-                         nsrc=ntuning, src0=server0, max_payload_size=6500,
+                         nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
                          nbeam_max=nbeam, 
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, capture_ring, rechan_ring, ntime_gulp=GSIZE,

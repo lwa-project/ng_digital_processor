@@ -967,8 +967,10 @@ class RetransmitOp(object):
                                   'core0': cpu_affinity.get_core(),})
         
         udts = []
+        nchan_send = min([self.nchan_max, 384])
+        nblock_send = self.nchan_max // nchan_send
         for sock in self.socks:
-            udt = UDPTransmit('ibeam%i_%i' % (1, self.nchan_max,), sock=sock, core=self.core)
+            udt = UDPTransmit('ibeam%i_%i' % (1, nchan_send), sock=sock, core=self.core)
             udts.append(udt)
             
         desc = HeaderInfo()
@@ -987,7 +989,7 @@ class RetransmitOp(object):
             npol    = ihdr['npol']
             nstdpol = nstand * npol
             igulp_size = self.ntime_gulp*nchan*nstdpol*8        # complex64
-            igulp_shape = (self.ntime_gulp,nchan,nstand,npol)
+            igulp_shape = (self.ntime_gulp,nblock_send,nchan_send,nstand,npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
@@ -1004,12 +1006,12 @@ class RetransmitOp(object):
                 prev_time = curr_time
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                sdata = idata.transpose(2,0,1,3)
+                sdata = idata.transpose(3,0,1,2,4)
                 for i,udt in enumerate(udts):
-                    bdata = sdata[i,:,:,:]
-                    bdata = bdata.reshape(self.ntime_gulp,1,nchan*npol)
+                    bdata = sdata[i,:,:,:,:]
+                    bdata = bdata.reshape(self.ntime_gulp,nblock_send,nchan_send*npol)
                     try:
-                        udt.send(desc, seq, 1, self.server-1, 1, bdata.copy(space='system'))
+                        udt.send(desc, seq, 1, 2*(self.server-1), 1, bdata.copy(space='system'))
                     except Exception as e:
                         print(type(self).__name__, 'Sending Error', str(e))
                         
