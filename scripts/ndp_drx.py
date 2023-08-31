@@ -157,7 +157,7 @@ class CopyOp(object):
                 clear_to_trigger = False
                 if chan0*CHAN_BW > 60e6 and self.tuning == 1:
                     clear_to_trigger = True
-                to_keep = [6,7, 224,225, 494,495]
+                to_keep = [18,19, 62,63, 122,123]
                 tchan = min([72, nchan])
                 udata = BFArray(shape=(self.ntime_gulp, tchan, len(to_keep)), dtype=np.complex64)
                 
