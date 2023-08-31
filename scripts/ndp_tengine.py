@@ -821,7 +821,7 @@ def get_utc_start(shutdown_event=None):
             time.sleep(1)
     #print("UTC_START:", utc_start)
     #return utc_start
-    return utc_start_dt
+    return utc_start_tt
 
 def get_numeric_suffix(s):
     i = 0
