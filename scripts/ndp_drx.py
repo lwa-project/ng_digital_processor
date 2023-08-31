@@ -1008,6 +1008,8 @@ class RetransmitOp(object):
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 sdata = idata.transpose(3,0,1,2,4)
                 for i,udt in enumerate(udts):
+                    if i > 2:
+                        continue
                     bdata = sdata[i,:,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,nblock_send,nchan_send*npol)
                     try:
