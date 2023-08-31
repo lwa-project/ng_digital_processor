@@ -62,3 +62,5 @@
     to what's at OVRO-LWA.  _Are all of the changes actually working?_  _Is the PFB inverter inverting
     correctly?_
  10. **"DRX" Pipelines Fight** - 2023/8/31: All four pipelines are running but packet loss is huge.
+ 11. **T-engines RX rate 0.0 B/s** - 2023/8/31: All four pipelines show no packets.  _Do the T-engines not
+     understand the packet format?_
