@@ -201,14 +201,12 @@ class Bam(SlotCommandProcessor):
         self.cur_beam = [0]*self.nbeam
         self.cur_delays = [[0 for i in range(512)]]*self.nbeam
         self.cur_gains = [[0 for i in range(1024)]]*self.nbeam
-        self.cur_tuning = [0]*self.nbeam
         
     def _reset_state(self):
         for i in range(self.nbeam):
             self.cur_beam[i] = 0
             self.cur_delays[i] = [0 for j in range(512)]
             self.cur_gains[i] = [0 for j in range(1024)]
-            self.cur_tuning[i] = 0
             
     @ISC.logException
     def start(self, beam, delays, gains, subslot):
