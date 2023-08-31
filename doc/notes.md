@@ -53,18 +53,22 @@
  6. **TBF Output** - The format needs to be updated/adpated to work with both LWA-SV and LWA-NA.  Support
     for packets containing only 64 stands is currently hacked into `src/packet_writer.hpp` and
     `src/formats/tbf.hpp` (this change is to set a 0x04 flag so that LSL knows which `fC` to use).
- 7. **Correlator Sync-ing** - We need a robust way to keep the correlator integrations/dumps in sync
-    across pipeline restarts.
- 8. **Beam Packetizer** - There seems to be a problem getting the intermediate beamformer data out of
+ 7. **Correlator Sync-ing** - ~~We need a robust way to keep the correlator integrations/dumps in sync
+    across pipeline restarts.~~  Switching `navg_tt` over to something that is in units of the FFT window
+    length (8192 samples) **and** the block gulp size (500 * 8192 samples) seems to help.  That integration
+    time works out to be 4.99461... s.
+ 9. **Beam Packetizer** - There seems to be a problem getting the intermediate beamformer data out of
     the "DRX" pipelines and into the T-engines.  This could be causing some back pressure that is
     interferring with the packet capture. _Is this something where verbs transmit could help?_
- 9. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
+ 10. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
     to what's at OVRO-LWA.  _Are all of the changes actually working?_  _Is the PFB inverter inverting
     correctly?_
- 10. **"DRX" Pipelines Fight** - 2023/8/31: ~~All four pipelines are running but packet loss is huge.~~ It's
-     related to (8).  Dropping down to sending only the first two beams helps.
- 11. **T-engines RX rate 0.0 B/s** - 2023/8/31: All four pipelines show no packets.  _Do the T-engines not
-     understand the packet format?_
+ 11. **"DRX" Pipelines Fight** - 2023/8/31: ~~All four pipelines are running but packet loss is huge.~~ It's
+     related to (8).  Dropping down to sending only the first ~~two~~ three beams helps.
+ 12. **T-engines RX rate 0.0 B/s** - 2023/8/31: ~~All four pipelines show no packets.  _Do the T-engines not
+     understand the packet format?_~~ You can't send all 768 channels in a `ibeam1` packet because it is too
+     large.  We need to split it up into chunks of 384 packets (about the same size as a SNAP2 packet) but
+     there are some formatting/unpacking issues still at the T-engine.
 
 ## The Future
 How does the current system scale to 256 antennas?
