@@ -850,7 +850,7 @@ class CorrelatorOp(object):
                         base_time_tag = base_time_tag + self.navg_tt
                         nAccumulate = -self.navg_seq
                     
-                    gain_act = 1.0 / 2**self.gain / (self.navg_tt // (2*NCHAN))
+                    gain_act = 1.0 / 2**self.gain / self.navg_seq
                     
                     ohdr['time_tag']  = base_time_tag
                     ohdr['start_tag'] = self.start_time_tag
