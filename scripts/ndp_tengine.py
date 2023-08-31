@@ -814,7 +814,7 @@ def get_utc_start(shutdown_event=None):
             with MCS.Communicator() as ndp_control:
                 utc_start = ndp_control.report('UTC_START')
                 # Check for valid timestamp
-                utc_start_dt = datetime.datetime.strptime(utc_start, DATE_FORMAT)
+                utc_start_tt = int(utc_start, 10)
             got_utc_start = True
         except Exception as ex:
             print(ex)
@@ -898,9 +898,10 @@ def main(argv):
                 signal.SIGTSTP]:
         signal.signal(sig, handle_signal_terminate)
     
-    log.info("Waiting to get UTC_START")
-    utc_start_dt = get_utc_start(shutdown_event)
-    log.info("UTC_START:    %s", utc_start_dt.strftime(DATE_FORMAT))
+    log.info('Waiting to get correlator UTC_START timetag')
+    utc_start_tt = get_utc_start(shutdown_event)
+    utc_start_dt = datetime.datetime.utcfromtimestamp(utc_start_tt/FS)
+    log.info("UTC_START: %i = %s", utc_start_tt, utc_start_dt.strftime(DATE_FORMAT))
     
     hostname = socket.gethostname()
     try:
