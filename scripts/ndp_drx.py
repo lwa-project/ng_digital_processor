@@ -672,14 +672,13 @@ class BeamformerOp(object):
 
 class CorrelatorOp(object):
     # Note: Input data are: [time,chan,ant,pol,cpx,8bit]
-    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nsnap=16, ntime_gulp=2500, utc_start_dt=None, guarantee=True, core=-1, gpu=-1):
+    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nsnap=16, ntime_gulp=2500, utc_start_tt=None, guarantee=True, core=-1, gpu=-1):
         self.log   = log
         self.iring = iring
         self.oring = oring
         self.tuning = tuning
         ninput_max = nsnap*32#*2
         self.ntime_gulp = ntime_gulp
-        self.utc_start_dt = utc_start_dt
         self.guarantee = guarantee
         self.core = core
         self.gpu = gpu
@@ -700,17 +699,17 @@ class CorrelatorOp(object):
             return None
         self.configMessage = null_config#ISC.CORConfigurationClient(addr=('ndp',5832))
         self._pending = deque()
-        self.navg_tt = int(round(5 * CHAN_BW * 2*NCHAN))
+        self.navg_tt = (int(round(5 * FS)) // (2*NCHAN)) * (2*NCHAN)
+        self.navg_seq = self.navg_seq // (2*NCHAN)
         self.gain = 0
         
         # Setup the correlator
         if self.gpu != -1:
             BFSetGPU(self.gpu)
         ## Start time reference
-        if self.utc_start_dt is None:
-            self.utc_start_dt = datetime.datetime.utcnow()
-        self.start_time_tag = calendar.timegm(self.utc_start_dt.timetuple()) * int(FS)
-        self.start_time_tag = int(round(self.start_time_tag // (2*CHAN_BW))) * 2*NCHAN
+        if utc_start_tt is None:
+            utc_start_tt = int(round(time.time() * FS))
+        self.start_time_tag = int(round(utc_start_tt // (2*CHAN_BW))) * 2*NCHAN
         ## Metadata
         self.decim = 4
         nchan = self.nchan_max
@@ -820,14 +819,14 @@ class CorrelatorOp(object):
                 
                 # Figure out where we need to be in the buffer to be a integration boundary
                 ticksPerTime = 2*NCHAN
-                tOffset = (iseq.time_tag - self.start_time_tag) % (self.navg_tt)
-                sOffset = tOffset // (2*NCHAN)
+                sOffset = ((iseq.time_tag - self.start_time_tag) // (2*NCHAN)) % self.navg_seq
                 if sOffset != 0:
-                    sOffset = (self.navg_tt - tOffset) // (2*NCHAN)
+                    sOffset = self.navg_seq - sOffset
                     while sOffset > CHAN_BW:
                         sOffset -= self.ntime_gulp * 2*NCHAN
                     while sOffset < 0:
                         sOffset += self.ntime_gulp * 2*NCHAN
+                tOffset = sOffset * 2*NCHAN
                 bOffset = sOffset * nchan*nstand*npol
                 print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
                 
@@ -846,10 +845,10 @@ class CorrelatorOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
-                    nAccumulate = (base_time_tag - self.start_time_tag) % self.navg_tt
+                    nAccumulate = ((base_time_tag - self.start_time_tag) // (2*NCHAN)) % self.navg_seq
                     if base_time_tag == last_base_time_tag:
                         base_time_tag = base_time_tag + self.navg_tt
-                        nAccumulate = -self.navg_tt
+                        nAccumulate = -self.navg_seq
                     
                     gain_act = 1.0 / 2**self.gain / (self.navg_tt // (2*NCHAN))
                     
@@ -902,17 +901,17 @@ class CorrelatorOp(object):
                             
                             ## Correlate
                             corr_dump = 0
-                            if nAccumulate == self.navg_tt:
+                            if nAccumulate == self.navg_seq:
                                 corr_dump = 1
                             self.bfcc.execute(self.udata, self.cdata, corr_dump)
-                            nAccumulate += self.ntime_gulp*ticksPerTime
+                            nAccumulate += self.ntime_gulp
                             
                             curr_time = time.time()
                             process_time = curr_time - prev_time
                             prev_time = curr_time
                             
                             ## Dump?
-                            if nAccumulate == self.navg_tt:
+                            if nAccumulate == self.navg_seq:
                                 with oseq.reserve(ogulp_size) as ospan:
                                     odata = ospan.data_view('ci32').reshape(oshape)
                                     odata[...] = self.cdata
@@ -1181,14 +1180,14 @@ def get_utc_start(shutdown_event=None):
             with MCS.Communicator() as ndp_control:
                 utc_start = ndp_control.report('UTC_START')
                 # Check for valid timestamp
-                utc_start_dt = datetime.datetime.strptime(utc_start, DATE_FORMAT)
+                utc_start_tt = int(utc_start, 10)
             got_utc_start = True
         except Exception as ex:
             print(ex)
             time.sleep(1)
     #print("UTC_START:", utc_start)
     #return utc_start
-    return utc_start_dt
+    return utc_start_tt
 
 def get_numeric_suffix(s):
     i = 0
@@ -1264,9 +1263,10 @@ def main(argv):
                 signal.SIGTSTP]:
         signal.signal(sig, handle_signal_terminate)
         
-    log.info('Waiting to get correlator UTC_START')
-    utc_start_dt = get_utc_start(shutdown_event)
-    log.info("UTC_START: %s", utc_start_dt.strftime(DATE_FORMAT))
+    log.info('Waiting to get correlator UTC_START timetag')
+    utc_start_tt = get_utc_start(shutdown_event)
+    utc_start_dt = datetime.datetime.utcfromtimestamp(utc_start_tt/FS)
+    log.info("UTC_START: %i = %s", utc_start_tt, utc_start_dt.strftime(DATE_FORMAT))
     
     hostname = socket.gethostname()
     try:
@@ -1386,7 +1386,7 @@ def main(argv):
         ops.append(CorrelatorOp(log=log, iring=capture_ring, oring=vis_ring, 
                                 tuning=tuning, ntime_gulp=GSIZE,
                                 nsnap=nsnap, nchan_max=nchan_max,
-                                utc_start_dt=utc_start_dt,
+                                utc_start_tt=utc_start_tt,
                                 core=ccore, gpu=tuning % 2))
         ops.append(PacketizeOp(log=log, iring=vis_ring, osock=vsock,
                                tuning=tuning, nsnap=nsnap, nchan_max=nchan_max//4,

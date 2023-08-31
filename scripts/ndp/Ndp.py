@@ -1040,12 +1040,10 @@ class MsgProcessor(ConsumerThread):
                 
         self.log.info("  Finished configuring FPGAs")
         
-        utc_start   = datetime.datetime.utcfromtimestamp(self.snaps[0].get_tt_of_sync()/FS)
-        utc_start_str = utc_start.strftime(DATE_FORMAT)
-        self.utc_start     = utc_start
-        self.utc_start_str = utc_start_str
-        self.state['lastlog'] = "Starting correlator processing at UTC "+utc_start_str
-        self.log.info("Starting correlator processing at UTC "+utc_start_str)
+        self.utc_start     = self.snaps[0].get_tt_of_sync()
+        self.utc_start_str = str(self.utc_start)
+        self.state['lastlog'] = "Starting correlator processing at timetag "+self.utc_start_str
+        self.log.info("Starting correlator processing at timetag "+self.utc_start_str)
         time.sleep(0.5)
         
         # Check and make sure that *all* of the pipelines started
