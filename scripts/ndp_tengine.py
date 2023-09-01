@@ -223,6 +223,7 @@ class ReChannelizerOp(object):
                 
                 ohdr = ihdr.copy()
                 ohdr['chan0'] = 0
+                ohdr['cfreq'] = CLOCK / 4
                 ohdr['nchan'] = ochan
                 ohdr['bw']    = CLOCK / 2
                 ohdr_str = json.dumps(ohdr)
@@ -450,9 +451,9 @@ class TEngineOp(object):
                     raise AttributeError()
                 phaseRot = self.phaseRot.copy(space='system')
             except AttributeError:
-                phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
-            phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
-            phaseRot = phaseRot.astype(numpy.complex64)
+                phaseRot = np.zeros((self.ntime_gulp*self.nchan_out,2), dtype=np.complex64)
+            phaseRot[:,tuning] = np.exp(-2j*np.pi*phaseState[tuning]*np.arange(self.ntime_gulp*self.nchan_out, dtype=np.float64))
+            phaseRot = phaseRot.astype(np.complex64)
             copy_array(self.phaseState, phaseState)
             self.phaseRot = BFAsArray(phaseRot, space='cuda')
             
@@ -483,9 +484,9 @@ class TEngineOp(object):
                         raise AttributeError()
                     phaseRot = self.phaseRot.copy(space='system')
                 except AttributeError:
-                    phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
-                phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
-                phaseRot = phaseRot.astype(numpy.complex64)
+                    phaseRot = np.zeros((self.ntime_gulp*self.nchan_out,2), dtype=np.complex64)
+                phaseRot[:,tuning] = np.exp(-2j*np.pi*phaseState[tuning]*np.arange(self.ntime_gulp*self.nchan_out, dtype=np.float64))
+                phaseRot = phaseRot.astype(np.complex64)
                 copy_array(self.phaseState, phaseState)
                 self.phaseRot = BFAsArray(phaseRot, space='cuda')
                 
@@ -664,7 +665,7 @@ class TEngineOp(object):
                                 copy_array(self.sampleCount, sample_count)
                                 
                                 ### New output size/shape
-                                ngulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*2               # 8+8 complex
+                                ngulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1               # 4+4 complex
                                 nshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 if ngulp_size != ogulp_size:
                                     ogulp_size = ngulp_size
@@ -825,26 +826,6 @@ class PacketizeOp(object):
                                               'reserve_time': -1, 
                                               'process_time': process_time,})
 
-def get_utc_start(shutdown_event=None):
-    got_utc_start = False
-    while not got_utc_start:
-        if shutdown_event is not None:
-            if shutdown_event.is_set():
-                raise RuntimeError("Shutting down without getting the start time")
-                
-        try:
-            with MCS.Communicator() as ndp_control:
-                utc_start = ndp_control.report('UTC_START')
-                # Check for valid timestamp
-                utc_start_tt = int(utc_start, 10)
-            got_utc_start = True
-        except Exception as ex:
-            print(ex)
-            time.sleep(1)
-    #print("UTC_START:", utc_start)
-    #return utc_start
-    return utc_start_tt
-
 def get_numeric_suffix(s):
     i = 0
     while True:
@@ -920,11 +901,6 @@ def main(argv):
                 signal.SIGTSTP]:
         signal.signal(sig, handle_signal_terminate)
     
-    log.info('Waiting to get correlator UTC_START timetag')
-    utc_start_tt = get_utc_start(shutdown_event)
-    utc_start_dt = datetime.datetime.utcfromtimestamp(utc_start_tt/FS)
-    log.info("UTC_START: %i = %s", utc_start_tt, utc_start_dt.strftime(DATE_FORMAT))
-    
     hostname = socket.gethostname()
     try:
         server_idx = get_numeric_suffix(hostname) - 1
@@ -992,7 +968,7 @@ def main(argv):
                                pfb_inverter=args.pfb_inverter,
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
-                         beam=beam, ntime_gulp=GSIZE*4096/1960, 
+                         beam=beam, ntime_gulp=GSIZE*4096//1960, 
                          core=cores.pop(0), gpu=gpus.pop(0)))
     raddr = Address(oaddr, oport)
     rsock = UDPSocket()
