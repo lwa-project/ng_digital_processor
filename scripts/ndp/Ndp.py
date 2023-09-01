@@ -77,6 +77,8 @@ class SlotCommandProcessor(object):
 
 class DrxCommand(object):
     def __init__(self, msg):
+        if isistance(msg, str):
+            msg = msg.encode()
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.subslot \
             = struct.unpack('>BBfBhB', msg.data)
         assert( 1 <= self.beam <= 4 )
@@ -498,7 +500,7 @@ class NdpServerMonitorClient(object):
             
     def pid_tengine(self, beam=0):
         try:
-            pids = self._shell_command("ps aux | grep ndp_tengine | grep -- --tuning[=\ ]%i | grep -v grep | awk '{print $2}'" % beam)
+            pids = self._shell_command("ps aux | grep ndp_tengine | grep -- --beam[=\ ]%i | grep -v grep | awk '{print $2}'" % beam)
             pids = pids.split('\n')[:-1]
             pids = [int(pid, 10) for pid in pids]
             if len(pids) == 0:
