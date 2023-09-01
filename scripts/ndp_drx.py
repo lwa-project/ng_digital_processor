@@ -1016,7 +1016,7 @@ class RetransmitOp(object):
                         continue
                     for j in range(nblock_send):
                         bdata = sdata[i,j,:,:,:]
-                        bdata = bdata.reshape(self.ntime_gulp,1nchan_send*npol)
+                        bdata = bdata.reshape(self.ntime_gulp,1,nchan_send*npol)
                         try:
                             udt.send(desc[j], seq, 1, nblock_send*(self.server-1)+j, 1, bdata.copy(space='system'))
                         except Exception as e:
