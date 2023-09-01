@@ -786,14 +786,13 @@ class PacketizeOp(object):
                         time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
                         
                         if ACTIVE_DRX_CONFIG.is_set():
-                            if not self.tbfLock.is_set():
-                                try:
-                                    udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
-                                             data0[t:t+NPACKET_SET,:,:])
-                                    udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
-                                             data1[t:t+NPACKET_SET,:,:])
-                                except Exception as e:
-                                    print(type(self).__name__, 'Sending Error', str(e))
+                            try:
+                                udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
+                                         data0[t:t+NPACKET_SET,:,:])
+                                udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
+                                         data1[t:t+NPACKET_SET,:,:])
+                            except Exception as e:
+                                print(type(self).__name__, 'Sending Error', str(e))
                                         
                     time_tag += int(ntime_gulp)*ticksPerSample
                     
