@@ -73,6 +73,8 @@
      before block launch?_  _Does that even work with the capture blocks?_
  12. **kernel: watchdog: BUG: soft lockup** - These seem to have started (2023/9/1) now that the system is
      under some load.  I saw them on cetus as well but never came up with a good solution.
+ 13. **No T-engine FIR Filter?** - I get a "too many resources requested for launch" when the FIR filter is used
+     in the T-engine.
 
 ## The Future
  * How does the current system scale to 256 antennas?
