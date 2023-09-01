@@ -77,8 +77,8 @@ class SlotCommandProcessor(object):
 
 class DrxCommand(object):
     def __init__(self, msg):
-        if isinstance(msg, str):
-            msg = msg.encode()
+        if isinstance(msg.data, str):
+            msg.data = msg.data.encode()
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.subslot \
             = struct.unpack('>BBfBhB', msg.data)
         assert( 1 <= self.beam <= 4 )
@@ -121,7 +121,7 @@ class Drx(SlotCommandProcessor):
             self.cur_filt[beam*self.ntuning + tuning] = filt
             self.cur_gain[beam*self.ntuning + tuning] = gain
             
-        return 0
+        return True
         
     def start(self, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
         ## Convert to the DP frequency scale
