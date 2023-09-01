@@ -63,14 +63,11 @@
  10. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
     to what's at OVRO-LWA.  _Are all of the changes actually working?_  _Is the PFB inverter inverting
     correctly?_
- 11. **"DRX" Pipelines Fight** - 2023/8/31: ~~All four pipelines are running but packet loss is huge.~~ It's
-     related to (8).  Dropping down to sending only the first ~~two~~ three beams helps.
- 12. **T-engines RX rate 0.0 B/s** - 2023/8/31: ~~All four pipelines show no packets.  _Do the T-engines not
-     understand the packet format?_~~ You can't send all 768 channels in a `ibeam1` packet because it is too
-     large.  We need to split it up into chunks of 384 packets (about the same size as a SNAP2 packet) but
-     there are some formatting/unpacking issues still at the T-engine.  Yes, even 384 is a bad idea because
-     the current `ibeam` format stores `nchan` as `uint8_t`.  The format may need an update.  Plus, the odd size
-     of the header is annoying.
+ 11. **"DRX" Pipelines Fight** - It's related to (8).  2023/9/1: Fixing a header problem with `ibeam1` means
+     that we are back to two beams.
+ 12. **T-engines RX rate 0.0 B/s** - 2023/9/1: Seems to be working with two beams + fixes to the `ibeam#`
+     header + new sending structure in `ndp_drx.py`.  For the header all `uint8_t` fields are now `uint16_t`.
+     Packet capture looks reasonable.
 
 ## The Future
 How does the current system scale to 256 antennas?
