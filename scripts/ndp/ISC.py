@@ -262,7 +262,7 @@ class DRXConfigurationClient(PipelineMessageClient):
             return False
         else:
             # Unpack
-            fields    = msg.split(None, 4)
+            fields    = msg.split(None, 6)
             beam      = int(fields[1], 10)
             tuning    = int(fields[2], 10)
             frequency = float(fields[3])
