@@ -1012,13 +1012,14 @@ class RetransmitOp(object):
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 sdata = idata.transpose(3,1,0,2,4)
                 for i,udt in enumerate(udts):
-                    if i > 2:
+                    if i > 1:
                         continue
+                    bdata = sdata[i,:,:,:,:]
                     for j in range(nblock_send):
-                        bdata = sdata[i,j,:,:,:]
-                        bdata = bdata.reshape(self.ntime_gulp,1,nchan_send*npol)
+                        tdata = bdata[j,:,:,:]
+                        tdata = tdata.reshape(self.ntime_gulp,1,nchan_send*npol)
                         try:
-                            udt.send(desc[j], seq, 1, nblock_send*(self.server-1)+j, 1, bdata.copy(space='system'))
+                            udt.send(desc[j], seq, 1, nblock_send*self.tuning+j, 1, tdata.copy(space='system'))
                         except Exception as e:
                             print(type(self).__name__, "Sending Error beam %i, block %i" % (i+1, j+1), str(e))
                             
