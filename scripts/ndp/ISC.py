@@ -110,7 +110,7 @@ class PipelineMessageServer(object):
           * execution subslot
         """
         
-        self.socket.send_string('DRX %i %i %.6f %i %i' % (beam, tuning, frequency, filter, gain, subslot))
+        self.socket.send_string('DRX %i %i %.6f %i %i %i' % (beam, tuning, frequency, filter, gain, subslot))
         
     def bamConfig(self, beam, delays, gains, subslot):
         """
@@ -268,7 +268,8 @@ class DRXConfigurationClient(PipelineMessageClient):
             frequency = float(fields[3])
             filter    = int(fields[4], 10)
             gain      = int(fields[5], 10)
-            return beam, tuning, frequency, filter, gain
+            subslot   = int(fields[6], 10)
+            return beam, tuning, frequency, filter, gain, subslot
 
 
 class BAMConfigurationClient(PipelineMessageClient):
