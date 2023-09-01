@@ -77,7 +77,7 @@ class SlotCommandProcessor(object):
 
 class DrxCommand(object):
     def __init__(self, msg):
-        if isistance(msg, str):
+        if isinstance(msg, str):
             msg = msg.encode()
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.subslot \
             = struct.unpack('>BBfBhB', msg.data)
