@@ -153,6 +153,8 @@ class ReChannelizerOp(object):
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
         # Setup the PFB inverter
+        if self.gpu is not None:
+            BFSetGPU(self.gpu)
         ## Metadata
         nbeam, npol = self.nbeam_max, 2
         ## PFB data arrays
@@ -211,7 +213,7 @@ class ReChannelizerOp(object):
                 
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8        # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam*npol)
-                self.iring.resize(igulp_size, 5*igulp_size)
+                #self.iring.resize(igulp_size, 15*igulp_size)
                 
                 ochan = int(round(CLOCK / 2 / INT_CHAN_BW))
                 otime_gulp = self.ntime_gulp*NCHAN // ochan
@@ -226,7 +228,7 @@ class ReChannelizerOp(object):
                 ohdr_str = json.dumps(ohdr)
                 
                 # Zero out self.fdata in case chan0 has changed
-                BFMemSet(self.fdata, 0)
+                #BFMemSet(self.fdata, 0)
                 
                 with oring.begin_sequence(time_tag=time_tag, header=ohdr_str) as oseq:
                     prev_time = time.time()
@@ -347,7 +349,9 @@ class TEngineOp(object):
         self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
         self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
         
+        self.configMessage = ISC.DRXConfigurationClient(addr=('ndp',5832))
         self._pending = deque()
+        self.ntune = 2
         self.gain = [6, 6]
         self.rFreq = [30e6, 60e6]
         self.filt = 7
@@ -364,7 +368,7 @@ class TEngineOp(object):
         if self.gpu is not None:
             BFSetGPU(self.gpu)
         ## Metadata
-        nbeam, ntune, npol = 1, 2, 2
+        nbeam, ntune, npol = 1, self.ntune, 2
         ## Coefficients
         coeffs.shape += (1,)
         coeffs = np.repeat(coeffs, nbeam*ntune*npol, axis=1)
@@ -432,16 +436,24 @@ class TEngineOp(object):
             self.nchan_out = FILTER2CHAN[filt]
             self.gain[tuning] = gain
             
-            fDiff = freq - (hdr['chan0'] + 0.5*(hdr['nchan']-1))*CHAN_BW - CHAN_BW / 2
+            chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+            fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
             self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
             
             if self.gpu != -1:
                 BFSetGPU(self.gpu)
                 
-            phaseState = fDiff/(self.nchan_out*CHAN_BW)
-            phaseRot = np.exp(-2j*np.pi*phaseState*np.arange(self.ntime_gulp*self.nchan_out, dtype=np.float64))
-            phaseRot = phaseRot.astype(np.complex64)
-            copy_array(self.phaseState, np.array([phaseState,], dtype=np.float64))
+            phaseState = self.phaseState.copy(space='system')
+            phaseState[tuning] = fDiff/(self.nchan_out*CHAN_BW)
+            try:
+                if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
+                    raise AttributeError()
+                phaseRot = self.phaseRot.copy(space='system')
+            except AttributeError:
+                phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
+            phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
+            phaseRot = phaseRot.astype(numpy.complex64)
+            copy_array(self.phaseState, phaseState)
             self.phaseRot = BFAsArray(phaseRot, space='cuda')
             
             ACTIVE_DRX_CONFIG.set()
@@ -451,22 +463,32 @@ class TEngineOp(object):
         elif forceUpdate:
             self.log.info("TEngine: New sequence configuration received")
             
-            try:
-                fDiff = self.rFreq - (hdr['chan0'] + 0.5*(hdr['nchan']-1))*CHAN_BW - CHAN_BW / 2
-            except AttributeError:
-                self.rFreq = (hdr['chan0'] + 0.5*(hdr['nchan']-1))*CHAN_BW + CHAN_BW / 2
-                fDiff = 0.0
-            self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
-            
-            if self.gpu != -1:
-                BFSetGPU(self.gpu)
+            for tuning in range(self.ntune):
+                try:
+                    chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
+                    fDiff = self.rFreq[tuning] - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
+                except AttributeError:
+                    chan0 = int(30e6 / INT_CHAN_BW + 0.5)
+                    self.rFreq = (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW + INT_CHAN_BW / 2
+                    fDiff = 0.0
+                self.log.info("TEngine: Tuning offset is %.3f Hz to be corrected with phase rotation", fDiff)
                 
-            phaseState = fDiff/(self.nchan_out*CHAN_BW)
-            phaseRot = np.exp(-2j*np.pi*phaseState*np.arange(self.ntime_gulp*self.nchan_out, dtype=np.float64))
-            phaseRot = phaseRot.astype(np.complex64)
-            copy_array(self.phaseState, np.array([phaseState,], dtype=np.float64))
-            self.phaseRot = BFAsArray(phaseRot, space='cuda')
-            
+                if self.gpu != -1:
+                    BFSetGPU(self.gpu)
+                    
+                phaseState = self.phaseState.copy(space='system')
+                phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
+                try:
+                    if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
+                        raise AttributeError()
+                    phaseRot = self.phaseRot.copy(space='system')
+                except AttributeError:
+                    phaseRot = numpy.zeros((self.ntime_gulp*self.nchan_out,2), dtype=numpy.complex64)
+                phaseRot[:,tuning] = numpy.exp(-2j*numpy.pi*phaseState[tuning]*numpy.arange(self.ntime_gulp*self.nchan_out, dtype=numpy.float64))
+                phaseRot = phaseRot.astype(numpy.complex64)
+                copy_array(self.phaseState, phaseState)
+                self.phaseRot = BFAsArray(phaseRot, space='cuda')
+                
             return False
             
         else:
@@ -493,7 +515,7 @@ class TEngineOp(object):
                 
                 self.rFreq[0] = 30e6
                 self.rFreq[1] = 60e6
-                self.updateConfig( ihdr, iseq.time_tag, forceUpdate=True )
+                self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
                 
                 nbeam    = ihdr['nbeam']
                 chan0    = ihdr['chan0']
@@ -506,7 +528,7 @@ class TEngineOp(object):
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
                 self.iring.resize(igulp_size, 10*igulp_size)
                 
-                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*2       # 8+8 complex
+                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                 self.oring.resize(ogulp_size, 10*ogulp_size)
                 
@@ -618,7 +640,7 @@ class TEngineOp(object):
                                 try:
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                 except NameError:
-                                    qdata = BFArray(shape=fdata.shape, native=False, dtype='ci8', space='cuda')
+                                    qdata = BFArray(shape=fdata.shape, native=False, dtype='ci4', space='cuda')
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                     
                                 ## Save
@@ -626,7 +648,7 @@ class TEngineOp(object):
                                     copy_array(tdata, qdata)
                                 except NameError:
                                     tdata = qdata.copy('system')
-                                odata[...] = tdata.view(np.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol,2)
+                                odata[...] = tdata.view(np.uint8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
                             base_time_tag += self.ntime_gulp*ticksPerTime
@@ -636,7 +658,7 @@ class TEngineOp(object):
                             copy_array(self.sampleCount, sample_count)
                             
                             ## Check for an update to the configuration
-                            if self.updateConfig( ihdr, base_time_tag, forceUpdate=False ):
+                            if self.updateConfig( self.configMessage(), ihdr, base_time_tag, forceUpdate=False ):
                                 reset_sequence = True
                                 sample_count *= 0
                                 copy_array(self.sampleCount, sample_count)
@@ -718,7 +740,7 @@ class PacketizeOp(object):
         ntime_pkt     = DRX_NSAMPLE_PER_PKT
         ntime_gulp    = self.npkt_gulp * ntime_pkt
         ninput_max    = self.nbeam_max * self.ntune_max * 2
-        igulp_size_max = ntime_gulp * ninput_max * 2 * 2
+        igulp_size_max = ntime_gulp * ninput_max * 2
         
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
@@ -756,7 +778,7 @@ class PacketizeOp(object):
                 soffset = toffset % (NPACKET_SET*int(ntime_pkt))
                 if soffset != 0:
                     soffset = NPACKET_SET*ntime_pkt - soffset
-                boffset = soffset*nbeam*ntune*npol*2
+                boffset = soffset*nbeam*ntune*npol
                 print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
                 
                 time_tag += soffset*ticksPerSample                  # Correct for offset
@@ -777,7 +799,7 @@ class PacketizeOp(object):
                     prev_time = curr_time
                     
                     shape = (-1,nbeam,ntune,npol)
-                    data = ispan.data_view('ci8').reshape(shape)
+                    data = ispan.data_view('ci4').reshape(shape)
                     
                     data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                     data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
@@ -957,7 +979,7 @@ def main(argv):
     rechan_ring = Ring(name="rechan-%i" % beam, space="cuda_host")
     tengine_ring = Ring(name="tengine-%i" % beam, space="system")
     
-    GSIZE = 2500
+    GSIZE = 1960
     nchan_max = int(round(sum([c['capture_bandwidth'] for c in drxConfigs])/CHAN_BW))    # Subtly different from what is in ndp_drx.py
     
     nblock = int(round(drxConfig['capture_bandwidth']/CHAN_BW)) // 384
@@ -966,12 +988,12 @@ def main(argv):
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
                          nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
                          nbeam_max=nbeam, 
-                         buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
+                         buffer_ntime=GSIZE, slot_ntime=19600, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, capture_ring, rechan_ring, ntime_gulp=GSIZE,
                                pfb_inverter=args.pfb_inverter,
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
-                         beam=beam, ntime_gulp=GSIZE, 
+                         beam=beam, ntime_gulp=GSIZE*4096/1960, 
                          core=cores.pop(0), gpu=gpus.pop(0)))
     raddr = Address(oaddr, oport)
     rsock = UDPSocket()
