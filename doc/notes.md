@@ -68,6 +68,9 @@
  12. **T-engines RX rate 0.0 B/s** - 2023/9/1: Seems to be working with two beams + fixes to the `ibeam#`
      header + new sending structure in `ndp_drx.py`.  For the header all `uint8_t` fields are now `uint16_t`.
      Packet capture looks reasonable.
+ 13. **`ReChannelizerOp`** - This seems related to (4) in that the resizing of the input ring causes problems.
+     Both `CopyOp` and `ReChannelizerOp` are resing rings that live in `cuda_host`.  _Maybe we need to resize
+     before block launch?_  _Does that even work with the capture blocks?_
 
 ## The Future
 How does the current system scale to 256 antennas?
