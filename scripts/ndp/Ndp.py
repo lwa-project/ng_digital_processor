@@ -106,28 +106,30 @@ class Drx(SlotCommandProcessor):
             self.cur_filt[i] = 0
             self.cur_gain[i] = 0
             
-    def tune(self, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, internal=False):
+    def tune(self, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, subslot=0, internal=False):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Tuning DRX %i: freq=%f,filt=%i,gain=%i" % (tuning,freq,filt,gain))
+        self.log.info("Tuning DRX %i-%i: freq=%f,filt=%i,gain=%i @ subslot=%i" % (beam, tuning, freq, filt, gain, subslot))
+        
+        self.messenger.drxConfig(beam, tuning, freq, filt, gain, subslot)
         
         if not internal:
             self.cur_freq[beam*self.ntuning + tuning] = freq
             self.cur_filt[beam*self.ntuning + tuning] = filt
             self.cur_gain[beam*self.ntuning + tuning] = gain
             
-        return rets
+        return 0
         
     def start(self, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Starting DRX %i data: freq=%f,filt=%i,gain=%i,subslot=%i" % (tuning, freq,filt,gain,subslot))
+        self.log.info("Starting DRX %i-%i data: freq=%f,filt=%i,gain=%i,subslot=%i" % (beam, tuning, freq, filt, gain, subslot))
         
-        self.messenger.drxConfig(beam, tuning, freq, filt, gain, subslot)
+        ret = self.tune(beam=beam, tuning=tuning, freq=freq, filt=filt, gain=gain, subslot=subslot)
         
-        return rets
+        return ret
         
     def execute(self, cmds):
         for cmd in cmds:
