@@ -629,13 +629,14 @@ class TEngineOp(object):
                                 
                                 ## FIR filter
                                 try:
-                                    bfir.execute(gdata, fdata)
+                                    #bfir.execute(gdata, fdata)
+                                    copy_array(fdata, gdata)
                                 except NameError:
                                     fdata = BFArray(shape=gdata.shape, dtype=gdata.dtype, space='cuda')
                                     
                                     bfir = Fir()
-                                    bfir.init(self.coeffs, 1)
-                                    bfir.execute(gdata, fdata)
+                                    #bfir.init(self.coeffs, 1)
+                                    #bfir.execute(gdata, fdata)
                                     
                                 ## Quantization
                                 try:
