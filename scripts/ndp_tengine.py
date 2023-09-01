@@ -806,7 +806,7 @@ class PacketizeOp(object):
                     data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                     data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                     
-                    for t in range(0, data0[0].shape[0], NPACKET_SET):
+                    for t in range(0, data0.shape[0], NPACKET_SET):
                         time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
                         
                         if ACTIVE_DRX_CONFIG.is_set():
