@@ -939,11 +939,12 @@ class CorrelatorOp(object):
                         break
 
 class RetransmitOp(object):
-    def __init__(self, log, osocks, iring, tuning=0, nchan_max=256, ntime_gulp=2500, nbeam_max=1, guarantee=True, core=-1):
+    def __init__(self, log, osocks, iring, tuning=0, ntuning=4, nchan_max=256, ntime_gulp=2500, nbeam_max=1, guarantee=True, core=-1):
         self.log   = log
         self.socks = osocks
         self.iring = iring
         self.tuning = tuning
+        self.ntuning = ntuning
         self.ntime_gulp = ntime_gulp
         self.nbeam_max = nbeam_max
         self.guarantee = guarantee
@@ -973,9 +974,11 @@ class RetransmitOp(object):
             udt = UDPTransmit('ibeam%i_%i' % (1, nchan_send), sock=sock, core=self.core)
             udts.append(udt)
             
-        desc = HeaderInfo()
-        desc.set_tuning(self.tuning)
-        desc.set_nsrc(4)
+        desc = []
+        for i in range(nblock_send):
+            desc.append(HeaderInfo())
+            desc[-1].set_tuning(1)
+            desc[-1].set_nsrc(self.ntuning*nblock_send)
         for iseq in self.iring.read():
             ihdr = json.loads(iseq.header.tostring())
             
@@ -994,9 +997,10 @@ class RetransmitOp(object):
             seq0 = ihdr['seq0']
             seq = seq0
             
-            desc.set_nchan(nchan)
-            desc.set_chan0(chan0)
-            
+            for i in range(nblock_send):
+                desc[i].set_nchan(nchan_send)
+                desc[i].set_chan0(chan0 + i*nchan_send)
+                
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1010,13 +1014,14 @@ class RetransmitOp(object):
                 for i,udt in enumerate(udts):
                     if i > 2:
                         continue
-                    bdata = sdata[i,:,:,:,:]
-                    bdata = bdata.reshape(nblock_send,self.ntime_gulp,nchan_send*npol)
-                    try:
-                        udt.send(desc, seq, 1, 2*(self.server-1), 1, bdata.copy(space='system'))
-                    except Exception as e:
-                        print(type(self).__name__, 'Sending Error', str(e))
-                        
+                    for j in range(nblock_send):
+                        bdata = sdata[i,j,:,:,:]
+                        bdata = bdata.reshape(self.ntime_gulp,1nchan_send*npol)
+                        try:
+                            udt.send(desc[j], seq, 1, nblock_send*(self.server-1)+j, 1, bdata.copy(space='system'))
+                        except Exception as e:
+                            print(type(self).__name__, "Sending Error beam %i, block %i" % (i+1, j+1), str(e))
+                            
                 seq += self.ntime_gulp
                 
                 curr_time = time.time()
@@ -1377,7 +1382,7 @@ def main(argv):
                             nsnap=nsnap, nchan_max=nchan_max, nbeam_max=nbeam,
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
-                            tuning=tuning, nchan_max=nchan_max,
+                            tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
                             ntime_gulp=50, nbeam_max=nbeam,
                             core=cores.pop(0)))
     if True:
