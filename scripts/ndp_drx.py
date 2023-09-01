@@ -552,7 +552,7 @@ class BeamformerOp(object):
                 
                 # Trim down the the correct size for our number of stands
                 delays = delays[:self.delays.shape[1]]
-                gains = gains[:self.gains.shape[1],2]
+                gains = gains[:self.gains.shape[1],:]
             
                 # Update the internal delay and gain cache so that we can use these later
                 self.delays[2*(beam-1)+0,:] = delays
