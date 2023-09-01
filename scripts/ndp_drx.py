@@ -491,7 +491,7 @@ class BeamformerOp(object):
                 return False
                 
             ## Set the configuration time - BAM commands are for the specified slot in the next second
-            slot = config[4] / 100.0
+            slot = config[3] / 100.0
             config_time = int(time.time()) + 1 + slot
             
             ## Is this command from the future?
