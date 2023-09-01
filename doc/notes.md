@@ -50,27 +50,29 @@
     Not a huge difference but it seems to matter?
       - 2023/8/31: I currently have the buffer factor dropped by a factor of two from 10 to 5 but this still
         seems to have problems sometimes.
- 6. **TBF Output** - The format needs to be updated/adpated to work with both LWA-SV and LWA-NA.  Support
+ 5. **TBF Output** - The format needs to be updated/adpated to work with both LWA-SV and LWA-NA.  Support
     for packets containing only 64 stands is currently hacked into `src/packet_writer.hpp` and
     `src/formats/tbf.hpp` (this change is to set a 0x04 flag so that LSL knows which `fC` to use).
- 7. **Correlator Sync-ing** - ~~We need a robust way to keep the correlator integrations/dumps in sync
+ 6. **Correlator Sync-ing** - ~~We need a robust way to keep the correlator integrations/dumps in sync
     across pipeline restarts.~~  Switching `navg_tt` over to something that is in units of the FFT window
     length (8192 samples) **and** the block gulp size (500 * 8192 samples) seems to help.  That integration
     time works out to be 4.99461... s.
- 9. **Beam Packetizer** - There seems to be a problem getting the intermediate beamformer data out of
+ 7. **Beam Packetizer** - There seems to be a problem getting the intermediate beamformer data out of
     the "DRX" pipelines and into the T-engines.  This could be causing some back pressure that is
     interferring with the packet capture. _Is this something where verbs transmit could help?_
- 10. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
+ 8. **T-engines** - These are a large departure from what is happening with ADP at LWA-SV but similar-ish
     to what's at OVRO-LWA.  _Are all of the changes actually working?_  _Is the PFB inverter inverting
     correctly?_
- 11. **"DRX" Pipelines Fight** - It's related to (8).  2023/9/1: Fixing a header problem with `ibeam1` means
-     that we are back to two beams.
- 12. **T-engines RX rate 0.0 B/s** - 2023/9/1: Seems to be working with two beams + fixes to the `ibeam#`
+ 9. **"DRX" Pipelines Fight** - It's related to (8).  2023/9/1: Fixing a header problem with `ibeam1` means
+    that we are back to two beams.
+ 10. **T-engines RX rate 0.0 B/s** - 2023/9/1: Seems to be working with two beams + fixes to the `ibeam#`
      header + new sending structure in `ndp_drx.py`.  For the header all `uint8_t` fields are now `uint16_t`.
      Packet capture looks reasonable.
- 13. **`ReChannelizerOp`** - This seems related to (4) in that the resizing of the input ring causes problems.
+ 11. **`ReChannelizerOp`** - This seems related to (4) in that the resizing of the input ring causes problems.
      Both `CopyOp` and `ReChannelizerOp` are resing rings that live in `cuda_host`.  _Maybe we need to resize
      before block launch?_  _Does that even work with the capture blocks?_
+ 12. **kernel: watchdog: BUG: soft lockup** - These seem to have started (2023/9/1) now that the system is
+     under some load.  I saw them on cetus as well but never came up with a good solution.
 
 ## The Future
 How does the current system scale to 256 antennas?
