@@ -75,4 +75,7 @@
      under some load.  I saw them on cetus as well but never came up with a good solution.
 
 ## The Future
-How does the current system scale to 256 antennas?
+ * How does the current system scale to 256 antennas?
+   * How many servers do we need for a full station?
+ * Is there a better clock frequency we can use?  196 MHz is good for the T-engine but lousy for the correlator
+   integration time.
