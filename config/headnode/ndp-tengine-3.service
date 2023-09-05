@@ -5,10 +5,13 @@ Wants=network-online.target
 
 [Service]
 # Run as the specified user
-User=root
+User=ndp
 
 # Allow unlimited locked memory
 LimitMEMLOCK=infinity
+
+# Allow CAP_NET_RAW
+AmbientCapabilities=CAP_NET_RAW
 
 # Have a safety net to kill off recalcitrant pipelines
 KillSignal=SIGTERM
