@@ -701,10 +701,14 @@ class Snap2MonitorClient(object):
                  'xengines': {'arp': {},
                               'chans': {}}}
                  
+        ### Toggle FFT shift schedule on/off
+        if sconf['fengines']['fft_shift'] in ('', 0):
+            del sconf['fengines']['fft_shift']
+            
         ### Equalizer coefficints (global)
         if self.equalizer_coeffs is not None:
             sconf['fengines']['eq_coeffs'] = list(self.equalizer_coeffs)
-        
+            
         ### Antenna and IP source
         for i,snap in enumerate(self.config['host']['snaps']):
             sconf['fengines'][snap] = {}
@@ -716,7 +720,7 @@ class Snap2MonitorClient(object):
         macs = load_ethers()
         for ip,mac in macs.items():
             sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
-        
+            
         ### X-engine channel mapping
         i = 0
         for ip in macs.keys():
