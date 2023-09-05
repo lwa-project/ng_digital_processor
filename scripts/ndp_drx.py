@@ -487,7 +487,7 @@ class BeamformerOp(object):
         if config:
             ## Pull out the tuning (something unique to DRX/BAM/COR)
             beam = config[0]
-            if beam > self.nbeam_max:
+            if beam >= self.nbeam_max:
                 return False
                 
             ## Set the configuration time - BAM commands are for the specified slot in the next second
@@ -532,12 +532,12 @@ class BeamformerOp(object):
 
                 #Set the custom complex gains.
                 try:
-                    self.cgains[2*(beam-1)+0,:,:] = self.complexGains[pointing-1,2*(beam-1)+0,:,:]
-                    self.cgains[2*(beam-1)+1,:,:] = self.complexGains[pointing-1,2*(beam-1)+1,:,:]
+                    self.cgains[2*beam+0,:,:] = self.complexGains[pointing-1,2*beam+0,:,:]
+                    self.cgains[2*beam+1,:,:] = self.complexGains[pointing-1,2*beam+1,:,:]
                     self.log.info("Beamformer: Custom complex gains set for pointing number %i of beam %i", pointing, beam)
                 except (TypeError, IndexError):
-                    self.cgains[2*(beam-1)+0,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
-                    self.cgains[2*(beam-1)+1,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
+                    self.cgains[2*beam+0,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
+                    self.cgains[2*beam+1,:,:] = np.zeros( (self.cgains.shape[1],self.cgains.shape[2]) )
                     self.log.info("Beamformer: Ran out of pointings...setting complex gains to zero.")
                     
             else:
@@ -555,18 +555,18 @@ class BeamformerOp(object):
                 gains = gains[:self.gains.shape[1],:]
             
                 # Update the internal delay and gain cache so that we can use these later
-                self.delays[2*(beam-1)+0,:] = delays
-                self.delays[2*(beam-1)+1,:] = delays
-                self.gains[2*(beam-1)+0,:] = gains[:,0]
-                self.gains[2*(beam-1)+1,:] = gains[:,1]
+                self.delays[2*beam+0,:] = delays
+                self.delays[2*beam+1,:] = delays
+                self.gains[2*beam+0,:] = gains[:,0]
+                self.gains[2*beam+1,:] = gains[:,1]
             
                 # Compute the complex gains needed for the beamformer
                 freqs = CHAN_BW * (hdr['chan0'] + np.arange(hdr['nchan']))
                 freqs.shape = (freqs.size, 1)
-                self.cgains[2*(beam-1)+0,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*(beam-1)+0,:]) * \
-                                                self.gains[2*(beam-1)+0,:]).astype(np.complex64)
-                self.cgains[2*(beam-1)+1,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*(beam-1)+1,:]) * \
-                                                self.gains[2*(beam-1)+1,:]).astype(np.complex64)
+                self.cgains[2*beam+0,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*beam+0,:]) * \
+                                                self.gains[2*beam+0,:]).astype(np.complex64)
+                self.cgains[2*beam+1,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*beam+1,:]) * \
+                                                self.gains[2*beam+1,:]).astype(np.complex64)
             BFSync()
             self.log.info('  Complex gains set - beam %i' % beam)
             
@@ -579,10 +579,10 @@ class BeamformerOp(object):
             freqs = CHAN_BW * (hdr['chan0'] + np.arange(hdr['nchan']))
             freqs.shape = (freqs.size, 1)
             for beam in range(1, self.nbeam_max+1):
-                self.cgains[2*(beam-1)+0,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*(beam-1)+0,:]) \
-                                                * self.gains[2*(beam-1)+0,:]).astype(np.complex64)
-                self.cgains[2*(beam-1)+1,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*(beam-1)+1,:]) \
-                                                * self.gains[2*(beam-1)+1,:]).astype(np.complex64)
+                self.cgains[2*beam+0,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*beam+0,:]) \
+                                                * self.gains[2*beam+0,:]).astype(np.complex64)
+                self.cgains[2*beam+1,:,:] = (np.exp(-2j*np.pi*freqs*self.delays[2*beam+1,:]) \
+                                                * self.gains[2*beam+1,:]).astype(np.complex64)
                 BFSync()
                 self.log.info('  Complex gains set - beam %i' % beam)
                 
