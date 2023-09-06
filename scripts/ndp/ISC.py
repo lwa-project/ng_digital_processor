@@ -135,15 +135,16 @@ class PipelineMessageServer(object):
         
         self.socket.send_string('COR %i %i %i' % (navg, gain, subslot))
         
-    def trigger(self, trigger, samples, local=False):
+    def trigger(self, trigger, samples, mask, local=False):
         """
         Send a trigger to start dumping TBF data.  This includes:
           * the trigger time
           * the number of samples to dump
+          * the DRX tuning mask to use
           * whether or not to dump to disk
         """
         
-        self.socket.send_string('TRIGGER %i %i %i' % (trigger, samples, local))
+        self.socket.send_string('TRIGGER %i %i %i %i' % (trigger, samples, mask, local))
         
     def close(self):
         self.socket.close()

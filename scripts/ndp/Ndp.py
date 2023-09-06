@@ -150,8 +150,8 @@ class Drx(SlotCommandProcessor):
 class TbfCommand(object):
     @ISC.logException
     def __init__(self, msg):
-        self.bits, self.trigger, self.samples \
-            = struct.unpack('>Bii', msg.data)
+        self.bits, self.trigger, self.samples, self.mask \
+            = struct.unpack('>Biiq', msg.data)
 
 
 class Tbf(SlotCommandProcessor):
@@ -162,23 +162,23 @@ class Tbf(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.cur_bits = self.cur_trigger = self.cur_samples = 0
+        self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
     def _reset_state(self):
-        self.cur_bits = self.cur_trigger = self.cur_samples = 0
+        self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
     @ISC.logException
-    def start(self, bits, trigger, samples):
-        self.log.info('Starting TBF: bits=%i, trigger=%i, samples=%i' % (bits, trigger, samples))
+    def start(self, bits, trigger, samples, mask):
+        self.log.info('Starting TBF: bits=%i, trigger=%i, samples=%i, mask=%i' % (bits, trigger, samples, mask))
         
-        self.messenger.trigger(trigger, samples)
+        self.messenger.trigger(trigger, samples, mask)
         
         return True
         
     @ISC.logException
     def execute(self, cmds):
         for cmd in cmds:
-            self.start(cmd.bits, cmd.trigger, cmd.samples,)
+            self.start(cmd.bits, cmd.trigger, cmd.samples, cmd.mask)
             
     def stop(self):
         return False
