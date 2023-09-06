@@ -836,7 +836,7 @@ def get_numeric_suffix(s):
 def main(argv):
     parser = argparse.ArgumentParser(description='LWA-NA NDP T-Engine Service')
     parser.add_argument('-f', '--fork',       action='store_true',       help='Fork and run in the background')
-    parser.add_argument('-b', '--beam',       default=1, type=int,       help='DRX beam (1, 2, 3, or 4)')
+    parser.add_argument('-b', '--beam',       default=0, type=int,       help='DRX beam (0, 1, 2, or 3)')
     parser.add_argument('-p', '--pfb-inverter', action='store_true',     help='Enable the PFB inverter')
     parser.add_argument('-c', '--configfile', default='ndp_config.json', help='Specify config file')
     parser.add_argument('-l', '--logfile',    default=None,              help='Specify log file')
