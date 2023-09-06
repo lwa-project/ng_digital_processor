@@ -150,6 +150,8 @@ class Drx(SlotCommandProcessor):
 class TbfCommand(object):
     @ISC.logException
     def __init__(self, msg):
+        if isinstance(msg.data, str):
+            msg.data = msg.data.encode()
         self.bits, self.trigger, self.samples, self.mask \
             = struct.unpack('>Biiq', msg.data)
 
