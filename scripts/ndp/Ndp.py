@@ -709,7 +709,7 @@ class Snap2MonitorClient(object):
             
         ### Equalizer coefficints (global)
         if self.equalizer_coeffs is not None:
-            sconf['fengines']['eq_coeffs'] = list(self.equalizer_coeffs)
+            sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
             
         ### Antenna and IP source
         for i,snap in enumerate(self.config['host']['snaps']):
