@@ -837,7 +837,6 @@ def main(argv):
     parser = argparse.ArgumentParser(description='LWA-NA NDP T-Engine Service')
     parser.add_argument('-f', '--fork',       action='store_true',       help='Fork and run in the background')
     parser.add_argument('-b', '--beam',       default=0, type=int,       help='DRX beam (0, 1, 2, or 3)')
-    parser.add_argument('-p', '--pfb-inverter', action='store_true',     help='Enable the PFB inverter')
     parser.add_argument('-c', '--configfile', default='ndp_config.json', help='Specify config file')
     parser.add_argument('-l', '--logfile',    default=None,              help='Specify log file')
     parser.add_argument('-d', '--dryrun',     action='store_true',       help='Test without acting')
@@ -925,7 +924,7 @@ def main(argv):
     nbeam = drxConfig['beam_count']
     cores = tngConfig['cpus']
     gpus  = tngConfig['gpus']*len(cores)
-    pfb_inverter = True
+    pfb_inverter = False
     if 'pfb_inverter' in tngConfig:
         pfb_inverter = tngConfig['pfb_inverter']
         
@@ -964,7 +963,7 @@ def main(argv):
                          nbeam_max=nbeam, 
                          buffer_ntime=GSIZE, slot_ntime=19600, core=cores.pop(0)))
     ops.append(ReChannelizerOp(log, capture_ring, rechan_ring, ntime_gulp=GSIZE,
-                               pfb_inverter=args.pfb_inverter,
+                               pfb_inverter=pfb_inverter,
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
                          beam=beam, ntime_gulp=GSIZE*4096//1960, 
