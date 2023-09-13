@@ -1,12 +1,15 @@
-[submodule "caltech-bifrost-dsp"]
-	path = caltech-bifrost-dsp
-	url = https://github.com/realtimeradio/caltech-bifrost-dsp
 [submodule "caltech-lwa"]
 	path = caltech-lwa
 	url = https://github.com/realtimeradio/caltech-lwa
 [submodule "bifrost_tcc_wrapper"]
 	path = bifrost_tcc_wrapper
 	url = https://github.com/ledatelescope/bifrost_tcc_wrapper
+[submodule "lwa_sv"]
+	path = lwa_sv
+	url = https://github.com/lwa-project/lwa_sv
 [submodule "ovro_data_recorder"]
 	path = ovro_data_recorder
-	url = https://github.com/lwa-project/ovro_data_recorder.git
+	url = https://github.com/lwa-project/ovro_data_recorder
+[submodule "caltech-bifrost-dsp"]
+	path = caltech-bifrost-dsp
+	url = https://github.com/realtimeradio/caltech-bifrost-dsp

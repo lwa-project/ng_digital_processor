@@ -1,0 +1,34 @@
+[Unit]
+Description=NDP MCS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Run as the specified user
+User=ndp
+
+# Automatically restart process if crashed
+Restart=on-failure
+
+# Limit respawns to <count> many times within <interval_secs>
+StartLimitIntervalSec=5
+StartLimitBurst=5
+
+# Logging
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=ndp-control
+
+# Run before process
+ExecStartPre=/bin/bash -c '[ -d /home/ndp/log ] || mkdir -p /home/ndp/log'
+
+# Setup the environment
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/bin/bash -ec '\
+python /usr/local/bin/ndp_control.py \
+	 --configfile /usr/local/share/ndp/ndp_config.json \
+	 --logfile    /home/ndp/log/ndp-control.log'
+
+[Install]
+WantedBy=multi-user.target

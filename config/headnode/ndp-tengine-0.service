@@ -1,0 +1,42 @@
+[Unit]
+Description=NDP DRX/T-engine Pipeline - Beam 0
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Run as the specified user
+User=ndp
+
+# Allow unlimited locked memory
+LimitMEMLOCK=infinity
+
+# Allow CAP_NET_RAW
+AmbientCapabilities=CAP_NET_RAW
+
+# Have a safety net to kill off recalcitrant pipelines
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# Logging
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=ndp-tengine-0
+
+# Run before process
+ExecStartPre=/bin/bash -c '[ -d /home/ndp/log ] || mkdir -p /home/ndp/log'
+
+# Setup the environment
+Environment=BIFROST_INCLUDE_PATH=/home/ndp/bifrost8_verbs_py3/src/bifrost
+Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/ndp/bifrost8_verbs_py3/lib:$LD_LIBRARY_PATH
+Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_verbs_py3/python:$PYTHONPATH
+
+Environment=PYTHONUNBUFFERED=1
+
+ExecStart=/bin/bash -ec '\
+python3 /usr/local/bin/ndp_tengine.py \
+	 --beam       0 \
+	 --configfile /usr/local/share/ndp/ndp_config.json \
+	 --logfile    /home/ndp/log/ndp-tengine-0.%H.log'
+
+[Install]
+WantedBy=multi-user.target

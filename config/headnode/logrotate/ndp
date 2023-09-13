@@ -1,0 +1,29 @@
+# Keep three weeks worth of ndp-control logs
+/home/ndp/log/ndp-control.log {
+        daily
+        rotate 21
+        compress
+        delaycompress
+        copytruncate
+        ifempty
+}
+
+# Keep three weeks worth of ndp-drx logs
+/home/ndp/log/ndp-drx-*.ndp*.log {
+        daily
+        rotate 21
+        compress
+        delaycompress
+        copytruncate
+        ifempty
+}
+
+# Keep three weeks worth of ndp-tengine logs
+/home/ndp/log/ndp-tengine-*.ndp.log {
+        daily
+        rotate 21
+        compress
+        delaycompress
+        copytruncate
+        ifempty
+}

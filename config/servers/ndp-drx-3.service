@@ -1,0 +1,44 @@
+[Unit]
+Description=NDP DRX Pipeline - Tuning 3
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Run as the specified user
+User=ndp
+
+# Allow unlimited locked memory
+LimitMEMLOCK=infinity
+
+# Allow CAP_NET_RAW
+AmbientCapabilities=CAP_NET_RAW
+
+# Have a safety net to kill off recalcitrant pipelines
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+# Logging
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=ndp-drx-3
+
+# Run before process
+ExecStartPre=/bin/bash -c '[ -d /home/ndp/log ] || mkdir -p /home/ndp/log'
+
+# Setup the environment
+Environment=BIFROST_INCLUDE_PATH=/home/ndp/bifrost8_verbs_py3/src/bifrost
+Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/ndp/bifrost8_verbs_py3/lib:/usr/local/bin:$LD_LIBRARY_PATH
+Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_verbs_py3/python:$PYTHONPATH
+
+Environment=PYTHONUNBUFFERED=1
+
+WorkingDirectory=/usr/local/bin
+
+ExecStart=/bin/bash -ec '\
+python3 /usr/local/bin/ndp_drx.py \
+	 --tuning     3 \
+	 --configfile /usr/local/share/ndp/ndp_config.json \
+	 --logfile    /home/ndp/log/ndp-drx-3.%H.log'
+
+[Install]
+WantedBy=multi-user.target

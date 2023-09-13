@@ -1,0 +1,9 @@
+# Keep three weeks worth of internal ndp logs
+/var/log/ndp/drx-*.log {
+        daily
+        rotate 21
+        compress
+        delaycompress
+        copytruncate
+        ifempty
+}

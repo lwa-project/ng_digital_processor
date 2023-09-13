@@ -1,0 +1,230 @@
+! Command: show running-config
+! device: arista (DCS-7050QX-32S, EOS-4.19.5M)
+!
+! boot system flash:/EOS-4.19.5M.swi
+!
+hardware port-group 1 select Et1-4
+!
+errdisable recovery cause link-flap
+!
+ip igmp snooping vlan 1 mrouter interface Ethernet1
+ip igmp snooping vlan 1 querier
+ip igmp snooping querier
+!
+transceiver qsfp default-mode 4x10G
+!
+hostname arista
+!
+spanning-tree mode mstp
+!
+service unsupported-transceiver FS f5047577
+!
+no aaa root
+!
+username admin privilege 15 role network-admin secret sha512 $6$uhtNpzVR.fg4DL/p$N6SmJfAqWwTKaaI25Kcyig0K36ZHKEFRkg9/Tsu3QZmwuyFKOg6bF3aVY4v7RDVcmIn7JbPJ7gLAvgzZC5Stb.
+!
+interface Ethernet1
+!
+interface Ethernet2
+!
+interface Ethernet3
+!
+interface Ethernet4
+!
+interface Ethernet6/1
+!
+interface Ethernet6/2
+!
+interface Ethernet6/3
+!
+interface Ethernet6/4
+!
+interface Ethernet7/1
+!
+interface Ethernet7/2
+!
+interface Ethernet7/3
+!
+interface Ethernet7/4
+!
+interface Ethernet8/1
+!
+interface Ethernet8/2
+!
+interface Ethernet8/3
+!
+interface Ethernet8/4
+!
+interface Ethernet9/1
+!
+interface Ethernet9/2
+!
+interface Ethernet9/3
+!
+interface Ethernet9/4
+!
+interface Ethernet10/1
+!
+interface Ethernet10/2
+!
+interface Ethernet10/3
+!
+interface Ethernet10/4
+!
+interface Ethernet11/1
+!
+interface Ethernet11/2
+!
+interface Ethernet11/3
+!
+interface Ethernet11/4
+!
+interface Ethernet12/1
+!
+interface Ethernet12/2
+!
+interface Ethernet12/3
+!
+interface Ethernet12/4
+!
+interface Ethernet13/1
+!
+interface Ethernet13/2
+!
+interface Ethernet13/3
+!
+interface Ethernet13/4
+!
+interface Ethernet14/1
+!
+interface Ethernet14/2
+!
+interface Ethernet14/3
+!
+interface Ethernet14/4
+!
+interface Ethernet15/1
+!
+interface Ethernet15/2
+!
+interface Ethernet15/3
+!
+interface Ethernet15/4
+!
+interface Ethernet16/1
+!
+interface Ethernet16/2
+!
+interface Ethernet16/3
+!
+interface Ethernet16/4
+!
+interface Ethernet17/1
+!
+interface Ethernet17/2
+!
+interface Ethernet17/3
+!
+interface Ethernet17/4
+!
+interface Ethernet18/1
+!
+interface Ethernet18/2
+!
+interface Ethernet18/3
+!
+interface Ethernet18/4
+!
+interface Ethernet19/1
+!
+interface Ethernet19/2
+!
+interface Ethernet19/3
+!
+interface Ethernet19/4
+!
+interface Ethernet20/1
+!
+interface Ethernet20/2
+!
+interface Ethernet20/3
+!
+interface Ethernet20/4
+!
+interface Ethernet21/1
+!
+interface Ethernet21/2
+!
+interface Ethernet21/3
+!
+interface Ethernet21/4
+!
+interface Ethernet22/1
+!
+interface Ethernet22/2
+!
+interface Ethernet22/3
+!
+interface Ethernet22/4
+!
+interface Ethernet23/1
+!
+interface Ethernet23/2
+!
+interface Ethernet23/3
+!
+interface Ethernet23/4
+!
+interface Ethernet24/1
+!
+interface Ethernet24/2
+!
+interface Ethernet24/3
+!
+interface Ethernet24/4
+!
+interface Ethernet25/1
+   speed forced 40gfull
+!
+interface Ethernet26/1
+   speed forced 40gfull
+!
+interface Ethernet27/1
+   speed forced 40gfull
+!
+interface Ethernet28/1
+   speed forced 40gfull
+!
+interface Ethernet29
+   flowcontrol receive on
+!
+interface Ethernet30
+   flowcontrol receive on
+!
+interface Ethernet31
+   flowcontrol send on
+!
+interface Ethernet32
+   flowcontrol send on
+!
+interface Ethernet33
+   flowcontrol send on
+!
+interface Ethernet34
+   flowcontrol send on
+!
+interface Ethernet35
+!
+interface Ethernet36
+!
+interface Management1
+   ip address dhcp
+!
+interface Vlan1
+   ip pim sparse-mode
+!
+ip routing
+!
+ip multicast-routing
+!
+end
