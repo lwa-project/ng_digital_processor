@@ -10,3 +10,6 @@
 [submodule "ovro_data_recorder"]
 	path = ovro_data_recorder
 	url = https://github.com/lwa-project/ovro_data_recorder
+[submodule "caltech-bifrost-dsp"]
+	path = caltech-bifrost-dsp
+	url = https://github.com/realtimeradio/caltech-bifrost-dsp
