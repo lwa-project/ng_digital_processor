@@ -958,7 +958,7 @@ class MsgProcessor(ConsumerThread):
                     
         ## Stop the pipelines
         self.log.info('Stopping pipelines')
-        for tuning in range(4):
+        for tuning in range(len(self.config['drx'])):
             self.servers.stop_drx(tuning=tuning)
         for beam in range(4):
             self.headnode.stop_tengine(beam=beam)
@@ -968,13 +968,13 @@ class MsgProcessor(ConsumerThread):
             self._wait_until_pipelines_stopped(max_wait=40)
         except RuntimeError:
             self.log.warning('Some pipelines have failed to stop, trying harder')
-            for beam in range(4):
+            for beam in range(self.config['drx'][0]['beam_count']):
                 for server in self.headnode:
                     pids = server.pid_tengine(beam=beam)
                     for pid in filter(lambda x: x > 0, pids):
                         self.log.warning('  Killing %s TEngine-%i, PID %i', server.host, beam, pid)
                         server.kill_pid(pid)
-            for tuning in range(2):
+            for tuning in range(len(self.config['drx'])):
                 for server in self.servers:
                     pids = server.pid_drx(tuning=tuning)
                     for pid in filter(lambda x: x > 0, pids):
