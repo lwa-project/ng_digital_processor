@@ -6,7 +6,7 @@
 	url = https://github.com/ledatelescope/bifrost_tcc_wrapper
 [submodule "lwa_sv"]
 	path = lwa_sv
-	url = https://github.com/lwa-project/lwa_sv.git
+	url = https://github.com/lwa-project/lwa_sv
 [submodule "ovro_data_recorder"]
 	path = ovro_data_recorder
-	url = https://github.com/lwa-project/ovro_data_recorder.git
+	url = https://github.com/lwa-project/ovro_data_recorder
