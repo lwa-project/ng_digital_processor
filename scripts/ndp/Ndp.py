@@ -727,6 +727,8 @@ class Snap2MonitorClient(object):
         ### X-engine channel mapping
         i = 0
         for ip in macs.keys():
+            if i >= len(self.config['drx']):
+                break
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = self.config['server']['data_ports'][i]
