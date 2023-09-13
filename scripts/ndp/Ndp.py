@@ -699,7 +699,8 @@ class Snap2MonitorClient(object):
         ### Overall structure + base F-engine config.
         sconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
                               'fft_shift': self.config['snap']['fft_shift'],
-                              'chans_per_packet': self.config['snap']['nchan_packet']},
+                              'chans_per_packet': self.config['snap']['nchan_packet'],
+                              'adc_clocksource': 0},
                  'xengines': {'arp': {},
                               'chans': {}}}
                  
