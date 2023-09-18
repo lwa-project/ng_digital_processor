@@ -1396,7 +1396,7 @@ def main(argv):
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
                             tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
-                            ntime_gulp=50, nbeam_max=nbeam,
+                            ntime_gulp=100, nbeam_max=nbeam,
                             core=cores.pop(0)))
     if True:
         ccore = ops[2].core
