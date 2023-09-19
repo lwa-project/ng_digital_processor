@@ -32,6 +32,7 @@ import socket # For socket.error
 import json
 import yaml
 import hashlib
+import os
 
 __version__    = "0.3"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
@@ -993,6 +994,10 @@ class MsgProcessor(ConsumerThread):
         self.start_lock_thread()
         
         self.log.info("Stopping Internal Trigger thread")
+        try:
+            os.unlink(TRIGGERING_ACTIVE_FILE)
+        except OSError:
+            pass
         self.stop_internal_trigger_thread()
         time.sleep(3)
         self.log.info("Starting Internal Trigger thread")
