@@ -41,8 +41,6 @@ import calendar
 import datetime
 from collections import deque
 
-ACTIVE_COR_CONFIG = threading.Event()
-
 __version__    = "0.1"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
 __copyright__  = "Copyright 2023, The Long Wavelenght Array Project"
@@ -738,8 +736,6 @@ class CorrelatorOp(object):
         if self.gpu != -1:
             BFSetGPU(self.gpu)
             
-        global ACTIVE_COR_CONFIG
-        
         # Get the current pipeline time to figure out if we need to shelve a command or not
         pipeline_time = time_tag / FS
         
@@ -784,8 +780,6 @@ class CorrelatorOp(object):
             self.log.info('  Averaging time set')
             self.gain = gain
             self.log.info('  Gain set')
-            
-            ACTIVE_COR_CONFIG.set()
             
             return True
             
@@ -1084,8 +1078,6 @@ class PacketizeOp(object):
         nstand, npol = nsnap*32, 2
         
     def main(self):
-        global ACTIVE_COR_CONFIG
-        
         cpu_affinity.set_core(self.core)
         if self.gpu != -1:
             BFSetGPU(self.gpu)
@@ -1164,7 +1156,6 @@ class PacketizeOp(object):
                             sdata = sdata.reshape(1,-1,nchan*npol*npol)
                             
                             try:
-                                #if ACTIVE_COR_CONFIG.is_set():
                                 udt.send(desc, time_tag_cur, ticksPerFrame, i*(2*(nstand-1)+1-i)//2+i, 1, sdata)
                             except Exception as e:
                                 print(type(self).__name__, 'Sending Error', str(e))
