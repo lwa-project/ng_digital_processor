@@ -978,16 +978,15 @@ class RetransmitOp(object):
         for sock in self.socks:
             for i in range(self.nblock_send):
                 udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-                udt.set_rate_limit(28000)
                 self.udts.append(udt)
-            
+                
     def main(self):
         cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
         desc = []
-        sidx = []
+        src_id = []
         for i in range(len(self.socks)):
             for j in range(self.nblock_send):
                 desc.append(HeaderInfo())
@@ -995,7 +994,7 @@ class RetransmitOp(object):
                 desc[-1].set_nchan(self.nchan_send)
                 desc[-1].set_nsrc(self.ntuning*self.nblock_send)
                 
-                sidx.append(self.nblock_send*self.tuning + j)
+                src_id.append(self.nblock_send*self.tuning + j)
                 
         for iseq in self.iring.read():
             ihdr = json.loads(iseq.header.tostring())
@@ -1015,11 +1014,9 @@ class RetransmitOp(object):
             seq0 = ihdr['seq0']
             seq = seq0
             
-            k = 0
             for i in range(nstand):
                 for j in range(self.nblock_send):
-                    desc[k].set_chan0(chan0 + j*self.nchan_send)
-                    k += 1
+                    desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
@@ -1036,7 +1033,7 @@ class RetransmitOp(object):
                     bdata = sdata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
                     try:
-                        udt.send(desc[i], seq, 1, sidx[i], 1, bdata.copy(space='system'))
+                        udt.send(desc[i], seq, 1, src_id[i], 1, bdata.copy(space='system'))
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i+1, j+1), str(e))
                         
