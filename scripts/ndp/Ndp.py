@@ -33,6 +33,7 @@ import json
 import yaml
 import hashlib
 import os
+import re
 
 __version__    = "0.3"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
@@ -1237,12 +1238,10 @@ class MsgProcessor(ConsumerThread):
         pipelines = OrderedDict()
         pipelines['localhost'] = BifrostPipelines('localhost').pipelines()
         for server in self.servers:
-            host = server.host.replace('-data', '')
-            pipelines[host] = BifrostPipelines(host).pipelines()
-            
-        # Needed to figure out when to ignore the T-engine output
-        tbf_lock = ISC.PipelineEventClient(addr=('ndp',5834))
-        
+            host = re.sub(r'-data\d*', '', server.host)
+            if host not in pipelines:
+                pipelines[host] = BifrostPipelines(host).pipelines()
+                
         # A little state to see if we need to re-check hosts
         force_recheck = False if self.ready else True
         
@@ -1309,7 +1308,7 @@ class MsgProcessor(ConsumerThread):
                             self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.warning(msg)
                 for side in range(n_beam):
-                    if self.drx.cur_freq[side*2] > 0 and not tbf_lock.is_set() and total_tengine_bw[side*2] == 0:
+                    if self.drx.cur_freq[side*2] > 0 and and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
                         self.state['lastlog'] = msg
