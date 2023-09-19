@@ -976,9 +976,10 @@ class RetransmitOp(object):
         self.nchan_send = min([self.nchan_max, 384])
         self.nblock_send = self.nchan_max // self.nchan_send
         for sock in self.socks:
-            udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-            udt.set_rate_limit(28000*self.nblock_send)
-            self.udts.append(udt)
+            for i in range(self.nblock_send):
+                udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+                udt.set_rate_limit(28000)
+                self.udts.append(udt)
             
     def main(self):
         cpu_affinity.set_core(self.core)
@@ -986,12 +987,16 @@ class RetransmitOp(object):
                                   'core0': cpu_affinity.get_core(),})
         
         desc = []
-        for i in range(self.nblock_send):
-            desc.append(HeaderInfo())
-            desc[-1].set_tuning(1+i)
-            desc[-1].set_nchan(self.nchan_send)
-            desc[-1].set_nsrc(self.ntuning*self.nblock_send)
-            
+        sidx = []
+        for i in range(len(self.socks)):
+            for j in range(self.nblock_send):
+                desc.append(HeaderInfo())
+                desc[-1].set_tuning(1+i)
+                desc[-1].set_nchan(self.nchan_send)
+                desc[-1].set_nsrc(self.ntuning*self.nblock_send)
+                
+                sidx.append(self.nblock_send*self.tuning + j)
+                
         for iseq in self.iring.read():
             ihdr = json.loads(iseq.header.tostring())
             
@@ -1010,9 +1015,12 @@ class RetransmitOp(object):
             seq0 = ihdr['seq0']
             seq = seq0
             
-            for i in range(self.nblock_send):
-                desc[i].set_chan0(chan0 + i*self.nchan_send)
-                
+            k = 0
+            for i in range(nstand):
+                for j in range(self.nblock_send):
+                    desc[k].set_chan0(chan0 + j*self.nchan_send)
+                    k += 1
+                    
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1023,16 +1031,15 @@ class RetransmitOp(object):
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 sdata = idata.transpose(3,1,0,2,4)
+                sdata = sdata.reshape(nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
                 for i,udt in enumerate(self.udts):
-                    bdata = sdata[i,:,:,:,:]
-                    for j in range(self.nblock_send):
-                        tdata = bdata[j,:,:,:]
-                        tdata = tdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
-                        try:
-                            udt.send(desc[j], seq, 1, self.nblock_send*self.tuning+j, 1, tdata.copy(space='system'))
-                        except Exception as e:
-                            print(type(self).__name__, "Sending Error beam %i, block %i" % (i+1, j+1), str(e))
-                            
+                    bdata = sdata[i,:,:,:]
+                    bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
+                    try:
+                        udt.send(desc[i], seq, 1, sidx[i], 1, bdata.copy(space='system'))
+                    except Exception as e:
+                        print(type(self).__name__, "Sending Error beam %i, block %i" % (i+1, j+1), str(e))
+                        
                 seq += self.ntime_gulp
                 
                 curr_time = time.time()
