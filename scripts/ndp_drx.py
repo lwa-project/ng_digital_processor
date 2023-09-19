@@ -637,7 +637,7 @@ class BeamformerOp(object):
                 ohdr['complex'] = True
                 ohdr_str = json.dumps(ohdr)
                 
-                self.oring.resize(ogulp_size)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 prev_time = time.time()
                 with oring.begin_sequence(time_tag=iseq.time_tag, header=ohdr_str) as oseq:
@@ -977,7 +977,7 @@ class RetransmitOp(object):
         self.nblock_send = self.nchan_max // self.nchan_send
         for sock in self.socks:
             udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-            udt.set_rate_limit(27500*self.nblock_send)
+            udt.set_rate_limit(28000*self.nblock_send)
             self.udts.append(udt)
             
     def main(self):
@@ -1418,7 +1418,6 @@ def main(argv):
     for thread in threads:
         #thread.daemon = True
         thread.start()
-        time.sleep(0.005)
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")
