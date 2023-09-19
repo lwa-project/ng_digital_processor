@@ -988,7 +988,8 @@ class RetransmitOp(object):
         desc = []
         for i in range(self.nblock_send):
             desc.append(HeaderInfo())
-            desc[-1].set_tuning(1)
+            desc[-1].set_tuning(1+i)
+            desc[-1].set_nchan(self.nchan_send)
             desc[-1].set_nsrc(self.ntuning*self.nblock_send)
             
         for iseq in self.iring.read():
@@ -1010,7 +1011,6 @@ class RetransmitOp(object):
             seq = seq0
             
             for i in range(self.nblock_send):
-                desc[i].set_nchan(self.nchan_send)
                 desc[i].set_chan0(chan0 + i*self.nchan_send)
                 
             prev_time = time.time()
@@ -1024,8 +1024,6 @@ class RetransmitOp(object):
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 sdata = idata.transpose(3,1,0,2,4)
                 for i,udt in enumerate(self.udts):
-                    if i > 1:
-                        continue
                     bdata = sdata[i,:,:,:,:]
                     for j in range(self.nblock_send):
                         tdata = bdata[j,:,:,:]
