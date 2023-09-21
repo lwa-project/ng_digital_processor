@@ -12,13 +12,12 @@ from bifrost.packet_writer import HeaderInfo, DiskWriter, UDPVerbsTransmit, UDPT
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
-from bifrost.ndarray import copy_array
+from bifrost.ndarray import copy_array, memset_array
 from bifrost.unpack import unpack as Unpack
 from bifrost.reduce import reduce as Reduce
 from bifrost.quantize import quantize as Quantize
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
-from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost.linalg import LinAlg
 from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
@@ -188,8 +187,7 @@ class CopyOp(object):
                                     
                                     idata = ispan.data_view(np.uint8)
                                     odata = ospan.data_view(np.uint8)    
-                                    BFMemCopy(odata, idata)
-                                    #print("COPY")
+                                    copy_array(odata, idata)
                                     
                                     # Internal triggering code
                                     if clear_to_trigger:
