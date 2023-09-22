@@ -97,7 +97,7 @@ class CaptureOp(object):
                 #print(status)
         del capture
 
-class CopyOp(object):
+class BufferCopyOp(object):
     def __init__(self, log, iring, oring, tuning=0, ntime_gulp=2500,# ntime_buf=None,
                  guarantee=True, core=-1):
         self.log = log
@@ -136,7 +136,7 @@ class CopyOp(object):
                 
                 self.sequence_proclog.update(ihdr)
                 
-                self.log.info("Copy: Start of new sequence: %s", str(ihdr))
+                self.log.info("BufferCopy: Start of new sequence: %s", str(ihdr))
                 
                 chan0  = ihdr['chan0']
                 nchan  = ihdr['nchan']
@@ -236,6 +236,91 @@ class CopyOp(object):
                     # Reset to move on to the next input sequence?
                     if not reset_sequence:
                         break
+
+class GPUCopyOp(object):
+    def __init__(self, log, iring, oring, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
+        self.log   = log
+        self.iring = iring
+        self.oring = oring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee = guarantee
+        self.core = core
+        self.gpu = gpu
+
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.out_proclog  = ProcLog(type(self).__name__+"/out")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        if self.gpu != -1:
+            BFSetGPU(self.gpu)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),
+                                  'ngpu': 1,
+                                  'gpu0': BFGetGPU(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
+                
+                self.log.info("GPUCopy: Start of new sequence: %s", str(ihdr))
+                
+                nchan  = ihdr['nchan']
+                nstand = ihdr['nstand']
+                npol   = ihdr['npol']
+                igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
+                ogulp_size = igulp_size
+                
+                ticksPerTime = int(FS) // int(CHAN_BW)
+                base_time_tag = iseq.time_tag
+                
+                ohdr = ihdr.copy()
+                ohdr_str = json.dumps(ohdr)
+                
+                self.oring.resize(ogulp_size, 10*ogulp_size)
+                
+                prev_time = time.time()
+                with oring.begin_sequence(time_tag=iseq.time_tag, header=ohdr_str) as oseq:
+                    for ispan in iseq.read(igulp_size):
+                        if ispan.size < igulp_size:
+                            continue # Ignore final gulp
+                        curr_time = time.time()
+                        acquire_time = curr_time - prev_time
+                        prev_time = curr_time
+                        
+                        with oseq.reserve(ogulp_size) as ospan:
+                            curr_time = time.time()
+                            reserve_time = curr_time - prev_time
+                            prev_time = curr_time
+                            
+                            ## Setup and load
+                            idata = ispan.data_view(np.uint8)
+                            odata = ospan.data_view(np.uint8)
+                            
+                            ## Copy
+                            copy_array(odata, idata)
+                            
+                        ## Update the base time tag
+                        base_time_tag += self.ntime_gulp*ticksPerTime
+                        
+                        curr_time = time.time()
+                        process_time = curr_time - prev_time
+                        prev_time = curr_time
+                        self.perf_proclog.update({'acquire_time': acquire_time, 
+                                                  'reserve_time': reserve_time, 
+                                                  'process_time': process_time,})
 
 def get_time_tag(dt=datetime.datetime.utcnow(), seq_offset=0):
     timestamp = int((dt - NDP_EPOCH).total_seconds())
@@ -465,7 +550,6 @@ class BeamformerOp(object):
         self.cgains = BFArray(shape=(self.nbeam_max*2,nchan,nstand*npol), dtype=np.complex64, space='cuda')
         ## Intermidiate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
-        self.tdata = BFArray(shape=(self.ntime_gulp,nchan,nstand*npol), dtype='ci4', native=False, space='cuda')
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
         self.ldata = BFArray(shape=(self.ntime_gulp,nchan,self.nbeam_max*2), dtype=self.bdata.dtype, space='cuda')
         
@@ -654,11 +738,8 @@ class BeamformerOp(object):
                             idata = ispan.data_view('ci4').reshape(ishape)
                             odata = ospan.data_view(np.complex64).reshape(oshape)
                             
-                            ## Copy
-                            copy_array(self.tdata, idata)
-                            
                             ## Beamform
-                            self.bdata = self.bfbf.matmul(1.0, self.cgains.transpose(1,0,2), self.tdata.transpose(1,2,0), 0.0, self.bdata)
+                            self.bdata = self.bfbf.matmul(1.0, self.cgains.transpose(1,0,2), idata.transpose(1,2,0), 0.0, self.bdata)
                             
                             ## Transpose and save
                             Transpose(self.ldata, self.bdata, axes=(2,0,1))
@@ -727,7 +808,6 @@ class CorrelatorOp(object):
         self.bfcc.init(8, int(np.ceil((self.ntime_gulp/16.0))*16), ochan, nstand, npol)
         ## Intermediate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
-        self.tdata = BFArray(shape=(self.ntime_gulp,nchan,nstand*npol), dtype='ci4', native=False, space='cuda')
         self.udata = BFArray(shape=(int(np.ceil((self.ntime_gulp/16.0))*16),ochan,nstand*npol), dtype='ci8', space='cuda')
         self.cdata = BFArray(shape=(ochan,nstand*(nstand+1)//2*npol*npol), dtype='ci32', space='cuda')
         
@@ -875,9 +955,6 @@ class CorrelatorOp(object):
                             ## Setup and load
                             idata = ispan.data_view('ci4').reshape(ishape)
                             
-                            ## Copy
-                            copy_array(self.tdata, idata)
-                            
                             ## Unpack and decimate
                             BFMap("""
                                   // Unpack into real and imaginary, and then sum
@@ -896,7 +973,7 @@ class CorrelatorOp(object):
                                   // Save
                                   b(i,j,k) = Complex<signed char>(re, im);
                                   """,
-                                  {'a': self.tdata, 'b': self.udata},
+                                  {'a': idata, 'b': self.udata},
                                   axis_names=('i','j','k'),
                                   shape=(self.ntime_gulp,ochan,nstand*npol),
                                   extra_code="#define DECIM %i" % (self.decim,)
@@ -1341,6 +1418,7 @@ def main(argv):
     
     capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host')
     tbf_ring     = Ring(name="buffer-%i" % tuning)
+    gpu_ring     = Ring(name="gpu-%i" % tuning, space='cuda')
     tengine_ring = Ring(name="tengine-%i" % tuning, space='cuda_host')
     vis_ring     = Ring(name="vis-%i" % tuning, space='cuda_host')
     
@@ -1374,15 +1452,17 @@ def main(argv):
     ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
                          nsrc=nsrc, nsnap=nsnap, src0=snap0, max_payload_size=6500,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
-    ops.append(CopyOp(log, capture_ring, tbf_ring,
-                      tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
-                      guarantee=False, core=cores.pop(0)))
+    ops.append(BufferCopyOp(log, capture_ring, tbf_ring,
+                            tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
+                            guarantee=False, core=cores.pop(0)))
     ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbf_ring,
                                ntime_gulp=GSIZE, ntime_buf=int(25000*tbf_buffer_secs/2500)*2500,
                                tuning=tuning, nchan_max=nchan_max,
                                core=cores.pop(0),
                                max_bytes_per_sec=tbf_bw_max))
-    ops.append(BeamformerOp(log=log, iring=capture_ring, oring=tengine_ring,
+    ops.append(GPUCopyOp(log, capture_ring, gpu_ring,
+                         ntime_gulp=GSIZE, core=cores[0], gpu=gpus[0]))
+    ops.append(BeamformerOp(log=log, iring=gpu_ring, oring=tengine_ring,
                             tuning=tuning, ntime_gulp=GSIZE,
                             nsnap=nsnap, nchan_max=nchan_max, nbeam_max=nbeam,
                             core=cores.pop(0), gpu=gpus.pop(0)))
@@ -1396,7 +1476,7 @@ def main(argv):
             pcore = cores.pop(0)
         except IndexError:
             pcore = ccore
-        ops.append(CorrelatorOp(log=log, iring=capture_ring, oring=vis_ring, 
+        ops.append(CorrelatorOp(log=log, iring=gpu_ring, oring=vis_ring, 
                                 tuning=tuning, ntime_gulp=GSIZE,
                                 nsnap=nsnap, nchan_max=nchan_max,
                                 utc_start_tt=utc_start_tt,
