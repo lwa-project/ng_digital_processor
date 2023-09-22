@@ -273,8 +273,6 @@ class GPUCopyOp(object):
                 
                 self.sequence_proclog.update(ihdr)
                 
-                status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
-                
                 self.log.info("GPUCopy: Start of new sequence: %s", str(ihdr))
                 
                 nchan  = ihdr['nchan']
