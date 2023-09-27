@@ -1308,7 +1308,7 @@ class MsgProcessor(ConsumerThread):
                             self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.warning(msg)
                 for side in range(n_beam):
-                    if self.drx.cur_freq[side*2] > 0 and and total_tengine_bw[side] == 0:
+                    if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
                         self.state['lastlog'] = msg
