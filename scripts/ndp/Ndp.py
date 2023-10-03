@@ -1317,7 +1317,7 @@ class MsgProcessor(ConsumerThread):
                     total_tengine_bw[side] += txbw
                     if loss > 0.01:    # >1% packet loss
                         problems_found = True
-                        msg = "%s, T-Engine-%i -- RX loss of %.1f%%" % (host, side, loss*100.0)
+                        msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
                         if self.state['status'] != 'ERROR':
                             self.state['lastlog'] = msg
                             self.state['status'] = 'WARNING'
