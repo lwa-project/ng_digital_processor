@@ -1356,7 +1356,7 @@ class MsgProcessor(ConsumerThread):
                             self.state['status'] = 'WARNING'
                             self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.warning(msg)
-                    if self.drx.cur_freq[side] > 0 and side == 0 and not cact:
+                    if self.drx.cur_freq[side] > 0 and not cact:
                         problems_found = True
                         msg = "%s, DRX-%i -- Correlator not running" % (host, side)
                         self.state['lastlog'] = msg
