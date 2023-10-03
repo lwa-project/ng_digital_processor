@@ -290,15 +290,20 @@ class BifrostPipeline(object):
         Get the current receive rate in B/s.
         """
         
-        return self._get_rate('udp_capture', 'good')
+        rate = self._get_rate('udp_capture', 'good')
+        rate += self._get_rate('udp_verbs_capture', 'good')
+        return rate
     
     def tx_rate(self):
         """
         Get the current transmit rate in B/s.
         """
         
-        rate = self._get_rate('udp_transmit', 'good')
-        rate += self._get_rate('udp_transmit_2', 'good')
+        rate = 0.0
+        for method in ('udp_transmit', 'udp_verbs_transmit'):
+            rate += self._get_rate(method, 'good')
+            for output in range(1, 8+1):
+                rate += self._get_rate(method+'_'+str(output), 'good')
         return rate
         
     def _get_loss(self, block, snapshot=True):
@@ -342,7 +347,9 @@ class BifrostPipeline(object):
         the loss is integrated over the lifetime of the pipeline.
         """
         
-        return self._get_loss('udp_capture', snapshot=snapshot)
+        loss = self._get_loss('udp_capture', snapshot=snapshot)
+        loss += self._get_loss('udp_verbs_capture', snapshot=snapshot)
+        return loss
         
     def is_corr_active(self):
         """
