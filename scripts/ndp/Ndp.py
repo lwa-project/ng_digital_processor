@@ -14,6 +14,7 @@ from .iptools    import *
 from . import ISC
 
 from lwa_f import snap2_fengine
+from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
 from .FileLock import FileLock
 
 from queue import Queue
@@ -694,6 +695,21 @@ class Snap2MonitorClient(object):
                     pass
         return status
         
+    def is_ok(self):
+        # Is there an error condition on the FPGA?
+        
+        status = True
+        with self.access_lock:
+            if self.snap.is_connected:
+                try:
+                    summary, flags = self.snap.fpga.get_status()
+                    for key in flags.keys():
+                        if flags[key] == FENG_ERROR_CODE:
+                            status = False
+                except Exception as e:
+                    pass
+        return status
+        
     def configure(self):
         # Configure the FPGA and start data flowing
         
@@ -1307,7 +1323,7 @@ class MsgProcessor(ConsumerThread):
                             self.state['status'] = 'WARNING'
                             self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.warning(msg)
-                for side in range(n_beam):
+                for side in range(n_beams):
                     if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
@@ -1376,7 +1392,16 @@ class MsgProcessor(ConsumerThread):
                     self.state['status']  = 'ERROR'
                     self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     self.log.error(msg)
-                    
+                else:
+                    snaps_ok = self.snaps.is_ok()
+                    if not all(snaps_ok):
+                        problems_found = True
+                        msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
+                        self.state['lastlog'] = msg
+                        self.state['status']  = 'ERROR'
+                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        self.log.error(msg)
+                        
                 ## De-assert anything that we can de-assert
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
