@@ -128,6 +128,90 @@ class CaptureOp(object):
                 status = capture.recv()
         del capture
 
+class GPUCopyOp(object):
+    def __init__(self, log, iring, oring, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
+        self.log   = log
+        self.iring = iring
+        self.oring = oring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee = guarantee
+        self.core = core
+        self.gpu = gpu
+
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.out_proclog  = ProcLog(type(self).__name__+"/out")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        if self.gpu != -1:
+            BFSetGPU(self.gpu)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),
+                                  'ngpu': 1,
+                                  'gpu0': BFGetGPU(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                self.log.info("GPUCopy: Start of new sequence: %s", str(ihdr))
+                
+                nchan = ihdr['nchan']
+                nbeam = ihdr['nbeam']
+                npol  = ihdr['npol']
+                igulp_size = self.ntime_gulp*nchan*nbeam*npol*8     # numpy.complex64
+                ogulp_size = igulp_size
+                
+                ticksPerTime = int(FS) // int(CHAN_BW)
+                base_time_tag = iseq.time_tag
+                
+                ohdr = ihdr.copy()
+                ohdr_str = json.dumps(ohdr)
+                
+                self.iring.resize(igulp_size, 10*igulp_size)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
+                
+                prev_time = time.time()
+                with oring.begin_sequence(time_tag=iseq.time_tag, header=ohdr_str) as oseq:
+                    for ispan in iseq.read(igulp_size):
+                        if ispan.size < igulp_size:
+                            continue # Ignore final gulp
+                        curr_time = time.time()
+                        acquire_time = curr_time - prev_time
+                        prev_time = curr_time
+                        
+                        with oseq.reserve(ogulp_size) as ospan:
+                            curr_time = time.time()
+                            reserve_time = curr_time - prev_time
+                            prev_time = curr_time
+                            
+                            ## Setup and load
+                            idata = ispan.data_view(numpy.uint8)
+                            odata = ospan.data_view(numpy.uint8)
+                            
+                            ## Copy
+                            copy_array(odata, idata)
+                            
+                        ## Update the base time tag
+                        base_time_tag += self.ntime_gulp*ticksPerTime
+                        
+                        curr_time = time.time()
+                        process_time = curr_time - prev_time
+                        prev_time = curr_time
+                        self.perf_proclog.update({'acquire_time': acquire_time, 
+                                                  'reserve_time': reserve_time, 
+                                                  'process_time': process_time,})
+
 class ReChannelizerOp(object):
     def __init__(self, log, iring, oring, ntime_gulp=250, nbeam_max=1, pfb_inverter=True, guarantee=True, core=None, gpu=None):
         self.log          = log
@@ -210,6 +294,9 @@ class ReChannelizerOp(object):
                 chan_bw  = ihdr['bw'] / nchan
                 npol     = ihdr['npol']
                 
+                assert(nbeam == 1)
+                assert(npol == 2)
+                
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8        # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam*npol)
                 #self.iring.resize(igulp_size, 15*igulp_size)
@@ -249,22 +336,15 @@ class ReChannelizerOp(object):
                             idata = ispan.data_view(np.complex64).reshape(ishape)
                             odata = ospan.data_view(np.complex64).reshape(oshape)
                             
-                            ### From here until going to the output ring we are on the GPU
-                            t0 = time.time()
-                            try:
-                                copy_array(bdata, idata)
-                            except NameError:
-                                bdata = idata.copy(space='cuda')
-                                
                             # Pad out to the full 98 MHz bandwidth
                             t1 = time.time()
                             BFMap(f"""
-                                  a(i,j+{chan0},k) = b(i,j,k);
-                                  a(i,j+{chan0},k) = b(i,j,k);
+                                  a(i,j+{chan0},0) = b(i,j,0);
+                                  a(i,j+{chan0},1) = b(i,j,1);
                                   """,
-                                  {'a': self.fdata, 'b': bdata},
-                                  axis_names=('i','j','k'),
-                                  shape=(self.ntime_gulp,nchan,nbeam*npol))
+                                  {'a': self.fdata, 'b': idata},
+                                  axis_names=('i','j'),
+                                  shape=(self.ntime_gulp,nchan))
                             
                             ## PFB inversion
                             ### Initial IFFT
@@ -308,6 +388,7 @@ class ReChannelizerOp(object):
                             ## Save
                             t6 = time.time()
                             copy_array(odata, rdata)
+                            BFSync()
                             
                             t7 = time.time()
                             # print(t7-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6)
@@ -526,6 +607,9 @@ class TEngineOp(object):
                 ntune    = 2
                 pfb_inverter = ihdr['pfb_inverter']
                 
+                assert(nbeam == 1)
+                assert(npol == 2)
+                
                 igulp_size = self.ntime_gulp*nchan*nbeam*npol*8                # complex64
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
                 self.iring.resize(igulp_size, 10*igulp_size)
@@ -590,20 +674,28 @@ class TEngineOp(object):
                                 
                                 ## Prune the data ahead of the IFFT
                                 try:
-                                    pdata[:,:,:,0,:] = idata[:,tchan0:tchan0+self.nchan_out,:,:]
-                                    pdata[:,:,:,1,:] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
+                                    BFMap(f"""
+                                          a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
+                                          a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
+                                          a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
+                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                          """,
+                                          {'a': bdata, 'b': idata},
+                                          axis_names=('i','j'),
+                                          shape=(self.ntime_gulp,self.nchan_out))
                                 except NameError:
-                                    pshape = (self.ntime_gulp,self.nchan_out,nbeam,ntune,npol)
-                                    pdata = BFArray(shape=pshape, dtype=np.complex64, space='cuda_host')
+                                    bshape = (self.ntime_gulp,self.nchan_out,nbeam,ntune,npol)
+                                    bdata = BFArray(shape=bshape, dtype=numpy.complex64, space='cuda')
                                     
-                                    pdata[:,:,:,0,:] = idata[:,tchan0:tchan0+self.nchan_out,:,:]
-                                    pdata[:,:,:,1,:] = idata[:,tchan1:tchan1+self.nchan_out,:,:]
-                                    
-                                ### From here until going to the output ring we are on the GPU
-                                try:
-                                    copy_array(bdata, pdata)
-                                except NameError:
-                                    bdata = pdata.copy(space='cuda')
+                                    BFMap(f"""
+                                        a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
+                                        a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
+                                        a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
+                                        a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                        """,
+                                        {'a': bdata, 'b': idata},
+                                        axis_names=('i','j'),
+                                        shape=(self.ntime_gulp,self.nchan_out))
                                     
                                 ## IFFT
                                 try:
@@ -649,7 +741,7 @@ class TEngineOp(object):
                                 try:
                                     copy_array(tdata, qdata)
                                 except NameError:
-                                    tdata = qdata.copy('system')
+                                    tdata = qdata.copy('cuda_host')
                                 odata[...] = tdata.view(np.uint8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
@@ -676,7 +768,6 @@ class TEngineOp(object):
                                     
                                 ### Clean-up
                                 try:
-                                    del pdata
                                     del bdata
                                     del gdata
                                     del bfft
@@ -950,9 +1041,11 @@ def main(argv):
     isock.bind(iaddr)
     isock.timeout = 0.5
     
-    capture_ring = Ring(name="capture-%i" % beam, space="cuda_host")
-    rechan_ring = Ring(name="rechan-%i" % beam, space="cuda_host")
-    tengine_ring = Ring(name="tengine-%i" % beam, space="system")
+    BFSetGPU(gpus[0])
+    capture_ring = Ring(name="capture-%i" % beam, space="cuda_host", core=cores[0])
+    gpu_ring     = Ring(name="gpu-%i" % beam, space='cuda')
+    rechan_ring = Ring(name="rechan-%i" % beam, space="cuda")
+    tengine_ring = Ring(name="tengine-%i" % beam, space="cuda_host", core=cores[-1])
     
     GSIZE = 1960
     nchan_max = int(round(sum([c['capture_bandwidth'] for c in drxConfigs])/CHAN_BW))    # Subtly different from what is in ndp_drx.py
@@ -964,7 +1057,9 @@ def main(argv):
                          nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
                          nbeam_max=nbeam, 
                          buffer_ntime=GSIZE, slot_ntime=19600, core=cores.pop(0)))
-    ops.append(ReChannelizerOp(log, capture_ring, rechan_ring, ntime_gulp=GSIZE,
+    ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=args.gulp_size,
+                         core=cores[0], gpu=gpus[0]))
+    ops.append(ReChannelizerOp(log, gpu_ring, rechan_ring, ntime_gulp=GSIZE,
                                pfb_inverter=pfb_inverter,
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
