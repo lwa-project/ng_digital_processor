@@ -1371,9 +1371,9 @@ class MsgProcessor(ConsumerThread):
                         self.state['status']  = 'ERROR'
                         self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.error(msg)
-                if len(found['drx']) != n_tunings*n_servers:
+                if len(found['drx']) != n_tunings:
                     problems_found = True
-                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings*n_servers)
+                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings)
                     if self.state['status'] != 'ERROR':
                         self.state['lastlog'] = msg
                         self.state['status']  = 'WARNING'
