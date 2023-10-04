@@ -1057,7 +1057,7 @@ def main(argv):
                          nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
                          nbeam_max=nbeam, 
                          buffer_ntime=GSIZE, slot_ntime=19600, core=cores.pop(0)))
-    ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=args.gulp_size,
+    ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=GSIZE,
                          core=cores[0], gpu=gpus[0]))
     ops.append(ReChannelizerOp(log, gpu_ring, rechan_ring, ntime_gulp=GSIZE,
                                pfb_inverter=pfb_inverter,
