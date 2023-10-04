@@ -1414,11 +1414,12 @@ def main(argv):
     isock.bind(iaddr)
     isock.timeout = 0.5
     
-    capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host')
+    BFSetGPU(gpus[0])
+    capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host', core=cores[0])
     tbf_ring     = Ring(name="buffer-%i" % tuning)
     gpu_ring     = Ring(name="gpu-%i" % tuning, space='cuda')
-    tengine_ring = Ring(name="tengine-%i" % tuning, space='cuda_host')
-    vis_ring     = Ring(name="vis-%i" % tuning, space='cuda_host')
+    tengine_ring = Ring(name="tengine-%i" % tuning, space='cuda_host', core=cores[-2])
+    vis_ring     = Ring(name="vis-%i" % tuning, space='cuda_host', core=cores[-1])
     
     tbf_buffer_secs = int(round(config['tbf']['buffer_time_sec']))
     
