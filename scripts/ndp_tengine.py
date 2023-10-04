@@ -196,8 +196,8 @@ class GPUCopyOp(object):
                             prev_time = curr_time
                             
                             ## Setup and load
-                            idata = ispan.data_view(numpy.uint8)
-                            odata = ospan.data_view(numpy.uint8)
+                            idata = ispan.data_view(np.uint8)
+                            odata = ospan.data_view(np.uint8)
                             
                             ## Copy
                             copy_array(odata, idata)
@@ -685,7 +685,7 @@ class TEngineOp(object):
                                           shape=(self.ntime_gulp,self.nchan_out))
                                 except NameError:
                                     bshape = (self.ntime_gulp,self.nchan_out,nbeam,ntune,npol)
-                                    bdata = BFArray(shape=bshape, dtype=numpy.complex64, space='cuda')
+                                    bdata = BFArray(shape=bshape, dtype=np.complex64, space='cuda')
                                     
                                     BFMap(f"""
                                         a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
