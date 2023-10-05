@@ -954,27 +954,26 @@ class CorrelatorOp(object):
                             idata = ispan.data_view('ci4').reshape(ishape)
                             
                             ## Unpack and decimate
-                            BFMap("""
+                            BFMap(f"""
                                   // Unpack into real and imaginary, and then sum
                                   int jF;
                                   signed char sample, re, im;
                                   re = im = 0;
                                   
                                   #pragma unroll
-                                  for(int l=0; l<DECIM; l++) {
-                                      jF = j*DECIM + l;
+                                  for(int l=0; l<{self.decim}; l++) {{
+                                      jF = j*{self.decim} + l;
                                       sample = a(i,jF,k).real_imag;
                                       re += ((signed char)  (sample & 0xF0))       / 16;
                                       im += ((signed char) ((sample & 0x0F) << 4)) / 16;
-                                  }
+                                  }}
                                   
                                   // Save
                                   b(i,j,k) = Complex<signed char>(re, im);
                                   """,
                                   {'a': idata, 'b': self.udata},
                                   axis_names=('i','j','k'),
-                                  shape=(self.ntime_gulp,ochan,nstand*npol),
-                                  extra_code="#define DECIM %i" % (self.decim,)
+                                  shape=(self.ntime_gulp,ochan,nstand*npol)
                                  )
                             
                             ## Correlate
