@@ -1016,14 +1016,14 @@ class CorrelatorOp(object):
                         break
 
 class RetransmitOp(object):
-    def __init__(self, log, osocks, iring, tuning=0, ntuning=4, nchan_max=256, ntime_gulp=2500, nbeam_max=1, guarantee=True, core=-1):
+    def __init__(self, log, osock, iring, beam=0, tuning=0, ntuning=4, nchan_max=256, ntime_gulp=2500, guarantee=True, core=-1):
         self.log   = log
-        self.socks = osocks
+        self.sock  = osock
         self.iring = iring
+        self.beam = beam
         self.tuning = tuning
         self.ntuning = ntuning
         self.ntime_gulp = ntime_gulp
-        self.nbeam_max = nbeam_max
         self.guarantee = guarantee
         self.core = core
         
@@ -1042,10 +1042,9 @@ class RetransmitOp(object):
         self.udts = []
         self.nchan_send = min([self.nchan_max, 384])
         self.nblock_send = self.nchan_max // self.nchan_send
-        for sock in self.socks:
-            for i in range(self.nblock_send):
-                udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-                self.udts.append(udt)
+        for i in range(self.nblock_send):
+            udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+            self.udts.append(udt)
                 
     def main(self):
         cpu_affinity.set_core(self.core)
@@ -1054,14 +1053,13 @@ class RetransmitOp(object):
         
         desc = []
         src_id = []
-        for i in range(len(self.socks)):
-            for j in range(self.nblock_send):
-                desc.append(HeaderInfo())
-                desc[-1].set_tuning(1+i)
-                desc[-1].set_nchan(self.nchan_send)
-                desc[-1].set_nsrc(self.ntuning*self.nblock_send)
-                
-                src_id.append(self.nblock_send*self.tuning + j)
+        for j in range(self.nblock_send):
+            desc.append(HeaderInfo())
+            desc[-1].set_tuning(1+self.beam)
+            desc[-1].set_nchan(self.nchan_send)
+            desc[-1].set_nsrc(self.ntuning*self.nblock_send)
+            
+            src_id.append(self.nblock_send*self.tuning + j)
                 
         for iseq in self.iring.read():
             ihdr = json.loads(iseq.header.tostring())
@@ -1097,12 +1095,12 @@ class RetransmitOp(object):
                 sdata = idata.transpose(3,1,0,2,4)
                 sdata = sdata.reshape(nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
                 for i,udt in enumerate(self.udts):
-                    bdata = sdata[i,:,:,:]
+                    bdata = sdata[self.nblock_send*self.beam+i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
                     try:
                         udt.send(desc[i], seq, 1, src_id[i], 1, bdata.copy(space='system'))
                     except Exception as e:
-                        print(type(self).__name__, "Sending Error beam %i, block %i" % (i+1, j+1), str(e))
+                        print(type(self).__name__, "Sending Error beam %i, block %i" % (self.beam+1, i+1), str(e))
                         
                 seq += self.ntime_gulp
                 
@@ -1464,10 +1462,13 @@ def main(argv):
                             tuning=tuning, ntime_gulp=GSIZE,
                             nsnap=nsnap, nchan_max=nchan_max, nbeam_max=nbeam,
                             core=cores.pop(0), gpu=gpus.pop(0)))
-    ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
-                            tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
-                            ntime_gulp=100, nbeam_max=nbeam,
-                            core=cores.pop(0)))
+    for b,s in enumerate(tsocks):
+        ops.append(RetransmitOp(log=log, osocks=s, iring=tengine_ring,
+                                beam=b, tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
+                                ntime_gulp=100,
+                                core=cores[0])))
+    cores.pop(0)
+    
     if True:
         ccore = ops[2].core
         try:
