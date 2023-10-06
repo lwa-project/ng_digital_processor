@@ -549,7 +549,7 @@ class BeamformerOp(object):
         ## Intermidiate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
-        self.ldata = BFArray(shape=(self.ntime_gulp,nchan,self.nbeam_max*2), dtype=self.bdata.dtype, space='cuda')
+        self.ldata = BFArray(shape=(self.ntime_gulp,self.nbeam_max,nchan,2), dtype=self.bdata.dtype, space='cuda')
         
         try:
             ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
@@ -705,7 +705,7 @@ class BeamformerOp(object):
                 igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
                 ogulp_size = self.ntime_gulp*nchan*self.nbeam_max*npol*8    # complex64
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
-                oshape = (self.ntime_gulp,nchan,self.nbeam_max*2)
+                oshape = (self.ntime_gulp,self.nbeam_max,nchan,2)
                 
                 ticksPerTime = int(FS) // int(CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -737,10 +737,12 @@ class BeamformerOp(object):
                             odata = ospan.data_view(np.complex64).reshape(oshape)
                             
                             ## Beamform
+                            self.bdata = self.bdata.reshape(nchan,self.nbeam_max*2,self.ntime_gulp)
                             self.bdata = self.bfbf.matmul(1.0, self.cgains.transpose(1,0,2), idata.transpose(1,2,0), 0.0, self.bdata)
                             
                             ## Transpose and save
-                            Transpose(self.ldata, self.bdata, axes=(2,0,1))
+                            self.bdata = self.bdata.reshape(nchan,self.nbeam_max,2,self.ntime_gulp)
+                            Transpose(self.ldata, self.bdata, axes=(3,1,0,2))
                             copy_array(odata, self.ldata)
                             
                         ## Update the base time tag
@@ -1075,8 +1077,8 @@ class RetransmitOp(object):
             nstand  = ihdr['nstand']
             npol    = ihdr['npol']
             nstdpol = nstand * npol
-            igulp_size = self.ntime_gulp*nchan*nstdpol*8        # complex64
-            igulp_shape = (self.ntime_gulp,self.nblock_send,self.nchan_send,nstand,npol)
+            igulp_size = self.ntime_gulp*nstand,nchan*npol*8        # complex64
+            igulp_shape = (self.ntime_gulp,nstand*self.nblock_send,self.nchan_send,npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
@@ -1094,13 +1096,13 @@ class RetransmitOp(object):
                 prev_time = curr_time
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                sdata = idata.transpose(3,1,0,2,4)
-                sdata = sdata.reshape(nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
+                sdata = idata.transpose(1,0,2,3)
+                sdata = sdata.copy(space='system')
                 for i,udt in enumerate(self.udts):
                     bdata = sdata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
                     try:
-                        udt.send(desc[i], seq, 1, src_id[i], 1, bdata.copy(space='system'))
+                        udt.send(desc[i], seq, 1, src_id[i], 1, bdata)
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
                         
