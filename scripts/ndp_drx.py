@@ -1466,7 +1466,7 @@ def main(argv):
         ops.append(RetransmitOp(log=log, osocks=s, iring=tengine_ring,
                                 beam=b, tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
                                 ntime_gulp=100,
-                                core=cores[0])))
+                                core=cores[0]))
     cores.pop(0)
     
     if True:
