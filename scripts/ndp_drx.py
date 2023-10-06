@@ -1077,7 +1077,7 @@ class RetransmitOp(object):
             nstand  = ihdr['nstand']
             npol    = ihdr['npol']
             nstdpol = nstand * npol
-            igulp_size = self.ntime_gulp*nstand,nchan*npol*8        # complex64
+            igulp_size = self.ntime_gulp*nstand*nchan*npol*8        # complex64
             igulp_shape = (self.ntime_gulp,nstand*self.nblock_send,self.nchan_send,npol)
             
             seq0 = ihdr['seq0']
