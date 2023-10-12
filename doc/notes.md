@@ -23,6 +23,10 @@
     splitting scheme where the SNAP2s are in 192.168.40.0/24, one NIC is on 192.168.40.0/25, and the
     the other is on 192.168.40.128/25.  I initially tried to do this with DHCP but that was a no-go.
     The configuration on the servers is now static and controlled by `netplan`.
+ 2. **`bifrost.map` Cache** - There was a problem with having the `bifrost.map` cache stored in `~/.bifrost`
+    because of NFS file locking problems.  There wasn't always a deadlock but it happened often enough
+    that I moved the map cache to `/opt/.bifrost` inside the Bifrost code.
+    
 ## Problems and Open Questions
 See https://github.com/lwa-project/ng_digital_processor/issues
 
