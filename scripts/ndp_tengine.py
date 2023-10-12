@@ -338,8 +338,10 @@ class ReChannelizerOp(object):
                             # Pad out to the full 98 MHz bandwidth
                             t1 = time.time()
                             BFMap(f"""
-                                  a(i,j+{chan0},0) = b(i,j,0);
-                                  a(i,j+{chan0},1) = b(i,j,1);
+                                  #pragma unroll
+                                  for(int k=0; k<{nbeam*npol}; k++) {{
+                                    a(i,j+{chan0},k) = b(i,j,k);
+                                  }}
                                   """,
                                   {'a': self.fdata, 'b': idata},
                                   axis_names=('i','j'),
@@ -704,10 +706,14 @@ class TEngineOp(object):
                                 ## Prune the data ahead of the IFFT
                                 try:
                                     BFMap(f"""
-                                          a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
-                                          a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
-                                          a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
-                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                          #pragma unroll
+                                          for(int k=0; k<{nbeam}; k++) {{
+                                            #pragma unroll
+                                            for(int l=0; l<{npol}; l++) {{
+                                              a(i,j,k,0,l) = b(i,{tchan0}+j,k,l);
+                                              a(i,j,k,1,l) = b(i,{tchan1}+j,k,l);
+                                            }}
+                                          }}
                                           """,
                                           {'a': bdata, 'b': idata},
                                           axis_names=('i','j'),
@@ -717,10 +723,14 @@ class TEngineOp(object):
                                     bdata = BFArray(shape=bshape, dtype=np.complex64, space='cuda')
                                     
                                     BFMap(f"""
-                                        a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
-                                        a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
-                                        a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
-                                        a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                        #pragma unroll
+                                        for(int k=0; k<{nbeam}; k++) {{
+                                          #pragma unroll
+                                          for(int l=0; l<{npol}; l++) {{
+                                            a(i,j,k,0,l) = b(i,{tchan0}+j,k,l);
+                                            a(i,j,k,1,l) = b(i,{tchan1}+j,k,l);
+                                          }}
+                                        }}
                                         """,
                                         {'a': bdata, 'b': idata},
                                         axis_names=('i','j'),
@@ -739,13 +749,16 @@ class TEngineOp(object):
                                     
                                 ## Phase rotation and output "desired gain imbalance" correction
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
-                                BFMap("""
-                                      auto k = (j / 2);// % 2;
-                                      a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
+                                BFMap(f"""
+                                      #pragma unroll
+                                      for(int j=0; j<{nbeam*ntune*npol}; j++) {{
+                                        int k = j / 2;
+                                        a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
+                                      }}
                                       """, 
                                       {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
-                                      axis_names=('i','j'),
-                                      shape=gdata.shape, 
+                                      axis_names=('i',),
+                                      shape=[gdata.shape[0],],
                                       extra_code="#define BF_PI_F 3.141592654f")
                                 gdata = gdata.reshape((-1,nbeam,ntune,npol))
                                 
