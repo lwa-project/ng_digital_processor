@@ -750,10 +750,16 @@ class TEngineOp(object):
                                 ## Phase rotation and output "desired gain imbalance" correction
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap(f"""
+                                      Complex<float> factor[{nbeam*ntune}];
+                                      #pragma unroll
+                                      for(int j=0; j<{nbeam*ntune}; j++) {{
+                                        factor[j] = r(j)*exp(Complex<float>(1, -2*BF_PI_F*fmod(g(j)*s(j), 1.0)));
+                                      }}
+                                      
                                       #pragma unroll
                                       for(int j=0; j<{nbeam*ntune*npol}; j++) {{
                                         int k = j / 2;
-                                        a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
+                                        a(i,j) *= factor[k]*b(i,k);
                                       }}
                                       """, 
                                       {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
