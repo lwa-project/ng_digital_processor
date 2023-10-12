@@ -336,7 +336,6 @@ class ReChannelizerOp(object):
                             odata = ospan.data_view(np.complex64).reshape(oshape)
                             
                             # Pad out to the full 98 MHz bandwidth
-                            t1 = time.time()
                             BFMap(f"""
                                   #pragma unroll
                                   for(int k=0; k<{nbeam*npol}; k++) {{
@@ -349,7 +348,6 @@ class ReChannelizerOp(object):
                             
                             ## PFB inversion
                             ### Initial IFFT
-                            t2 = time.time()
                             self.gdata = self.gdata.reshape(self.fdata.shape)
                             try:
                                 bfft.execute(self.fdata, self.gdata, inverse=True)
@@ -360,7 +358,6 @@ class ReChannelizerOp(object):
                                 
                             if self.pfb_inverter:
                                 ### The actual inversion
-                                t4 = time.time()
                                 self.gdata = self.gdata.reshape(self.imatrix.shape)
                                 BFMap("""
                                       Complex32 temp[4], ftemp[4];
@@ -405,7 +402,6 @@ class ReChannelizerOp(object):
                                       shape=(self.ntime_gulp//4,NCHAN*nbeam*npol))
                                 
                             ## FFT to re-channelize
-                            t5 = time.time()
                             self.gdata = self.gdata.reshape(-1, ochan, nbeam*npol)
                             try:
                                 ffft.execute(self.gdata, rdata, inverse=False)
@@ -417,12 +413,8 @@ class ReChannelizerOp(object):
                                 ffft.execute(self.gdata, rdata, inverse=False)
                                 
                             ## Save
-                            t6 = time.time()
                             copy_array(odata, rdata)
                             BFSync()
-                            
-                            t7 = time.time()
-                            # print(t7-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6)
                             
                         curr_time = time.time()
                         process_time = curr_time - prev_time
