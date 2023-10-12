@@ -190,15 +190,19 @@ interface Ethernet26/1
    speed forced 40gfull
 !
 interface Ethernet27/1
+   flowcontrol receive on
    speed forced 40gfull
 !
 interface Ethernet28/1
+   flowcontrol receive on
    speed forced 40gfull
 !
 interface Ethernet29
+   flowcontrol send on
    flowcontrol receive on
 !
 interface Ethernet30
+   flowcontrol send on
    flowcontrol receive on
 !
 interface Ethernet31

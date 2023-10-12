@@ -8,17 +8,17 @@ from ndp import ISC
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
 from bifrost.packet_capture import PacketCaptureCallback, UDPVerbsCapture as UDPCapture
-from bifrost.packet_writer import HeaderInfo, DiskWriter, UDPTransmit
+from bifrost.packet_writer import HeaderInfo, DiskWriter, UDPVerbsTransmit, UDPTransmit
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
 import bifrost.ndarray as BFArray
-from bifrost.ndarray import copy_array
+from bifrost.ndarray import copy_array, memset_array
 from bifrost.unpack import unpack as Unpack
 from bifrost.reduce import reduce as Reduce
 from bifrost.quantize import quantize as Quantize
+from bifrost.transpose import transpose as Transpose
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
-from bifrost.memory import memcpy as BFMemCopy, memset as BFMemSet
 from bifrost.linalg import LinAlg
 from bifrost import map as BFMap, asarray as BFAsArray
 from bifrost.device import set_device as BFSetGPU, get_device as BFGetGPU, stream_synchronize as BFSync, set_devices_no_spin_cpu as BFNoSpinZone
@@ -40,8 +40,6 @@ import struct
 import calendar
 import datetime
 from collections import deque
-
-ACTIVE_COR_CONFIG = threading.Event()
 
 __version__    = "0.1"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
@@ -99,7 +97,7 @@ class CaptureOp(object):
                 #print(status)
         del capture
 
-class CopyOp(object):
+class BufferCopyOp(object):
     def __init__(self, log, iring, oring, tuning=0, ntime_gulp=2500,# ntime_buf=None,
                  guarantee=True, core=-1):
         self.log = log
@@ -138,7 +136,7 @@ class CopyOp(object):
                 
                 self.sequence_proclog.update(ihdr)
                 
-                self.log.info("Copy: Start of new sequence: %s", str(ihdr))
+                self.log.info("BufferCopy: Start of new sequence: %s", str(ihdr))
                 
                 chan0  = ihdr['chan0']
                 nchan  = ihdr['nchan']
@@ -190,8 +188,7 @@ class CopyOp(object):
                                     
                                     idata = ispan.data_view(np.uint8)
                                     odata = ospan.data_view(np.uint8)    
-                                    BFMemCopy(odata, idata)
-                                    #print("COPY")
+                                    copy_array(odata, idata)
                                     
                                     # Internal triggering code
                                     if clear_to_trigger:
@@ -239,6 +236,89 @@ class CopyOp(object):
                     # Reset to move on to the next input sequence?
                     if not reset_sequence:
                         break
+
+class GPUCopyOp(object):
+    def __init__(self, log, iring, oring, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
+        self.log   = log
+        self.iring = iring
+        self.oring = oring
+        self.ntime_gulp = ntime_gulp
+        self.guarantee = guarantee
+        self.core = core
+        self.gpu = gpu
+
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.out_proclog  = ProcLog(type(self).__name__+"/out")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.out_proclog.update( {'nring':1, 'ring0':self.oring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        if self.gpu != -1:
+            BFSetGPU(self.gpu)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),
+                                  'ngpu': 1,
+                                  'gpu0': BFGetGPU(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tostring())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                self.log.info("GPUCopy: Start of new sequence: %s", str(ihdr))
+                
+                nchan  = ihdr['nchan']
+                nstand = ihdr['nstand']
+                npol   = ihdr['npol']
+                igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
+                ogulp_size = igulp_size
+                
+                ticksPerTime = int(FS) // int(CHAN_BW)
+                base_time_tag = iseq.time_tag
+                
+                ohdr = ihdr.copy()
+                ohdr_str = json.dumps(ohdr)
+                
+                self.oring.resize(ogulp_size, 10*ogulp_size)
+                
+                prev_time = time.time()
+                with oring.begin_sequence(time_tag=iseq.time_tag, header=ohdr_str) as oseq:
+                    for ispan in iseq.read(igulp_size):
+                        if ispan.size < igulp_size:
+                            continue # Ignore final gulp
+                        curr_time = time.time()
+                        acquire_time = curr_time - prev_time
+                        prev_time = curr_time
+                        
+                        with oseq.reserve(ogulp_size) as ospan:
+                            curr_time = time.time()
+                            reserve_time = curr_time - prev_time
+                            prev_time = curr_time
+                            
+                            ## Setup and load
+                            idata = ispan.data_view(np.uint8)
+                            odata = ospan.data_view(np.uint8)
+                            
+                            ## Copy
+                            copy_array(odata, idata)
+                            
+                        ## Update the base time tag
+                        base_time_tag += self.ntime_gulp*ticksPerTime
+                        
+                        curr_time = time.time()
+                        process_time = curr_time - prev_time
+                        prev_time = curr_time
+                        self.perf_proclog.update({'acquire_time': acquire_time, 
+                                                  'reserve_time': reserve_time, 
+                                                  'process_time': process_time,})
 
 def get_time_tag(dt=datetime.datetime.utcnow(), seq_offset=0):
     timestamp = int((dt - NDP_EPOCH).total_seconds())
@@ -468,9 +548,8 @@ class BeamformerOp(object):
         self.cgains = BFArray(shape=(self.nbeam_max*2,nchan,nstand*npol), dtype=np.complex64, space='cuda')
         ## Intermidiate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
-        self.tdata = BFArray(shape=(self.ntime_gulp,nchan,nstand*npol), dtype='ci4', native=False, space='cuda')
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
-        self.ldata = BFArray(shape=self.bdata.shape, dtype=self.bdata.dtype, space='cuda_host')
+        self.ldata = BFArray(shape=(self.ntime_gulp,self.nbeam_max,nchan,2), dtype=self.bdata.dtype, space='cuda')
         
         try:
             ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
@@ -626,7 +705,7 @@ class BeamformerOp(object):
                 igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
                 ogulp_size = self.ntime_gulp*nchan*self.nbeam_max*npol*8    # complex64
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
-                oshape = (self.ntime_gulp,nchan,self.nbeam_max*2)
+                oshape = (self.ntime_gulp,self.nbeam_max,nchan,2)
                 
                 ticksPerTime = int(FS) // int(CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -637,7 +716,7 @@ class BeamformerOp(object):
                 ohdr['complex'] = True
                 ohdr_str = json.dumps(ohdr)
                 
-                self.oring.resize(ogulp_size)
+                self.oring.resize(ogulp_size, 10*ogulp_size)
                 
                 prev_time = time.time()
                 with oring.begin_sequence(time_tag=iseq.time_tag, header=ohdr_str) as oseq:
@@ -657,15 +736,14 @@ class BeamformerOp(object):
                             idata = ispan.data_view('ci4').reshape(ishape)
                             odata = ospan.data_view(np.complex64).reshape(oshape)
                             
-                            ## Copy
-                            copy_array(self.tdata, idata)
-                            
                             ## Beamform
-                            self.bdata = self.bfbf.matmul(1.0, self.cgains.transpose(1,0,2), self.tdata.transpose(1,2,0), 0.0, self.bdata)
+                            self.bdata = self.bdata.reshape(nchan,self.nbeam_max*2,self.ntime_gulp)
+                            self.bdata = self.bfbf.matmul(1.0, self.cgains.transpose(1,0,2), idata.transpose(1,2,0), 0.0, self.bdata)
                             
-                            ## Transpose, save and cleanup
-                            copy_array(self.ldata, self.bdata)
-                            odata[...] = self.ldata.transpose(2,0,1)
+                            ## Transpose and save
+                            self.bdata = self.bdata.reshape(nchan,self.nbeam_max,2,self.ntime_gulp)
+                            Transpose(self.ldata, self.bdata, axes=(3,1,0,2))
+                            copy_array(odata, self.ldata)
                             
                         ## Update the base time tag
                         base_time_tag += self.ntime_gulp*ticksPerTime
@@ -730,7 +808,6 @@ class CorrelatorOp(object):
         self.bfcc.init(8, int(np.ceil((self.ntime_gulp/16.0))*16), ochan, nstand, npol)
         ## Intermediate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
-        self.tdata = BFArray(shape=(self.ntime_gulp,nchan,nstand*npol), dtype='ci4', native=False, space='cuda')
         self.udata = BFArray(shape=(int(np.ceil((self.ntime_gulp/16.0))*16),ochan,nstand*npol), dtype='ci8', space='cuda')
         self.cdata = BFArray(shape=(ochan,nstand*(nstand+1)//2*npol*npol), dtype='ci32', space='cuda')
         
@@ -738,8 +815,6 @@ class CorrelatorOp(object):
         if self.gpu != -1:
             BFSetGPU(self.gpu)
             
-        global ACTIVE_COR_CONFIG
-        
         # Get the current pipeline time to figure out if we need to shelve a command or not
         pipeline_time = time_tag / FS
         
@@ -784,8 +859,6 @@ class CorrelatorOp(object):
             self.log.info('  Averaging time set')
             self.gain = gain
             self.log.info('  Gain set')
-            
-            ACTIVE_COR_CONFIG.set()
             
             return True
             
@@ -882,31 +955,27 @@ class CorrelatorOp(object):
                             ## Setup and load
                             idata = ispan.data_view('ci4').reshape(ishape)
                             
-                            ## Copy
-                            copy_array(self.tdata, idata)
-                            
                             ## Unpack and decimate
-                            BFMap("""
+                            BFMap(f"""
                                   // Unpack into real and imaginary, and then sum
                                   int jF;
                                   signed char sample, re, im;
                                   re = im = 0;
                                   
                                   #pragma unroll
-                                  for(int l=0; l<DECIM; l++) {
-                                      jF = j*DECIM + l;
+                                  for(int l=0; l<{self.decim}; l++) {{
+                                      jF = j*{self.decim} + l;
                                       sample = a(i,jF,k).real_imag;
                                       re += ((signed char)  (sample & 0xF0))       / 16;
                                       im += ((signed char) ((sample & 0x0F) << 4)) / 16;
-                                  }
+                                  }}
                                   
                                   // Save
                                   b(i,j,k) = Complex<signed char>(re, im);
                                   """,
-                                  {'a': self.tdata, 'b': self.udata},
+                                  {'a': idata, 'b': self.udata},
                                   axis_names=('i','j','k'),
-                                  shape=(self.ntime_gulp,ochan,nstand*npol),
-                                  extra_code="#define DECIM %i" % (self.decim,)
+                                  shape=(self.ntime_gulp,ochan,nstand*npol)
                                  )
                             
                             ## Correlate
@@ -972,23 +1041,30 @@ class RetransmitOp(object):
         self.server = int(socket.gethostname().replace('ndp', '0'), 10)
         self.nchan_max = nchan_max
         
+        self.udts = []
+        self.nchan_send = min([self.nchan_max, 384])
+        self.nblock_send = self.nchan_max // self.nchan_send
+        for sock in self.socks:
+            for i in range(self.nblock_send):
+                udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+                self.udts.append(udt)
+                
     def main(self):
         cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
-        udts = []
-        nchan_send = min([self.nchan_max, 384])
-        nblock_send = self.nchan_max // nchan_send
-        for sock in self.socks:
-            udt = UDPTransmit('ibeam%i_%i' % (1, nchan_send), sock=sock, core=self.core)
-            udts.append(udt)
-            
         desc = []
-        for i in range(nblock_send):
-            desc.append(HeaderInfo())
-            desc[-1].set_tuning(1)
-            desc[-1].set_nsrc(self.ntuning*nblock_send)
+        src_id = []
+        for i in range(len(self.socks)):
+            for j in range(self.nblock_send):
+                desc.append(HeaderInfo())
+                desc[-1].set_tuning(1+i)
+                desc[-1].set_nchan(self.nchan_send)
+                desc[-1].set_nsrc(self.ntuning*self.nblock_send)
+                
+                src_id.append(self.nblock_send*self.tuning + j)
+                
         for iseq in self.iring.read():
             ihdr = json.loads(iseq.header.tostring())
             
@@ -1001,16 +1077,16 @@ class RetransmitOp(object):
             nstand  = ihdr['nstand']
             npol    = ihdr['npol']
             nstdpol = nstand * npol
-            igulp_size = self.ntime_gulp*nchan*nstdpol*8        # complex64
-            igulp_shape = (self.ntime_gulp,nblock_send,nchan_send,nstand,npol)
+            igulp_size = self.ntime_gulp*nstand*nchan*npol*8        # complex64
+            igulp_shape = (self.ntime_gulp,nstand*self.nblock_send,self.nchan_send,npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
             
-            for i in range(nblock_send):
-                desc[i].set_nchan(nchan_send)
-                desc[i].set_chan0(chan0 + i*nchan_send)
-                
+            for i in range(nstand):
+                for j in range(self.nblock_send):
+                    desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
+                    
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1020,19 +1096,16 @@ class RetransmitOp(object):
                 prev_time = curr_time
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                sdata = idata.transpose(3,1,0,2,4)
-                for i,udt in enumerate(udts):
-                    if i > 1:
-                        continue
-                    bdata = sdata[i,:,:,:,:]
-                    for j in range(nblock_send):
-                        tdata = bdata[j,:,:,:]
-                        tdata = tdata.reshape(self.ntime_gulp,1,nchan_send*npol)
-                        try:
-                            udt.send(desc[j], seq, 1, nblock_send*self.tuning+j, 1, tdata.copy(space='system'))
-                        except Exception as e:
-                            print(type(self).__name__, "Sending Error beam %i, block %i" % (i+1, j+1), str(e))
-                            
+                sdata = idata.transpose(1,0,2,3)
+                sdata = sdata.copy(space='system')
+                for i,udt in enumerate(self.udts):
+                    bdata = sdata[i,:,:,:]
+                    bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
+                    try:
+                        udt.send(desc[i], seq, 1, src_id[i], 1, bdata)
+                    except Exception as e:
+                        print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
+                        
                 seq += self.ntime_gulp
                 
                 curr_time = time.time()
@@ -1042,8 +1115,8 @@ class RetransmitOp(object):
                                           'reserve_time': -1, 
                                           'process_time': process_time,})
                 
-        while len(udts):
-            udt = udts.pop()
+        while len(self.udts):
+            udt = self.udts.pop()
             del udt
             
 
@@ -1080,8 +1153,6 @@ class PacketizeOp(object):
         nstand, npol = nsnap*32, 2
         
     def main(self):
-        global ACTIVE_COR_CONFIG
-        
         cpu_affinity.set_core(self.core)
         if self.gpu != -1:
             BFSetGPU(self.gpu)
@@ -1160,7 +1231,6 @@ class PacketizeOp(object):
                             sdata = sdata.reshape(1,-1,nchan*npol*npol)
                             
                             try:
-                                #if ACTIVE_COR_CONFIG.is_set():
                                 udt.send(desc, time_tag_cur, ticksPerFrame, i*(2*(nstand-1)+1-i)//2+i, 1, sdata)
                             except Exception as e:
                                 print(type(self).__name__, 'Sending Error', str(e))
@@ -1345,10 +1415,12 @@ def main(argv):
     isock.bind(iaddr)
     isock.timeout = 0.5
     
-    capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host')
+    BFSetGPU(gpus[0])
+    capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host', core=cores[0])
     tbf_ring     = Ring(name="buffer-%i" % tuning)
-    tengine_ring = Ring(name="tengine-%i" % tuning, space='cuda_host')
-    vis_ring     = Ring(name="vis-%i" % tuning, space='cuda_host')
+    gpu_ring     = Ring(name="gpu-%i" % tuning, space='cuda')
+    tengine_ring = Ring(name="tengine-%i" % tuning, space='cuda_host', core=cores[-2])
+    vis_ring     = Ring(name="vis-%i" % tuning, space='cuda_host', core=cores[-1])
     
     tbf_buffer_secs = int(round(config['tbf']['buffer_time_sec']))
     
@@ -1380,21 +1452,23 @@ def main(argv):
     ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
                          nsrc=nsrc, nsnap=nsnap, src0=snap0, max_payload_size=6500,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
-    ops.append(CopyOp(log, capture_ring, tbf_ring,
-                      tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
-                      guarantee=False, core=cores.pop(0)))
+    ops.append(BufferCopyOp(log, capture_ring, tbf_ring,
+                            tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
+                            guarantee=False, core=cores.pop(0)))
     ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbf_ring,
                                ntime_gulp=GSIZE, ntime_buf=int(25000*tbf_buffer_secs/2500)*2500,
                                tuning=tuning, nchan_max=nchan_max,
                                core=cores.pop(0),
                                max_bytes_per_sec=tbf_bw_max))
-    ops.append(BeamformerOp(log=log, iring=capture_ring, oring=tengine_ring,
+    ops.append(GPUCopyOp(log, capture_ring, gpu_ring,
+                         ntime_gulp=GSIZE, core=cores[0], gpu=gpus[0]))
+    ops.append(BeamformerOp(log=log, iring=gpu_ring, oring=tengine_ring,
                             tuning=tuning, ntime_gulp=GSIZE,
                             nsnap=nsnap, nchan_max=nchan_max, nbeam_max=nbeam,
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
                             tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
-                            ntime_gulp=50, nbeam_max=nbeam,
+                            ntime_gulp=100, nbeam_max=nbeam,
                             core=cores.pop(0)))
     if True:
         ccore = ops[2].core
@@ -1402,7 +1476,7 @@ def main(argv):
             pcore = cores.pop(0)
         except IndexError:
             pcore = ccore
-        ops.append(CorrelatorOp(log=log, iring=capture_ring, oring=vis_ring, 
+        ops.append(CorrelatorOp(log=log, iring=gpu_ring, oring=vis_ring, 
                                 tuning=tuning, ntime_gulp=GSIZE,
                                 nsnap=nsnap, nchan_max=nchan_max,
                                 utc_start_tt=utc_start_tt,
@@ -1418,7 +1492,6 @@ def main(argv):
     for thread in threads:
         #thread.daemon = True
         thread.start()
-        time.sleep(0.005)
     while not shutdown_event.is_set():
         signal.pause()
     log.info("Shutdown, waiting for threads to join")

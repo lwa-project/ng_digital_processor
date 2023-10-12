@@ -14,6 +14,7 @@ from .iptools    import *
 from . import ISC
 
 from lwa_f import snap2_fengine
+from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
 from .FileLock import FileLock
 
 from queue import Queue
@@ -32,6 +33,8 @@ import socket # For socket.error
 import json
 import yaml
 import hashlib
+import os
+import re
 
 __version__    = "0.3"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
@@ -692,6 +695,21 @@ class Snap2MonitorClient(object):
                     pass
         return status
         
+    def is_ok(self):
+        # Is there an error condition on the FPGA?
+        
+        status = True
+        with self.access_lock:
+            if self.snap.is_connected:
+                try:
+                    summary, flags = self.snap.fpga.get_status()
+                    for key in flags.keys():
+                        if flags[key] == FENG_ERROR_CODE:
+                            status = False
+                except Exception as e:
+                    pass
+        return status
+        
     def configure(self):
         # Configure the FPGA and start data flowing
         
@@ -995,6 +1013,10 @@ class MsgProcessor(ConsumerThread):
         self.start_lock_thread()
         
         self.log.info("Stopping Internal Trigger thread")
+        try:
+            os.unlink(TRIGGERING_ACTIVE_FILE)
+        except OSError:
+            pass
         self.stop_internal_trigger_thread()
         time.sleep(3)
         self.log.info("Starting Internal Trigger thread")
@@ -1234,12 +1256,10 @@ class MsgProcessor(ConsumerThread):
         pipelines = OrderedDict()
         pipelines['localhost'] = BifrostPipelines('localhost').pipelines()
         for server in self.servers:
-            host = server.host.replace('-data', '')
-            pipelines[host] = BifrostPipelines(host).pipelines()
-            
-        # Needed to figure out when to ignore the T-engine output
-        tbf_lock = ISC.PipelineEventClient(addr=('ndp',5834))
-        
+            host = re.sub(r'-data\d*', '', server.host)
+            if host not in pipelines:
+                pipelines[host] = BifrostPipelines(host).pipelines()
+                
         # A little state to see if we need to re-check hosts
         force_recheck = False if self.ready else True
         
@@ -1299,14 +1319,14 @@ class MsgProcessor(ConsumerThread):
                     total_tengine_bw[side] += txbw
                     if loss > 0.01:    # >1% packet loss
                         problems_found = True
-                        msg = "%s, T-Engine-%i -- RX loss of %.1f%%" % (host, side, loss*100.0)
+                        msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
                         if self.state['status'] != 'ERROR':
                             self.state['lastlog'] = msg
                             self.state['status'] = 'WARNING'
                             self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.warning(msg)
-                for side in range(n_beam):
-                    if self.drx.cur_freq[side*2] > 0 and not tbf_lock.is_set() and total_tengine_bw[side*2] == 0:
+                for side in range(n_beams):
+                    if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
                         self.state['lastlog'] = msg
@@ -1338,7 +1358,7 @@ class MsgProcessor(ConsumerThread):
                             self.state['status'] = 'WARNING'
                             self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.warning(msg)
-                    if self.drx.cur_freq[side] > 0 and side == 0 and not cact:
+                    if self.drx.cur_freq[side] > 0 and not cact:
                         problems_found = True
                         msg = "%s, DRX-%i -- Correlator not running" % (host, side)
                         self.state['lastlog'] = msg
@@ -1353,9 +1373,9 @@ class MsgProcessor(ConsumerThread):
                         self.state['status']  = 'ERROR'
                         self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         self.log.error(msg)
-                if len(found['drx']) != n_tunings*n_servers:
+                if len(found['drx']) != n_tunings:
                     problems_found = True
-                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings*n_servers)
+                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings)
                     if self.state['status'] != 'ERROR':
                         self.state['lastlog'] = msg
                         self.state['status']  = 'WARNING'
@@ -1374,7 +1394,16 @@ class MsgProcessor(ConsumerThread):
                     self.state['status']  = 'ERROR'
                     self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     self.log.error(msg)
-                    
+                else:
+                    snaps_ok = self.snaps.is_ok()
+                    if not all(snaps_ok):
+                        problems_found = True
+                        msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
+                        self.state['lastlog'] = msg
+                        self.state['status']  = 'ERROR'
+                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        self.log.error(msg)
+                        
                 ## De-assert anything that we can de-assert
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
