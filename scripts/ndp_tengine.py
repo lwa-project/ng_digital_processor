@@ -360,17 +360,47 @@ class ReChannelizerOp(object):
                                 ### The actual inversion
                                 t4 = time.time()
                                 self.gdata = self.gdata.reshape(self.imatrix.shape)
-                                try:
-                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
-                                except NameError:
-                                    pfft = Fft()
-                                    pfft.init(self.gdata, self.gdata2, axes=1)
-                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
-                                    
-                                BFMap("a *= b / %f" % np.sqrt(NCHAN*4*ochan),
-                                      {'a':self.gdata2, 'b':self.imatrix})
-                                     
-                                pfft.execute(self.gdata2, self.gdata, inverse=True)
+                                BFMap("""
+                                      Complex32 temp[4], ftemp[4];
+                                      #pragma unroll
+                                      for(int s=0; s<4; s++) {
+                                        temp[s] = a(i,s,j);
+                                        ftemp[s] = temp[0];
+                                      }
+                                      
+                                      Complex32 twiddle;
+                                      //twiddle = -Complex32(0,1)*temp[1] + Complex32(0,1)*temp[3];
+                                      twiddle = Complex32(temp[1].imag - temp[3].imag,
+                                                          temp[3].real - temp[1].real);
+                                      
+                                      ftemp[0] +=  temp[1] + temp[2] + temp[3];
+                                      ftemp[1] +=  twiddle - temp[2];
+                                      ftemp[2] += -temp[1] + temp[2] - temp[3];
+                                      ftemp[3] += -twiddle - temp[2];
+                                      
+                                      #pragma unroll
+                                      for(int s=0; s<4; s++) {
+                                        ftemp[s] *= b(i,s,j) / %f;
+                                        temp[s] = ftemp[0];
+                                      }
+                                      
+                                      //twiddle = Complex32(0,1)*ftemp[1] - Complex32(0,1)*ftemp[3];
+                                      twiddle = Complex32(ftemp[3].imag - ftemp[1].imag,
+                                                          ftemp[1].real - ftemp[3].real);
+                                      
+                                      temp[0] +=  ftemp[1] + ftemp[2] + ftemp[3];
+                                      temp[1] +=  twiddle  - ftemp[2];
+                                      temp[2] += -ftemp[1] + ftemp[2] - ftemp[3];
+                                      temp[3] +=  -twiddle - ftemp[2];
+                                      
+                                      #pragma unroll
+                                      for(int s=0; s<4; s++) {
+                                        a(i,s,j) = temp[s];
+                                      }
+                                      """ % np.sqrt(NCHAN*4*ochan),
+                                      {'a': self.gdata, 'b': self.imatrix},
+                                      axis_names=('i','j'),
+                                      shape=(self.ntime_gulp//4,NCHAN*nbeam*npol))
                                 
                             ## FFT to re-channelize
                             t5 = time.time()
