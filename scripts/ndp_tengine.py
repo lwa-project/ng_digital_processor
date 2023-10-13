@@ -831,10 +831,11 @@ class TEngineOp(object):
                     if not reset_sequence:
                         ## Clean-up
                         try:
-                            del pdata
                             del bdata
                             del gdata
+                            del bfft
                             del fdata
+                            del bfir
                             del qdata
                             del tdata
                         except NameError:
