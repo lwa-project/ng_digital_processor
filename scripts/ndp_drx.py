@@ -805,10 +805,9 @@ class CorrelatorOp(object):
         nstand, npol = nsnap*32, 2
         ## Object
         self.bfcc = Btcc()
-        self.bfcc.init(8, int(np.ceil((self.ntime_gulp/16.0))*16), ochan, nstand, npol)
+        self.bfcc.init(4, int(np.ceil((self.ntime_gulp/16.0))*16), nchan, nstand, npol, self.decim)
         ## Intermediate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
-        self.udata = BFArray(shape=(int(np.ceil((self.ntime_gulp/16.0))*16),ochan,nstand*npol), dtype='ci8', space='cuda')
         self.cdata = BFArray(shape=(ochan,nstand*(nstand+1)//2*npol*npol), dtype='ci32', space='cuda')
         
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
@@ -955,34 +954,11 @@ class CorrelatorOp(object):
                             ## Setup and load
                             idata = ispan.data_view('ci4').reshape(ishape)
                             
-                            ## Unpack and decimate
-                            BFMap(f"""
-                                  // Unpack into real and imaginary, and then sum
-                                  int jF;
-                                  signed char sample, re, im;
-                                  re = im = 0;
-                                  
-                                  #pragma unroll
-                                  for(int l=0; l<{self.decim}; l++) {{
-                                      jF = j*{self.decim} + l;
-                                      sample = a(i,jF,k).real_imag;
-                                      re += ((signed char)  (sample & 0xF0))       / 16;
-                                      im += ((signed char) ((sample & 0x0F) << 4)) / 16;
-                                  }}
-                                  
-                                  // Save
-                                  b(i,j,k) = Complex<signed char>(re, im);
-                                  """,
-                                  {'a': idata, 'b': self.udata},
-                                  axis_names=('i','j','k'),
-                                  shape=(self.ntime_gulp,ochan,nstand*npol)
-                                 )
-                            
                             ## Correlate
                             corr_dump = 0
                             if nAccumulate == self.navg_seq:
                                 corr_dump = 1
-                            self.bfcc.execute(self.udata, self.cdata, corr_dump)
+                            self.bfcc.execute(idata, self.cdata, corr_dump)
                             nAccumulate += self.ntime_gulp
                             
                             curr_time = time.time()
@@ -1444,7 +1420,7 @@ def main(argv):
     cor_bw_max = vbw//ntuning
     
     # TODO:  Figure out what to do with this resize
-    GSIZE = 500
+    GSIZE = 512
     ogulp_size = GSIZE *nchan_max*nstand*2
     obuf_size  = tbf_buffer_secs*25000*nchan_max*nstand*2
     tbf_ring.resize(ogulp_size, obuf_size)
