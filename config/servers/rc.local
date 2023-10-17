@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Add ARP entries for the two headnode data interfaces
+arp -s 192.168.40.10 e8:eb:d3:96:8c:d0
+arp -s 192.168.40.210 e8:eb:d3:96:8c:dc

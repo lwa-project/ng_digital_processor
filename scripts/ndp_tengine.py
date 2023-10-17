@@ -336,10 +336,11 @@ class ReChannelizerOp(object):
                             odata = ospan.data_view(np.complex64).reshape(oshape)
                             
                             # Pad out to the full 98 MHz bandwidth
-                            t1 = time.time()
                             BFMap(f"""
-                                  a(i,j+{chan0},0) = b(i,j,0);
-                                  a(i,j+{chan0},1) = b(i,j,1);
+                                  #pragma unroll
+                                  for(int k=0; k<{nbeam*npol}; k++) {{
+                                    a(i,j+{chan0},k) = b(i,j,k);
+                                  }}
                                   """,
                                   {'a': self.fdata, 'b': idata},
                                   axis_names=('i','j'),
@@ -347,7 +348,6 @@ class ReChannelizerOp(object):
                             
                             ## PFB inversion
                             ### Initial IFFT
-                            t2 = time.time()
                             self.gdata = self.gdata.reshape(self.fdata.shape)
                             try:
                                 bfft.execute(self.fdata, self.gdata, inverse=True)
@@ -358,22 +358,50 @@ class ReChannelizerOp(object):
                                 
                             if self.pfb_inverter:
                                 ### The actual inversion
-                                t4 = time.time()
                                 self.gdata = self.gdata.reshape(self.imatrix.shape)
-                                try:
-                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
-                                except NameError:
-                                    pfft = Fft()
-                                    pfft.init(self.gdata, self.gdata2, axes=1)
-                                    pfft.execute(self.gdata, self.gdata2, inverse=False)
-                                    
-                                BFMap("a *= b / %f" % np.sqrt(NCHAN*4*ochan),
-                                      {'a':self.gdata2, 'b':self.imatrix})
-                                     
-                                pfft.execute(self.gdata2, self.gdata, inverse=True)
+                                BFMap("""
+                                      Complex32 temp[4], ftemp[4];
+                                      #pragma unroll
+                                      for(int s=0; s<4; s++) {
+                                        temp[s] = a(i,s,j);
+                                        ftemp[s] = temp[0];
+                                      }
+                                      
+                                      Complex32 twiddle;
+                                      //twiddle = -Complex32(0,1)*temp[1] + Complex32(0,1)*temp[3];
+                                      twiddle = Complex32(temp[1].imag - temp[3].imag,
+                                                          temp[3].real - temp[1].real);
+                                      
+                                      ftemp[0] +=  temp[1] + temp[2] + temp[3];
+                                      ftemp[1] +=  twiddle - temp[2];
+                                      ftemp[2] += -temp[1] + temp[2] - temp[3];
+                                      ftemp[3] += -twiddle - temp[2];
+                                      
+                                      #pragma unroll
+                                      for(int s=0; s<4; s++) {
+                                        ftemp[s] *= b(i,s,j) / %f;
+                                        temp[s] = ftemp[0];
+                                      }
+                                      
+                                      //twiddle = Complex32(0,1)*ftemp[1] - Complex32(0,1)*ftemp[3];
+                                      twiddle = Complex32(ftemp[3].imag - ftemp[1].imag,
+                                                          ftemp[1].real - ftemp[3].real);
+                                      
+                                      temp[0] +=  ftemp[1] + ftemp[2] + ftemp[3];
+                                      temp[1] +=  twiddle  - ftemp[2];
+                                      temp[2] += -ftemp[1] + ftemp[2] - ftemp[3];
+                                      temp[3] +=  -twiddle - ftemp[2];
+                                      
+                                      #pragma unroll
+                                      for(int s=0; s<4; s++) {
+                                        a(i,s,j) = temp[s];
+                                      }
+                                      """ % np.sqrt(NCHAN*4*ochan),
+                                      {'a': self.gdata, 'b': self.imatrix},
+                                      axis_names=('i','j'),
+                                      shape=(self.ntime_gulp//4,NCHAN*nbeam*npol))
                                 
                             ## FFT to re-channelize
-                            t5 = time.time()
                             self.gdata = self.gdata.reshape(-1, ochan, nbeam*npol)
                             try:
                                 ffft.execute(self.gdata, rdata, inverse=False)
@@ -385,12 +413,8 @@ class ReChannelizerOp(object):
                                 ffft.execute(self.gdata, rdata, inverse=False)
                                 
                             ## Save
-                            t6 = time.time()
                             copy_array(odata, rdata)
                             BFSync()
-                            
-                            t7 = time.time()
-                            # print(t7-t0, '->', t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6)
                             
                         curr_time = time.time()
                         process_time = curr_time - prev_time
@@ -674,10 +698,14 @@ class TEngineOp(object):
                                 ## Prune the data ahead of the IFFT
                                 try:
                                     BFMap(f"""
-                                          a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
-                                          a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
-                                          a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
-                                          a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                          #pragma unroll
+                                          for(int k=0; k<{nbeam}; k++) {{
+                                            #pragma unroll
+                                            for(int l=0; l<{npol}; l++) {{
+                                              a(i,j,k,0,l) = b(i,{tchan0}+j,k,l);
+                                              a(i,j,k,1,l) = b(i,{tchan1}+j,k,l);
+                                            }}
+                                          }}
                                           """,
                                           {'a': bdata, 'b': idata},
                                           axis_names=('i','j'),
@@ -687,10 +715,14 @@ class TEngineOp(object):
                                     bdata = BFArray(shape=bshape, dtype=np.complex64, space='cuda')
                                     
                                     BFMap(f"""
-                                        a(i,j,0,0,0) = b(i,{tchan0}+j,0,0);
-                                        a(i,j,0,0,1) = b(i,{tchan0}+j,0,1);
-                                        a(i,j,0,1,0) = b(i,{tchan1}+j,0,0);
-                                        a(i,j,0,1,1) = b(i,{tchan1}+j,0,1);
+                                        #pragma unroll
+                                        for(int k=0; k<{nbeam}; k++) {{
+                                          #pragma unroll
+                                          for(int l=0; l<{npol}; l++) {{
+                                            a(i,j,k,0,l) = b(i,{tchan0}+j,k,l);
+                                            a(i,j,k,1,l) = b(i,{tchan1}+j,k,l);
+                                          }}
+                                        }}
                                         """,
                                         {'a': bdata, 'b': idata},
                                         axis_names=('i','j'),
@@ -709,13 +741,22 @@ class TEngineOp(object):
                                     
                                 ## Phase rotation and output "desired gain imbalance" correction
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
-                                BFMap("""
-                                      auto k = (j / 2);// % 2;
-                                      a(i,j) *= exp(Complex<float>(r(k), -2*BF_PI_F*r(k)*fmod(g(k)*s(k), 1.0)))*b(i,k);
+                                BFMap(f"""
+                                      Complex<float> factor[{nbeam*ntune}];
+                                      #pragma unroll
+                                      for(int j=0; j<{nbeam*ntune}; j++) {{
+                                        factor[j] = r(j)*exp(Complex<float>(1, -2*BF_PI_F*fmod(g(j)*s(j), 1.0)));
+                                      }}
+                                      
+                                      #pragma unroll
+                                      for(int j=0; j<{nbeam*ntune*npol}; j++) {{
+                                        int k = j / 2;
+                                        a(i,j) *= factor[k]*b(i,k);
+                                      }}
                                       """, 
                                       {'a':gdata, 'b':self.phaseRot, 'g':self.phaseState, 's':self.sampleCount, 'r':rel_gain},
-                                      axis_names=('i','j'),
-                                      shape=gdata.shape, 
+                                      axis_names=('i',),
+                                      shape=[gdata.shape[0],],
                                       extra_code="#define BF_PI_F 3.141592654f")
                                 gdata = gdata.reshape((-1,nbeam,ntune,npol))
                                 
@@ -790,10 +831,11 @@ class TEngineOp(object):
                     if not reset_sequence:
                         ## Clean-up
                         try:
-                            del pdata
                             del bdata
                             del gdata
+                            del bfft
                             del fdata
+                            del bfir
                             del qdata
                             del tdata
                         except NameError:
