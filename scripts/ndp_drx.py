@@ -1159,7 +1159,8 @@ class PacketizeOp(object):
         if self.gpu != -1:
             BFSetGPU(self.gpu)
         ## Metadata
-        nchan = self.nchan_max
+        self.nchan_send = min([self.nchan_max, 192])
+        self.nblock_send = self.nchan_max // self.nchan_send
         nstand, npol = nsnap*32, 2
         
     def main(self):
@@ -1172,8 +1173,10 @@ class PacketizeOp(object):
                                   'gpu0': BFGetGPU(),})
         
         with UDPTransmit('cor_%i' % self.nchan_max, sock=self.sock, core=self.core) as udt:
-            desc = HeaderInfo()
-            desc.set_tuning((4 << 16) | (6 << 8) | self.server)
+            desc = []
+            for i in range(self.nblock_send):
+                desc.append(HeaderInfo())
+                desc[-1].set_tuning((4 << 16) | (4 << 8) | (self.nblock_send*self.tuning + i))
             
             for iseq in self.iring.read():
                 ihdr = json.loads(iseq.header.tostring())
@@ -1194,11 +1197,12 @@ class PacketizeOp(object):
                 igulp_size = nchan*nstand*(nstand+1)//2*npol*npol*8    # 32+32 complex
                 ishape = (nchan,nstand*(nstand+1)//2,npol,npol)
                 
-                desc.set_chan0(chan0)
-                desc.set_gain(gain)
-                desc.set_decimation(navg)
-                desc.set_nsrc(nstand*(nstand+1)//2)
-                
+                for i in range(self.nblock_send):
+                    desc[i].set_chan0(chan0 + i*self.nchan_send)
+                    desc[i].set_gain(gain)
+                    desc[i].set_decimation(navg)
+                    desc[i].set_nsrc(nstand*(nstand+1)//2)
+                    
                 ticksPerFrame = int(round(navg*0.01*FS))
                 tInt = int(round(navg*0.01))
                 tBail = navg*0.01 - 0.2
@@ -1238,14 +1242,16 @@ class PacketizeOp(object):
                             for j in range(i, nstand):
                                 sdata[0,j-i,:,:,:] = odata[k,:,:,:]
                                 k += 1
-                            sdata = sdata.reshape(1,-1,nchan*npol*npol)
+                            sdata = sdata.reshape(1,-1,self.nblock_send,self.nchan_send*npol*npol)
                             
-                            try:
-                                udt.send(desc, time_tag_cur, ticksPerFrame, i*(2*(nstand-1)+1-i)//2+i, 1, sdata)
-                            except Exception as e:
-                                print(type(self).__name__, 'Sending Error', str(e))
-                                
-                            bytesSent += sdata.size*8 + sdata.shape[0]*32   # data size -> packet size
+                            for j in range(self.nblock_send):
+                                bdata = sdata[:,:,j,:]
+                                try:
+                                    udt.send(desc[j], time_tag_cur, ticksPerFrame, i*(2*(nstand-1)+1-i)//2+i, 1, bdata.copy())
+                                except Exception as e:
+                                    print(type(self).__name__, "Sending Error major stand %i, block %i" % (i,j), str(e))
+                                    
+                            bytesSent += sdata.size*8 + self.nblock_send*sdata.shape[0]*32   # data size -> packet size
                             while bytesSent/(time.time()-bytesStart) >= rate_limit:
                                 time.sleep(0.001)
                                 
