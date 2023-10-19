@@ -985,8 +985,8 @@ def main(argv):
         daemonize(stdin='/dev/null', stdout='/dev/null', stderr=stderr)
         
     config = Ndp.parse_config_file(args.configfile)
-    ntuning = 4
     drxConfigs = config['drx']
+    ntuning = len(drxConfigs)
     drxConfig = drxConfigs[0]
     
     log = logging.getLogger(__name__)
