@@ -550,6 +550,9 @@ class BeamformerOp(object):
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
         self.ldata = BFArray(shape=(self.ntime_gulp,self.nbeam_max,nchan,2), dtype=self.bdata.dtype, space='cuda')
+        self.bdata_reorder_shape = (nchan,self.nbeam_max,2,self.ntime_gulp)
+        self.bdata_reorder_axes = (3,1,0,2)
+        self.odata_shape = self.ldata.shape
         
         try:
             ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
@@ -564,6 +567,32 @@ class BeamformerOp(object):
             self.log.warning("Failed to load custom beamforming coefficients: %s", str(e))
             self.complexGains = None
             
+    def updatePacketizerPreferences(self, pkt_op):
+        ntime = self.ntime_gulp
+        nchan = self.nchan_max
+        nbeam = self.nbeam_max
+        npol  = 2
+        
+        self.pkt_gulp = pkt_op.ntime_gulp
+        self.pkt_nchan = pkt_op.nchan_send
+        assert(ntime % self.pkt_gulp == 0)
+        assert(nchan % self.pkt_nchan == 0)
+        
+        self.ldata =  BFArray(shape=(ntime//self.pkt_gulp,
+                                     nbeam,
+                                     nchan//self.pkt_nchan,
+                                     self.pkt_gulp,
+                                     self.pkt_nchan,
+                                     npol), dtype=self.bdata.dtype, space='cuda')
+        self.bdata_reorder_shape = (nchan//self.pkt_nchan,
+                                    self.pkt_nchan,
+                                    nbeam,
+                                    npol,
+                                    ntime//self.pkt_gulp,
+                                    self.pkt_gulp)
+        self.bdata_reorder_axes = (4,2,0,5,1,3)
+        self.odata_shape = self.ldata.shape
+        
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
 
         if self.gpu != -1:
@@ -705,7 +734,7 @@ class BeamformerOp(object):
                 igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
                 ogulp_size = self.ntime_gulp*nchan*self.nbeam_max*npol*8    # complex64
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
-                oshape = (self.ntime_gulp,self.nbeam_max,nchan,2)
+                oshape = self.odata_shape #(self.ntime_gulp,self.nbeam_max,nchan,2)
                 
                 ticksPerTime = int(FS) // int(CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -714,6 +743,8 @@ class BeamformerOp(object):
                 ohdr['nstand'] = self.nbeam_max
                 ohdr['nbit'] = 32
                 ohdr['complex'] = True
+                ohdr['pkt_gulp'] = self.pkt_gulp
+                ohdr['pkt_nchan'] = self.pkt_nchan
                 ohdr_str = json.dumps(ohdr)
                 
                 self.oring.resize(ogulp_size, 10*ogulp_size)
@@ -741,8 +772,8 @@ class BeamformerOp(object):
                             self.bdata = self.bfbf.matmul(1.0, self.cgains.transpose(1,0,2), idata.transpose(1,2,0), 0.0, self.bdata)
                             
                             ## Transpose and save
-                            self.bdata = self.bdata.reshape(nchan,self.nbeam_max,2,self.ntime_gulp)
-                            Transpose(self.ldata, self.bdata, axes=(3,1,0,2))
+                            self.bdata = self.bdata.reshape(self.bdata_reorder_shape)
+                            Transpose(self.ldata, self.bdata, axes=self.bdata_reorder_axes)
                             copy_array(odata, self.ldata)
                             
                         ## Update the base time tag
@@ -1053,8 +1084,13 @@ class RetransmitOp(object):
             nstand  = ihdr['nstand']
             npol    = ihdr['npol']
             nstdpol = nstand * npol
-            igulp_size = self.ntime_gulp*nstand*nchan*npol*8        # complex64
-            igulp_shape = (self.ntime_gulp,nstand*self.nblock_send,self.nchan_send,npol)
+            us_pkt_gulp = ihdr['pkt_gulp']
+            us_pkt_nchan = ihdr['pkt_nchan']
+            assert(us_pkt_gulp == self.ntime_gulp)
+            assert(us_pkt_nchan == self.nchan_send)
+            
+            igulp_size = nstand*self.ntime_gulp*nchan*npol*8        # complex64
+            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
@@ -1072,10 +1108,8 @@ class RetransmitOp(object):
                 prev_time = curr_time
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                sdata = idata.transpose(1,0,2,3)
-                sdata = sdata.copy(space='system')
                 for i,udt in enumerate(self.udts):
-                    bdata = sdata[i,:,:,:]
+                    bdata = idata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
                     try:
                         udt.send(desc[i], seq, 1, src_id[i], 1, bdata)
@@ -1444,8 +1478,9 @@ def main(argv):
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
                             tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
-                            ntime_gulp=100, nbeam_max=nbeam,
+                            ntime_gulp=GSIZE//4, nbeam_max=nbeam,
                             core=cores.pop(0)))
+    ops[-2].updatePacketizerPreferences(ops[-1])
     if True:
         ccore = ops[2].core
         try:
