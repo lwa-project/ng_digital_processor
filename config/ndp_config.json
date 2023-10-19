@@ -149,7 +149,7 @@
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "orville",
+                    "host":              "ndp2-data1",
                     "port":              11000,
                     "max_bytes_per_sec": 104851000
                 }
