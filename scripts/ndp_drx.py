@@ -1249,7 +1249,7 @@ class PacketizeOp(object):
                                 try:
                                     udt.send(desc[j], time_tag_cur, ticksPerFrame, i*(2*(nstand-1)+1-i)//2+i, 1, bdata.copy())
                                 except Exception as e:
-                                    print(type(self).__name__, "Sending Error major stand %i, block %i" % (i,j), str(e))
+                                    print(type(self).__name__, "Sending Error stand set %i, block %i" % (i,j), str(e))
                                     
                             bytesSent += sdata.size*8 + self.nblock_send*sdata.shape[0]*32   # data size -> packet size
                             while bytesSent/(time.time()-bytesStart) >= rate_limit:
