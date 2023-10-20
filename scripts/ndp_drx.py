@@ -1176,7 +1176,7 @@ class PacketizeOp(object):
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
-                desc[-1].set_tuning((4 << 16) | (4 << 8) | (self.nblock_send*self.tuning + i))
+                desc[-1].set_tuning((4 << 16) | (4 << 8) | (self.nblock_send*self.tuning + i + 1))
             
             for iseq in self.iring.read():
                 ihdr = json.loads(iseq.header.tostring())
@@ -1209,7 +1209,7 @@ class PacketizeOp(object):
                 
                 scale_factor = navg * int(CHAN_BW / 100)
                 
-                rate_limit = (7.7*(nchan/72.0)*10/(navg*0.01-0.5)) * 1024**2
+                rate_limit = (15*(nchan/72.0)*10/(navg*0.01-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
