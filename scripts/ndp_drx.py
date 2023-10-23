@@ -936,7 +936,7 @@ class CorrelatorOp(object):
                 sOffset = sOffset % self.ntime_gulp
                 sOffset = self.ntime_gulp - sOffset
                 bOffset = sOffset * nchan*nstand*npol
-                print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
+                print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', sOffset, '&', bOffset)
                 
                 base_time_tag = iseq.time_tag + sOffset*ticksPerTime
                 
