@@ -828,7 +828,7 @@ class CorrelatorOp(object):
         ## Start time reference
         if utc_start_tt is None:
             utc_start_tt = int(round(time.time() * FS))
-        self.start_time_tag = int(round(utc_start_tt // (2*CHAN_BW*self.ntime_gulp))) * 2*NCHAN*self.ntime_gulp
+        self.start_time_tag = int(round(utc_start_tt // (2*NCHAN*self.ntime_gulp))) * 2*NCHAN*self.ntime_gulp
         ## Metadata
         self.decim = 4
         nchan = self.nchan_max
@@ -967,7 +967,7 @@ class CorrelatorOp(object):
                     
                     ohdr['time_tag']  = base_time_tag
                     ohdr['start_tag'] = self.start_time_tag
-                    ohdr['navg']      = int(round(self.navg_tt / FS * 100))
+                    ohdr['navg']      = self.navg_tt
                     ohdr['gain']      = self.gain
                     ohdr_str = json.dumps(ohdr)
                     
@@ -1203,13 +1203,13 @@ class PacketizeOp(object):
                     desc[i].set_decimation(navg)
                     desc[i].set_nsrc(nstand*(nstand+1)//2)
                     
-                ticksPerFrame = int(round(navg*0.01*FS))
-                tInt = int(round(navg*0.01))
+                ticksPerFrame = navg
+                tInt = int(round(navg/FS))
                 tBail = navg*0.01 - 0.2
                 
-                scale_factor = navg * int(CHAN_BW / 100)
+                scale_factor = navg
                 
-                rate_limit = (15*(nchan/72.0)*10/(navg*0.01-0.5)) * 1024**2
+                rate_limit = (15*(nchan/72.0)*10/(navg/FS-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
