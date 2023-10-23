@@ -992,7 +992,7 @@ class CorrelatorOp(object):
                             prev_time = curr_time
                             
                             ## Dump?
-                            if nAccumulate == self.navg_seq:
+                            if nAccumulate == self.navg_seq - self.ntime_gulp:
                                 with oseq.reserve(ogulp_size) as ospan:
                                     odata = ospan.data_view('ci32').reshape(oshape)
                                     odata[...] = self.cdata
@@ -1187,7 +1187,7 @@ class PacketizeOp(object):
                 npol   = ihdr['npol']
                 navg   = ihdr['navg']
                 gain   = ihdr['gain']
-                time_tag0 = ihdr['start_tag'] #iseq.time_tag
+                time_tag0 = iseq.time_tag
                 time_tag  = time_tag0
                 igulp_size = nchan*nstand*(nstand+1)//2*npol*npol*8    # 32+32 complex
                 ishape = (nchan,nstand*(nstand+1)//2,npol,npol)
