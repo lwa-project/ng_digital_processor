@@ -932,14 +932,9 @@ class CorrelatorOp(object):
                 
                 # Figure out where we need to be in the buffer to be a integration boundary
                 ticksPerTime = 2*NCHAN
-                sOffset = ((self.start_time_tag - iseq.time_tag) // (2*NCHAN)) % self.navg_seq
-                if sOffset != 0:
-                    sOffset = self.navg_seq - sOffset
-                    while sOffset > CHAN_BW:
-                        sOffset -= self.ntime_gulp
-                    while sOffset < 0:
-                        sOffset += self.ntime_gulp
-                tOffset = sOffset * 2*NCHAN
+                sOffset = ((iseq.time_tag - self.start_time_tag) // (2*NCHAN)) % self.navg_seq
+                sOffset = sOffset % self.ntime_gulp
+                sOffset = self.ntime_gulp - sOffset
                 bOffset = sOffset * nchan*nstand*npol
                 print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
                 
@@ -1204,12 +1199,12 @@ class PacketizeOp(object):
                     desc[i].set_nsrc(nstand*(nstand+1)//2)
                     
                 ticksPerFrame = navg
-                tInt = int(round(navg/FS))
-                tBail = navg*0.01 - 0.2
+                tInt = navg/FS
+                tBail = tInt - 0.2
                 
                 scale_factor = navg
                 
-                rate_limit = (15*(nchan/72.0)*10/(navg/FS-0.5)) * 1024**2
+                rate_limit = (15*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
@@ -1231,7 +1226,8 @@ class PacketizeOp(object):
                         odata = odata.reshape(ishape+(2,))
                         odata = odata[...,0] + 1j*odata[...,1]
                         odata = odata.transpose(1,0,2,3)
-                        odata = odata.astype(np.complex64) / scale_factor
+                        odata = odata.astype(np.complex64)
+                        odata /= scale_factor
                         
                         bytesSent, bytesStart = 0, time.time()
                         
