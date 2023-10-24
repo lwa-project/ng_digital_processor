@@ -1200,7 +1200,7 @@ class PacketizeOp(object):
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
-                desc[-1].set_tuning((4 << 16) | (4 << 8) | (self.nblock_send*self.tuning + i + 1))
+                desc[-1].set_tuning((4 << 16) | (2 << 8) | (self.nblock_send*self.tuning + i + 1))
             
             for iseq in self.iring.read():
                 ihdr = json.loads(iseq.header.tostring())
@@ -1508,7 +1508,7 @@ def main(argv):
                             ntime_gulp=GSIZE//4, nbeam_max=nbeam,
                             core=cores.pop(0)))
     ops[-2].updatePacketizerPreferences(ops[-1])
-    if True:
+    if self.tuning == 0:
         ccore = ops[2].core
         try:
             pcore = cores.pop(0)
