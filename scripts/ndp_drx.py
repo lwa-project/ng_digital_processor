@@ -907,7 +907,8 @@ class CorrelatorOp(object):
             self.log.info("Correlator: New configuration received for tuning %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
             navg, gain, slot = config
             
-            self.navg_tt = int(round(navg/100 * CHAN_BW * 2*NCHAN))
+            self.navg_tt = int(round(navg/100 * FS // (2*NCHAN*self.ntime_gulp))) * (2*NCHAN*self.ntime_gulp)
+            self.navg_seq = self.navg_tt // (2*NCHAN)
             self.log.info('  Averaging time set')
             self.gain = gain
             self.log.info('  Gain set')
