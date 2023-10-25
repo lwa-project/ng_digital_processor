@@ -1231,7 +1231,7 @@ class PacketizeOp(object):
                 tInt = navg/FS
                 tBail = tInt - 0.2
                 
-                scale_factor = navg
+                scale_factor = navg / (2*NCHAN)
                 
                 rate_limit = (30*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
                 
