@@ -1492,7 +1492,6 @@ class MsgProcessor(ConsumerThread):
                 
     def shutdown(self):
         self.shutdown_event.set()
-        self.stop_synchronizer_thread()
         self.stop_lock_thread()
         self.stop_internal_trigger_thread()
         # Propagate shutdown to downstream consumers
