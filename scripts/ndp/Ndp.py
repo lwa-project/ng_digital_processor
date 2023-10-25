@@ -62,14 +62,12 @@ class SlotCommandProcessor(object):
         self.cmd_code     = cmd_code
         self.cmd_parser   = cmd_parser
         
-    @ISC.logException
     def process_command(self, msg):
         assert( msg.cmd == self.cmd_code )
         exec_slot = msg.slot + self.exec_delay
         self.cmd_sequence[exec_slot].append(self.cmd_parser(msg))
         return 0
         
-    @ISC.logException
     def execute_commands(self, slot):
         try:
             cmds = self.cmd_sequence.pop(slot)
@@ -151,7 +149,6 @@ class Drx(SlotCommandProcessor):
 
 
 class TbfCommand(object):
-    @ISC.logException
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
@@ -160,7 +157,6 @@ class TbfCommand(object):
 
 
 class Tbf(SlotCommandProcessor):
-    @ISC.logException
     def __init__(self, config, log, messenger, servers):
         SlotCommandProcessor.__init__(self, 'TBF', TbfCommand)
         self.config  = config
@@ -172,7 +168,6 @@ class Tbf(SlotCommandProcessor):
     def _reset_state(self):
         self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
-    @ISC.logException
     def start(self, bits, trigger, samples, mask):
         self.log.info('Starting TBF: bits=%i, trigger=%i, samples=%i, mask=%i' % (bits, trigger, samples, mask))
         
@@ -180,7 +175,6 @@ class Tbf(SlotCommandProcessor):
         
         return True
         
-    @ISC.logException
     def execute(self, cmds):
         for cmd in cmds:
             self.start(cmd.bits, cmd.trigger, cmd.samples, cmd.mask)
@@ -190,7 +184,6 @@ class Tbf(SlotCommandProcessor):
 
 
 class BamCommand(object):
-    @ISC.logException
     def __init__(self, msg):
         self.beam = struct.unpack('>H', msg.data[0:2])[0]
         self.delays = np.ndarray((512,), dtype='>H', buffer=msg.data[2:1026])
@@ -199,7 +192,6 @@ class BamCommand(object):
 
 
 class Bam(SlotCommandProcessor):
-    @ISC.logException
     def __init__(self, config, log, messenger, servers):
         SlotCommandProcessor.__init__(self, 'BAM', BamCommand)
         self.config  = config
@@ -217,7 +209,6 @@ class Bam(SlotCommandProcessor):
             self.cur_delays[i] = [0 for j in range(512)]
             self.cur_gains[i] = [0 for j in range(1024)]
             
-    @ISC.logException
     def start(self, beam, delays, gains, subslot):
         self.log.info("Setting BAM: beam=%i, subslot=%i" % (beam, subslot))
         
@@ -225,7 +216,6 @@ class Bam(SlotCommandProcessor):
         
         return True
         
-    @ISC.logException
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
@@ -236,14 +226,12 @@ class Bam(SlotCommandProcessor):
 
 
 class CorCommand(object):
-    @ISC.logException
     def __init__(self, msg):
         self.navg, self.gain, self.subslot \
             = struct.unpack('>ihB', msg)
 
 
 class Cor(SlotCommandProcessor):
-    @ISC.logException
     def __init__(self, config, log, messenger, servers):
         SlotCommandProcessor.__init__(self, 'COR', CorCommand)
         self.config  = config
@@ -259,7 +247,6 @@ class Cor(SlotCommandProcessor):
             self.cur_navg[i] = 0
             self.cur_gain[i] = 0
             
-    @ISC.logException
     def start(self, navg, gain, subslot):
         self.log.info("Setting COR: navg=%i, gain=%i, subslot=%i" % (navg, gain, subslot))
         
@@ -267,7 +254,6 @@ class Cor(SlotCommandProcessor):
         
         return True
         
-    @ISC.logException
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
@@ -871,12 +857,10 @@ class MsgProcessor(ConsumerThread):
         self.start_lock_thread()
         self.start_internal_trigger_thread()
         
-    @ISC.logException
     def start_lock_thread(self):
         self.lock_server = ISC.PipelineEventServer(addr=('ndp',5834), timeout=300)
         self.lock_server.start()
         
-    @ISC.logException
     def stop_lock_thread(self):
         try:
             self.lock_server.stop()
