@@ -1027,6 +1027,8 @@ class CorrelatorOp(object):
                                     
                                 nAccumulate = 0
                                 self.cdata = self.cdata.reshape(ochan,nstand*(nstand+1)//2*npol*npol)
+                            else:
+                                BFSync()
                             curr_time = time.time()
                             reserve_time = curr_time - prev_time
                             prev_time = curr_time
