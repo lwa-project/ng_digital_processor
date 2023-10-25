@@ -382,11 +382,11 @@ class TriggeredDumpOp(object):
         
     def dump(self, samples, time_tag=0, mask=None, local=False):
         if mask is None:
-            mask = 0b1111
+            mask = 0b11
         if (mask >> self.tuning) & 1 == 0:
             self.log.info('Not for us: %i -> %i @ %i', mask, (mask >> self.tuning) & 1, self.tuning)
             return False
-        speed_factor = 4 // sum([mask>>i&1 for i in range(4)])        # TODO: Slightly hacky
+        speed_factor = 2 // sum([mask>>i&1 for i in range(2)])        # TODO: Slightly hacky
         
         ntime_pkt = 1 # TODO: Should be TBF_NTIME_PER_PKT?
         
