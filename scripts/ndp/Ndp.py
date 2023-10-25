@@ -965,7 +965,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info('Stopping pipelines')
         for tuning in range(len(self.config['drx'])):
             self.servers.stop_drx(tuning=tuning)
-        for beam in range(4):
+        for beam in range(self.config['drx'][0]['beam_count']):
             self.headnode.stop_tengine(beam=beam)
             
         ## Make sure the pipelines have stopped
