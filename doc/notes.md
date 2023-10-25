@@ -26,7 +26,14 @@
  2. **`bifrost.map` Cache** - There was a problem with having the `bifrost.map` cache stored in `~/.bifrost`
     because of NFS file locking problems.  There wasn't always a deadlock but it happened often enough
     that I moved the map cache to `/opt/.bifrost` inside the Bifrost code.
-    
+ 3. **Packet Format Changes** - I have made several modifications to the intermediate and output data
+    products to get things working:
+     * The TBF `unassigned` header field is now used to store the number of stands in a TBF frame.
+       0 is assumed to be 256 for backward compatibility with LWA-SV/ADP.
+     * The TBF ID has been updated to 0x05; 0x01 for TBF or'd with 0x04 for NDP.
+     * The COR ID has been updated to 0x06; 0x02 for COR or'd with 0x04 for NDP.
+     * The COR `navg` header field is now in units of ticks of a 196 MHz clock.
+
 ## Problems and Open Questions
 See https://github.com/lwa-project/ng_digital_processor/issues
 
