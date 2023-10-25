@@ -1482,8 +1482,8 @@ def main(argv):
     
     # TODO:  Figure out what to do with this resize
     GSIZE = 512
-    ogulp_size = GSIZE *nchan_max*nstand*2
-    obuf_size  = tbf_buffer_secs*25000*nchan_max*nstand*2
+    ogulp_size = GSIZE * nchan_max*nstand*2
+    obuf_size  = int(np.ceil(tbf_buffer_secs*CHAN_BW/GSIZE)) * ogulp_size
     tbf_ring.resize(ogulp_size, obuf_size)
     
     ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
