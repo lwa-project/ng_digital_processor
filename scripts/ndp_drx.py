@@ -474,13 +474,13 @@ class TriggeredDumpOp(object):
                         ldw.send(self.desc,
                                  time_tag, int(FS)//int(CHAN_BW), 
                                  chan0, TBF_NCHAN_PER_PKT, sdata)
-                        bytesSent += sdata.size // 6144 * 6168   # data size -> packet size
+                        bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
                     else:
                         try:
                             self.udt.send(self.desc,
                                           time_tag, int(FS)//int(CHAN_BW), 
                                           chan0, TBF_NCHAN_PER_PKT, sdata)
-                            bytesSent += sdata.size // 6144 * 6168   # data size -> packet size
+                            bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
                             
@@ -836,9 +836,10 @@ class CorrelatorOp(object):
         nstand, npol = nsnap*32, 2
         ## Object
         self.bfcc = Btcc()
-        self.bfcc.init(4, int(np.ceil((self.ntime_gulp/16.0))*16), nchan, nstand, npol, self.decim)
+        self.bfcc.init(8, int(np.ceil((self.ntime_gulp/16.0))*16), ochan, nstand, npol, 1)
         ## Intermediate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
+        self.udata = BFArray(shape=(int(np.ceil((self.ntime_gulp/16.0))*16),ochan,nstand*npol), dtype='ci8', space='cuda')
         self.cdata = BFArray(shape=(ochan,nstand*(nstand+1)//2*npol*npol), dtype='ci32', space='cuda')
         self.tdata = BFArray(shape=(nstand*(nstand+1)//2,ochan,npol*npol), dtype='ci32', space='cuda')
         self.cdata_reorder_shape = (ochan,nstand*(nstand+1)//2,npol*npol)
@@ -1003,11 +1004,34 @@ class CorrelatorOp(object):
                             ## Setup and load
                             idata = ispan.data_view('ci4').reshape(ishape)
                             
+                            ## Decimate
+                            BFMap(f"""
+                                  // Unpack into real and imaginary, and then sum
+                                  int jF;
+                                  signed char sample, re, im;
+                                  re = im = 0;
+
+                                  #pragma unroll
+                                  for(int l=0; l<{self.decim}; l++) {{
+                                      jF = j*{self.decim} + l;
+                                      sample = a(i,jF,k).real_imag;
+                                      re += ((signed char)  (sample & 0xF0))       / 16;
+                                      im += ((signed char) ((sample & 0x0F) << 4)) / 16;
+                                  }}
+
+                                  // Save
+                                  b(i,j,k) = Complex<signed char>(re, im);
+                                  """,
+                                  {'a': idata, 'b': self.udata},
+                                  axis_names=('i','j','k'),
+                                  shape=(self.ntime_gulp,ochan,nstand*npol)
+                                 )
+                            
                             ## Correlate
                             corr_dump = 0
                             if nAccumulate == self.navg_seq - self.ntime_gulp:
                                 corr_dump = 1
-                            self.bfcc.execute(idata, self.cdata, corr_dump)
+                            self.bfcc.execute(self.udata, self.cdata, corr_dump)
                             nAccumulate += self.ntime_gulp
                             
                             curr_time = time.time()
@@ -1222,7 +1246,7 @@ class PacketizeOp(object):
                 time_tag0 = iseq.time_tag
                 time_tag  = time_tag0
                 igulp_size = nchan*nstand*(nstand+1)//2*npol*npol*8    # 32+32 complex
-                ishape = (self.nblock_send,nstand*(nstand+1)//2,self.nchan_send*npol*npol)
+                ishape = (self.nblock_send,1,nstand*(nstand+1)//2,self.nchan_send*npol*npol)
                 
                 for i in range(self.nblock_send):
                     desc[i].set_chan0(chan0 + i*self.nchan_send)
@@ -1236,7 +1260,7 @@ class PacketizeOp(object):
                 
                 scale_factor = navg / (2*NCHAN)
                 
-                rate_limit = (30*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
+                rate_limit = (7.7*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
@@ -1254,32 +1278,31 @@ class PacketizeOp(object):
                         
                         idata = ispan.data_view(np.int32).reshape(ishape+(2,))
                         t0 = time.time()
-                        odata = idata[...,0] + 1j*idata[...,1]
-                        odata = odata.astype(np.complex64)
+                        try:
+                            odata.real[...] = idata[...,0]
+                            odata.imag[...] = idata[...,1]
+                        except NameError:
+                            odata = idata[...,0] + 1j*idata[...,1]
+                            odata = odata.astype(np.complex64)
+                            odata = odata.view(np.complex64)
                         odata /= scale_factor
                         
                         bytesSent, bytesStart = 0, time.time()
                         
                         time_tag_cur = time_tag + 0*ticksPerFrame
-                        k = 0
-                        for i in range(nstand):
-                            sdata = BFArray(shape=(self.nblock_send,1,nstand-i,self.nchan_send*npol*npol), dtype='cf32')
-                            for j in range(i, nstand):
-                                sdata[:,0,j-i,:] = odata[:,k,:]
-                                k += 1
-                                
+                        npkt = nstand*(nstand+1)//2
+                        i = 0
+                        while npkt > 0:
+                            nsend = min([128, npkt])
                             for j in range(self.nblock_send):
-                                bdata = sdata[j,:,:,:]
-                                try:
-                                    udt.send(desc[j], time_tag_cur, ticksPerFrame, i*(2*(nstand-1)+1-i)//2+i, 1, bdata)
-                                except Exception as e:
-                                    print(type(self).__name__, "Sending Error stand set %i, block %i" % (i,j), str(e))
-                                    
-                            bytesSent += sdata.size*8 + sdata.shape[1]*32   # data size -> packet size
+                                udt.send(desc[j], time_tag_cur, ticksPerFrame, i, 1, odata[j,[0],i:i+nsend,:])
+                            i += nsend
+                            npkt -= nsend
+                            
+                            bytesSent += nsend*odata.shape[-1]*8 + nsend*32   # data size -> packet size
                             while bytesSent/(time.time()-bytesStart) >= rate_limit:
                                 time.sleep(0.001)
                                 
-                            del sdata
                             if time.time()-t0 > tBail:
                                 print('WARNING: vis write bail', time.time()-t0, '@', bytesSent/(time.time()-bytesStart)/1024**2, '->', time.time())
                                 break
@@ -1295,6 +1318,11 @@ class PacketizeOp(object):
                           
                     # Reset to move on to the next input sequence?
                     if not reset_sequence:
+                        try:
+                            del odata
+                        except NameError:
+                            pass
+                            
                         break
         del udt
 
