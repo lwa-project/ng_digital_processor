@@ -1511,7 +1511,7 @@ def main(argv):
                             ntime_gulp=GSIZE//4, nbeam_max=nbeam,
                             core=cores.pop(0)))
     ops[-2].updatePacketizerPreferences(ops[-1])
-    if self.tuning == 0:
+    if tuning == 0:
         ccore = ops[2].core
         try:
             pcore = cores.pop(0)
