@@ -1299,7 +1299,7 @@ class PacketizeOp(object):
                             i += nsend
                             npkt -= nsend
                             
-                            bytesSent += nsend*odata.shape[-1]*8 + nsend*32   # data size -> packet size
+                            bytesSent += self.nblock_send*nsend*(odata.shape[-1]*8 + 32)   # data size -> packet size
                             while bytesSent/(time.time()-bytesStart) >= rate_limit:
                                 time.sleep(0.001)
                                 
