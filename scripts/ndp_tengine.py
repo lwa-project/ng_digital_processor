@@ -745,7 +745,7 @@ class TEngineOp(object):
                                       Complex<float> factor[{nbeam*ntune}];
                                       #pragma unroll
                                       for(int j=0; j<{nbeam*ntune}; j++) {{
-                                        factor[j] = r(j)*exp(Complex<float>(1, -2*BF_PI_F*fmod(g(j)*s(j), 1.0)));
+                                        factor[j] = r(j)*exp(Complex<float>(0, -2*BF_PI_F*fmod(g(j)*s(j), 1.0)));
                                       }}
                                       
                                       #pragma unroll
