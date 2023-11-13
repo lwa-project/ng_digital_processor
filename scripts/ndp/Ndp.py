@@ -594,7 +594,7 @@ class Snap2MonitorClient(object):
         
     def unprogram(self, reboot=False):
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 self.snap.deprogram()
                 
     def get_samples(self, slot, stand, pol, nsamps=None):
@@ -606,7 +606,7 @@ class Snap2MonitorClient(object):
         """Returns an NDArray of shape (stand,pol,sample)"""
         samps = np.zeros((32,2,STAT_SAMP_SIZE))
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
                 samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
                 samps = np.vstack([samps0, samps1])
@@ -618,7 +618,7 @@ class Snap2MonitorClient(object):
         # Return a dictionary of temperatures on the Snap2 board
         temp = {'error': float('nan')}
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     summary, flags = self.snap.fpga.get_status()
                     temp = {'fpga': summary['temp']}
@@ -631,7 +631,7 @@ class Snap2MonitorClient(object):
         # Estimate the FPGA clock rate in MHz
         rate = float('nan')
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     rate = self.snap.fpga.get_fpga_clock()
                 except Exception as e:
@@ -642,7 +642,7 @@ class Snap2MonitorClient(object):
         # Return the timetag corresponding to a sync pulse.
         tt = None
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 tt = self.snap.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
                 tt = tt[0]
         return tt
@@ -656,7 +656,7 @@ class Snap2MonitorClient(object):
         # Go!
         success = False
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 for i in range(self.config['snap']['max_program_attempts']):
                     try:
                         self.snap.program(firmware)
@@ -672,7 +672,7 @@ class Snap2MonitorClient(object):
         
         status = False
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     status = self.snap.fpga.is_programmed()
                 except Exception as e:
@@ -684,7 +684,7 @@ class Snap2MonitorClient(object):
         
         status = True
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     summary, flags = self.snap.fpga.get_status()
                     for key in flags.keys():
@@ -747,7 +747,7 @@ class Snap2MonitorClient(object):
         # Go!
         success = False
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 for i in range(self.config['snap']['max_program_attempts']):
                     try:
                         self.snap.cold_start_from_config(configname) 
@@ -765,7 +765,7 @@ class Snap2MonitorClient(object):
         
         spectra = []
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 self.snap.autocorr.set_acc_len(acc_len)
                 time.sleep(t_int+0.1)
                 
