@@ -575,8 +575,6 @@ class NdpServerMonitorClient(object):
             return False
 
 
-STAT_SAMPLE_SIZE = 256
-
 class Snap2MonitorClient(object):
     def __init__(self, config, log, num):
         # Note: num is 1-based index of the snap
@@ -606,7 +604,7 @@ class Snap2MonitorClient(object):
     @lru_cache(maxsize=4)
     def get_samples_all(self, slot, nsamps=None):
         """Returns an NDArray of shape (stand,pol,sample)"""
-        samps = np.zeros((32,2,STAT_SAMPLE_SIZE))
+        samps = np.zeros((32,2,STAT_SAMP_SIZE))
         with self.access_lock:
             if self.snap.is_connected and self.snap.fpga.is_programmed():
                 samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
@@ -1600,14 +1598,14 @@ class MsgProcessor(ConsumerThread):
         if key == 'CLK_VAL':           return MCS2.slot2mpm(slot-1)
         if key == 'UTC_START':         return self.utc_start_str # Not in spec
         if key == 'UPTIME':            return self.uptime() # Not in spec
-        if key == 'STAT_SAMPLE_SIZE':  return STAT_SAMPLE_SIZE
+        if key == 'STAT_SAMPLE_SIZE':  return STAT_SAMP_SIZE
         if args[0] == 'ANT':
             inp = args[1]-1
             if not (0 <= inp < NINPUT):
                 raise ValueError("Unknown input number %i"%(inp+1))
             board,stand,pol = input2boardstandpol(inp)
             samples = self.snaps[board].get_samples(slot, stand, pol,
-                                                    STAT_SAMPLE_SIZE)
+                                                    STAT_SAMP_SIZE)
             # Convert from int8 --> float32 before reducing
             samples = samples.astype(np.float32)
             op = args[2]
