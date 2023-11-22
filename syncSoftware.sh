@@ -120,7 +120,7 @@ if [ "${DO_CONFIG}" == "1" ]; then
 	
 	for node in `seq 0 2`; do
 		rsync -e ssh -avHL ${SRC_PATH}/ndp_config.json ndp${node}:${DST_PATH}/
-		rsync -e ssh -avH ${SRC_PATH}/equalizer.txt ndp${node}:${DST_PATH}/
+		rsync -e ssh -avH ${SRC_PATH}/equalizer*.txt ndp${node}:${DST_PATH}/
 	done
 fi
 
