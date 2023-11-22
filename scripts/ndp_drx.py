@@ -396,7 +396,7 @@ class TriggeredDumpOp(object):
         # HACK TESTING
         dump_time_tag = time_tag
         if (dump_time_tag == 0 and local) or not local:
-            time_offset    = -4.0
+            time_offset    = -0.5
             time_offset_s  = int(time_offset)
             time_offset_us = int(round((time_offset-time_offset_s)*1e6))
             time_offset    = datetime.timedelta(seconds=time_offset_s, microseconds=time_offset_us)
@@ -1227,7 +1227,7 @@ class PacketizeOp(object):
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
-                desc[-1].set_tuning((4 << 16) | (2 << 8) | (self.nblock_send*self.tuning + i + 1))
+                desc[-1].set_tuning((4 << 16) | (4 << 8) | (self.nblock_send*self.tuning + i + 1))
             
             for iseq in self.iring.read():
                 ihdr = json.loads(iseq.header.tostring())
@@ -1260,7 +1260,7 @@ class PacketizeOp(object):
                 
                 scale_factor = navg / (2*NCHAN)
                 
-                rate_limit = (7.7*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
+                rate_limit = (3.0*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
