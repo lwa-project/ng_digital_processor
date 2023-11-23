@@ -158,7 +158,6 @@ class PipelineMessageClient(object):
     configuration updates as they come in.
     """
     
-    @logException
     def __init__(self, group, addr=('ndp', 5832), context=None):
         # Create the context
         if context is not None:
@@ -176,7 +175,6 @@ class PipelineMessageClient(object):
             self.socket.setsockopt_string(zmq.SUBSCRIBE, group)
         self.socket.connect('tcp://%s:%i' % addr)
         
-    @logException
     def __call__(self, block=False):
         """
         Pull in information if it is available.  If a message from the server
@@ -192,7 +190,6 @@ class PipelineMessageClient(object):
         except zmq.error.ZMQError:
             return False
             
-    @logException
     def close(self):
         """
         Close out the client.
@@ -425,7 +422,6 @@ class PipelineSynchronizationClient(object):
     Client class for PipelineSynchronizationClient.
     """
     
-    @logException
     def __init__(self, id=None, addr=('ndp', 5833), context=None):
         # Create the context
         if context is not None:
@@ -448,12 +444,10 @@ class PipelineSynchronizationClient(object):
         # Connect to the server
         self.socket.send_string('JOIN')
         
-    @logException
     def __call__(self, tag=None):
         self.socket.send_string('TAG:%s' % tag)
         return self.socket.recv_string()
         
-    @logException
     def close(self):
         """
         Leave the synchronization pool and close out the client.
@@ -526,7 +520,6 @@ class PipelineEventServer(object):
         except KeyError:
             return False
             
-    @logException
     def start(self):
         """
         Start the event pool.
@@ -542,7 +535,6 @@ class PipelineEventServer(object):
         self.alive.set()
         self.thread.start()
         
-    @logException
     def stop(self):
         """
         Stop the event pool.
@@ -554,7 +546,6 @@ class PipelineEventServer(object):
             
             self.thread = None
             
-    @logException
     def _event(self):
         while self.alive.isSet():
             msg = dict(self.poller.poll(1000))
@@ -592,7 +583,6 @@ class PipelineEventClient(object):
     Client class for PipelineEventClient.
     """
     
-    @logException
     def __init__(self, id=None, addr=('ndp', 5834), context=None):
         # Create the context
         if context is not None:
@@ -621,26 +611,21 @@ class PipelineEventClient(object):
             # Python2 catch
             pass
             
-    @logException
     def is_set(self):
         self.socket.send_string('%s %s' % (self.id, 'IS_SET'))
         return True if self.socket.recv_string() == 'True' else False
         
-    @logException
     def isSet(self):
         return self.is_set()
         
-    @logException
     def set(self):
         self.socket.send_string('%s %s' % (self.id, 'SET'))
         return True if self.socket.recv_string() == 'True' else False
         
-    @logException
     def clear(self):
         self.socket.send_string('%s %s' % (self.id, 'CLEAR'))
         return True if self.socket.recv_string() == 'True' else False
         
-    @logException
     def wait(self, timeout=None):
         t0 = time.time()
         while not self.is_set():
@@ -651,7 +636,6 @@ class PipelineEventClient(object):
                     return False
         return True
         
-    @logException
     def close(self):
         """
         Leave the synchronization pool and close out the client.

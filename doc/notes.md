@@ -18,7 +18,7 @@
    - beamformer -> T-engines
    - correlator -> Orville-style imager
 
-## Implemntation Notes
+## Implementation Notes
  1. **Split Networking** - I'm trying to use both network cards on the servers so I'm using a network
     splitting scheme where the SNAP2s are in 192.168.40.0/24, one NIC is on 192.168.40.0/25, and the
     the other is on 192.168.40.128/25.  I initially tried to do this with DHCP but that was a no-go.
@@ -33,7 +33,11 @@
      * The TBF ID has been updated to 0x05; 0x01 for TBF or'd with 0x04 for NDP.
      * The COR ID has been updated to 0x06; 0x02 for COR or'd with 0x04 for NDP.
      * The COR `navg` header field is now in units of ticks of a 196 MHz clock.
-
+ 4. **GPU Swap** - The A4000s that were in ndp0 have been moved to ndp2.  Now ndp0 and ndp1 have
+    the A5000s.  This helps reduce the GPU occupancy on the T-engine.
+ 5. **ndp2 Repurposed** - It looks like I can squeeze the bandwidth down into two DRX pipelines,
+    freeing up ndp2 to be an imager.  We need a plan for what to do with all of the Orville data.
+    
 ## Problems and Open Questions
 See https://github.com/lwa-project/ng_digital_processor/issues
 

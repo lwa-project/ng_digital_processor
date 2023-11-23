@@ -382,11 +382,11 @@ class TriggeredDumpOp(object):
         
     def dump(self, samples, time_tag=0, mask=None, local=False):
         if mask is None:
-            mask = 0b1111
+            mask = 0b11
         if (mask >> self.tuning) & 1 == 0:
             self.log.info('Not for us: %i -> %i @ %i', mask, (mask >> self.tuning) & 1, self.tuning)
             return False
-        speed_factor = 4 // sum([mask>>i&1 for i in range(4)])        # TODO: Slightly hacky
+        speed_factor = 2 // sum([mask>>i&1 for i in range(2)])        # TODO: Slightly hacky
         
         ntime_pkt = 1 # TODO: Should be TBF_NTIME_PER_PKT?
         
@@ -396,7 +396,7 @@ class TriggeredDumpOp(object):
         # HACK TESTING
         dump_time_tag = time_tag
         if (dump_time_tag == 0 and local) or not local:
-            time_offset    = -4.0
+            time_offset    = -0.5
             time_offset_s  = int(time_offset)
             time_offset_us = int(round((time_offset-time_offset_s)*1e6))
             time_offset    = datetime.timedelta(seconds=time_offset_s, microseconds=time_offset_us)
@@ -474,13 +474,13 @@ class TriggeredDumpOp(object):
                         ldw.send(self.desc,
                                  time_tag, int(FS)//int(CHAN_BW), 
                                  chan0, TBF_NCHAN_PER_PKT, sdata)
-                        bytesSent += sdata.size // 6144 * 6168   # data size -> packet size
+                        bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
                     else:
                         try:
                             self.udt.send(self.desc,
                                           time_tag, int(FS)//int(CHAN_BW), 
                                           chan0, TBF_NCHAN_PER_PKT, sdata)
-                            bytesSent += sdata.size // 6144 * 6168   # data size -> packet size
+                            bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
                             
@@ -550,6 +550,9 @@ class BeamformerOp(object):
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
         self.ldata = BFArray(shape=(self.ntime_gulp,self.nbeam_max,nchan,2), dtype=self.bdata.dtype, space='cuda')
+        self.bdata_reorder_shape = (nchan,self.nbeam_max,2,self.ntime_gulp)
+        self.bdata_reorder_axes = (3,1,0,2)
+        self.odata_shape = self.ldata.shape
         
         try:
             ##Read in the precalculated complex gains for all of the steps of the achromatic beams.
@@ -564,6 +567,32 @@ class BeamformerOp(object):
             self.log.warning("Failed to load custom beamforming coefficients: %s", str(e))
             self.complexGains = None
             
+    def updatePacketizerPreferences(self, pkt_op):
+        ntime = self.ntime_gulp
+        nchan = self.nchan_max
+        nbeam = self.nbeam_max
+        npol  = 2
+        
+        self.pkt_gulp = pkt_op.ntime_gulp
+        self.pkt_nchan = pkt_op.nchan_send
+        assert(ntime % self.pkt_gulp == 0)
+        assert(nchan % self.pkt_nchan == 0)
+        
+        self.ldata =  BFArray(shape=(ntime//self.pkt_gulp,
+                                     nbeam,
+                                     nchan//self.pkt_nchan,
+                                     self.pkt_gulp,
+                                     self.pkt_nchan,
+                                     npol), dtype=self.bdata.dtype, space='cuda')
+        self.bdata_reorder_shape = (nchan//self.pkt_nchan,
+                                    self.pkt_nchan,
+                                    nbeam,
+                                    npol,
+                                    ntime//self.pkt_gulp,
+                                    self.pkt_gulp)
+        self.bdata_reorder_axes = (4,2,0,5,1,3)
+        self.odata_shape = self.ldata.shape
+        
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
 
         if self.gpu != -1:
@@ -705,7 +734,7 @@ class BeamformerOp(object):
                 igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
                 ogulp_size = self.ntime_gulp*nchan*self.nbeam_max*npol*8    # complex64
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
-                oshape = (self.ntime_gulp,self.nbeam_max,nchan,2)
+                oshape = self.odata_shape #(self.ntime_gulp,self.nbeam_max,nchan,2)
                 
                 ticksPerTime = int(FS) // int(CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -714,6 +743,8 @@ class BeamformerOp(object):
                 ohdr['nstand'] = self.nbeam_max
                 ohdr['nbit'] = 32
                 ohdr['complex'] = True
+                ohdr['pkt_gulp'] = self.pkt_gulp
+                ohdr['pkt_nchan'] = self.pkt_nchan
                 ohdr_str = json.dumps(ohdr)
                 
                 self.oring.resize(ogulp_size, 10*ogulp_size)
@@ -741,8 +772,8 @@ class BeamformerOp(object):
                             self.bdata = self.bfbf.matmul(1.0, self.cgains.transpose(1,0,2), idata.transpose(1,2,0), 0.0, self.bdata)
                             
                             ## Transpose and save
-                            self.bdata = self.bdata.reshape(nchan,self.nbeam_max,2,self.ntime_gulp)
-                            Transpose(self.ldata, self.bdata, axes=(3,1,0,2))
+                            self.bdata = self.bdata.reshape(self.bdata_reorder_shape)
+                            Transpose(self.ldata, self.bdata, axes=self.bdata_reorder_axes)
                             copy_array(odata, self.ldata)
                             
                         ## Update the base time tag
@@ -797,7 +828,7 @@ class CorrelatorOp(object):
         ## Start time reference
         if utc_start_tt is None:
             utc_start_tt = int(round(time.time() * FS))
-        self.start_time_tag = int(round(utc_start_tt // (2*CHAN_BW*self.ntime_gulp))) * 2*NCHAN*self.ntime_gulp
+        self.start_time_tag = int(round(utc_start_tt // (2*NCHAN*self.ntime_gulp))) * 2*NCHAN*self.ntime_gulp
         ## Metadata
         self.decim = 4
         nchan = self.nchan_max
@@ -805,11 +836,33 @@ class CorrelatorOp(object):
         nstand, npol = nsnap*32, 2
         ## Object
         self.bfcc = Btcc()
-        self.bfcc.init(8, int(np.ceil((self.ntime_gulp/16.0))*16), ochan, nstand, npol)
+        self.bfcc.init(8, int(np.ceil((self.ntime_gulp/16.0))*16), ochan, nstand, npol, 1)
         ## Intermediate arrays
         ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
         self.udata = BFArray(shape=(int(np.ceil((self.ntime_gulp/16.0))*16),ochan,nstand*npol), dtype='ci8', space='cuda')
         self.cdata = BFArray(shape=(ochan,nstand*(nstand+1)//2*npol*npol), dtype='ci32', space='cuda')
+        self.tdata = BFArray(shape=(nstand*(nstand+1)//2,ochan,npol*npol), dtype='ci32', space='cuda')
+        self.cdata_reorder_shape = (ochan,nstand*(nstand+1)//2,npol*npol)
+        self.cdata_reorder_axes = (1,0,2)
+        self.odata_shape = self.tdata.shape
+        
+    def updatePacketizerPreferences(self, pkt_op):
+        ochan, nblpol = self.cdata.shape
+        nbl, npol = nblpol//4, 4
+        
+        self.pkt_nchan = pkt_op.nchan_send
+        assert(ochan % self.pkt_nchan == 0)
+        
+        self.tdata =  BFArray(shape=(ochan//self.pkt_nchan,
+                                     nbl,
+                                     self.pkt_nchan,
+                                     npol), dtype=self.cdata.dtype, space='cuda')
+        self.cdata_reorder_shape = (ochan//self.pkt_nchan,
+                                    self.pkt_nchan,
+                                    nbl,
+                                    npol)
+        self.cdata_reorder_axes = (0,2,1,3)
+        self.odata_shape = self.tdata.shape
         
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
         if self.gpu != -1:
@@ -855,7 +908,8 @@ class CorrelatorOp(object):
             self.log.info("Correlator: New configuration received for tuning %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
             navg, gain, slot = config
             
-            self.navg_tt = int(round(navg/100 * CHAN_BW * 2*NCHAN))
+            self.navg_tt = int(round(navg/100 * FS // (2*NCHAN*self.ntime_gulp))) * (2*NCHAN*self.ntime_gulp)
+            self.navg_seq = self.navg_tt // (2*NCHAN)
             self.log.info('  Averaging time set')
             self.gain = gain
             self.log.info('  Gain set')
@@ -898,20 +952,15 @@ class CorrelatorOp(object):
                 igulp_size = self.ntime_gulp*nchan*nstand*npol        # 4+4 complex
                 ogulp_size = ochan*nstand*(nstand+1)//2*npol*npol*8   # 32+32 complex
                 ishape = (self.ntime_gulp,nchan,nstand*npol)
-                oshape = (ochan,nstand*(nstand+1)//2*npol*npol)
+                oshape = self.odata_shape
                 
                 # Figure out where we need to be in the buffer to be a integration boundary
                 ticksPerTime = 2*NCHAN
-                sOffset = ((self.start_time_tag - iseq.time_tag) // (2*NCHAN)) % self.navg_seq
-                if sOffset != 0:
-                    sOffset = self.navg_seq - sOffset
-                    while sOffset > CHAN_BW:
-                        sOffset -= self.ntime_gulp
-                    while sOffset < 0:
-                        sOffset += self.ntime_gulp
-                tOffset = sOffset * 2*NCHAN
+                sOffset = ((iseq.time_tag - self.start_time_tag) // (2*NCHAN)) % self.navg_seq
+                sOffset = sOffset % self.ntime_gulp
+                sOffset = self.ntime_gulp - sOffset
                 bOffset = sOffset * nchan*nstand*npol
-                print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', tOffset, '&', sOffset, '&', bOffset)
+                print('!! @ cor', iseq.time_tag, self.start_time_tag, '->', sOffset, '&', bOffset)
                 
                 base_time_tag = iseq.time_tag + sOffset*ticksPerTime
                 
@@ -937,7 +986,7 @@ class CorrelatorOp(object):
                     
                     ohdr['time_tag']  = base_time_tag
                     ohdr['start_tag'] = self.start_time_tag
-                    ohdr['navg']      = int(round(self.navg_tt / FS * 100))
+                    ohdr['navg']      = self.navg_tt
                     ohdr['gain']      = self.gain
                     ohdr_str = json.dumps(ohdr)
                     
@@ -955,13 +1004,13 @@ class CorrelatorOp(object):
                             ## Setup and load
                             idata = ispan.data_view('ci4').reshape(ishape)
                             
-                            ## Unpack and decimate
+                            ## Decimate
                             BFMap(f"""
                                   // Unpack into real and imaginary, and then sum
                                   int jF;
                                   signed char sample, re, im;
                                   re = im = 0;
-                                  
+
                                   #pragma unroll
                                   for(int l=0; l<{self.decim}; l++) {{
                                       jF = j*{self.decim} + l;
@@ -969,7 +1018,7 @@ class CorrelatorOp(object):
                                       re += ((signed char)  (sample & 0xF0))       / 16;
                                       im += ((signed char) ((sample & 0x0F) << 4)) / 16;
                                   }}
-                                  
+
                                   // Save
                                   b(i,j,k) = Complex<signed char>(re, im);
                                   """,
@@ -980,7 +1029,7 @@ class CorrelatorOp(object):
                             
                             ## Correlate
                             corr_dump = 0
-                            if nAccumulate == self.navg_seq:
+                            if nAccumulate == self.navg_seq - self.ntime_gulp:
                                 corr_dump = 1
                             self.bfcc.execute(self.udata, self.cdata, corr_dump)
                             nAccumulate += self.ntime_gulp
@@ -991,10 +1040,19 @@ class CorrelatorOp(object):
                             
                             ## Dump?
                             if nAccumulate == self.navg_seq:
+                                ### Transpose and save
+                                self.cdata = self.cdata.reshape(self.cdata_reorder_shape)
+                                Transpose(self.tdata, self.cdata, axes=self.cdata_reorder_axes)
+                                
                                 with oseq.reserve(ogulp_size) as ospan:
                                     odata = ospan.data_view('ci32').reshape(oshape)
-                                    odata[...] = self.cdata
+                                    copy_array(odata, self.tdata)
+                                    print('dump @', base_time_tag)
+                                    
                                 nAccumulate = 0
+                                self.cdata = self.cdata.reshape(ochan,nstand*(nstand+1)//2*npol*npol)
+                            else:
+                                BFSync()
                             curr_time = time.time()
                             reserve_time = curr_time - prev_time
                             prev_time = curr_time
@@ -1077,8 +1135,13 @@ class RetransmitOp(object):
             nstand  = ihdr['nstand']
             npol    = ihdr['npol']
             nstdpol = nstand * npol
-            igulp_size = self.ntime_gulp*nstand*nchan*npol*8        # complex64
-            igulp_shape = (self.ntime_gulp,nstand*self.nblock_send,self.nchan_send,npol)
+            us_pkt_gulp = ihdr['pkt_gulp']
+            us_pkt_nchan = ihdr['pkt_nchan']
+            assert(us_pkt_gulp == self.ntime_gulp)
+            assert(us_pkt_nchan == self.nchan_send)
+            
+            igulp_size = nstand*self.ntime_gulp*nchan*npol*8        # complex64
+            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
@@ -1096,10 +1159,8 @@ class RetransmitOp(object):
                 prev_time = curr_time
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                sdata = idata.transpose(1,0,2,3)
-                sdata = sdata.copy(space='system')
                 for i,udt in enumerate(self.udts):
-                    bdata = sdata[i,:,:,:]
+                    bdata = idata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
                     try:
                         udt.send(desc[i], seq, 1, src_id[i], 1, bdata)
@@ -1149,7 +1210,8 @@ class PacketizeOp(object):
         if self.gpu != -1:
             BFSetGPU(self.gpu)
         ## Metadata
-        nchan = self.nchan_max
+        self.nchan_send = min([self.nchan_max, 192])
+        self.nblock_send = self.nchan_max // self.nchan_send
         nstand, npol = nsnap*32, 2
         
     def main(self):
@@ -1161,9 +1223,11 @@ class PacketizeOp(object):
                                   'ngpu': 1,
                                   'gpu0': BFGetGPU(),})
         
-        with UDPTransmit('cor_%i' % self.nchan_max, sock=self.sock, core=self.core) as udt:
-            desc = HeaderInfo()
-            desc.set_tuning((4 << 16) | (6 << 8) | self.server)
+        with UDPTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
+            desc = []
+            for i in range(self.nblock_send):
+                desc.append(HeaderInfo())
+                desc[-1].set_tuning((4 << 16) | (4 << 8) | (self.nblock_send*self.tuning + i + 1))
             
             for iseq in self.iring.read():
                 ihdr = json.loads(iseq.header.tostring())
@@ -1179,23 +1243,24 @@ class PacketizeOp(object):
                 npol   = ihdr['npol']
                 navg   = ihdr['navg']
                 gain   = ihdr['gain']
-                time_tag0 = ihdr['start_tag'] #iseq.time_tag
+                time_tag0 = iseq.time_tag
                 time_tag  = time_tag0
                 igulp_size = nchan*nstand*(nstand+1)//2*npol*npol*8    # 32+32 complex
-                ishape = (nchan,nstand*(nstand+1)//2,npol,npol)
+                ishape = (self.nblock_send,1,nstand*(nstand+1)//2,self.nchan_send*npol*npol)
                 
-                desc.set_chan0(chan0)
-                desc.set_gain(gain)
-                desc.set_decimation(navg)
-                desc.set_nsrc(nstand*(nstand+1)//2)
+                for i in range(self.nblock_send):
+                    desc[i].set_chan0(chan0 + i*self.nchan_send)
+                    desc[i].set_gain(gain)
+                    desc[i].set_decimation(navg)
+                    desc[i].set_nsrc(nstand*(nstand+1)//2)
+                    
+                ticksPerFrame = navg
+                tInt = navg/FS
+                tBail = tInt - 0.2
                 
-                ticksPerFrame = int(round(navg*0.01*FS))
-                tInt = int(round(navg*0.01))
-                tBail = navg*0.01 - 0.2
+                scale_factor = navg / (2*NCHAN)
                 
-                scale_factor = navg * int(CHAN_BW / 100)
-                
-                rate_limit = (7.7*(nchan/72.0)*10/(navg*0.01-0.5)) * 1024**2
+                rate_limit = (3.0*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
@@ -1211,35 +1276,33 @@ class PacketizeOp(object):
                         acquire_time = curr_time - prev_time
                         prev_time = curr_time
                         
-                        idata = ispan.data_view('ci32').reshape(ishape)
+                        idata = ispan.data_view(np.int32).reshape(ishape+(2,))
                         t0 = time.time()
-                        odata = idata.view(np.int32)
-                        odata = odata.reshape(ishape+(2,))
-                        odata = odata[...,0] + 1j*odata[...,1]
-                        odata = odata.transpose(1,0,2,3)
-                        odata = odata.astype(np.complex64) / scale_factor
+                        try:
+                            odata.real[...] = idata[...,0]
+                            odata.imag[...] = idata[...,1]
+                        except NameError:
+                            odata = idata[...,0] + 1j*idata[...,1]
+                            odata = odata.astype(np.complex64)
+                            odata = odata.view(np.complex64)
+                        odata /= scale_factor
                         
                         bytesSent, bytesStart = 0, time.time()
                         
                         time_tag_cur = time_tag + 0*ticksPerFrame
-                        k = 0
-                        for i in range(nstand):
-                            sdata = BFArray(shape=(1,nstand-i,nchan,npol,npol), dtype='cf32')
-                            for j in range(i, nstand):
-                                sdata[0,j-i,:,:,:] = odata[k,:,:,:]
-                                k += 1
-                            sdata = sdata.reshape(1,-1,nchan*npol*npol)
+                        npkt = nstand*(nstand+1)//2
+                        i = 0
+                        while npkt > 0:
+                            nsend = min([128, npkt])
+                            for j in range(self.nblock_send):
+                                udt.send(desc[j], time_tag_cur, ticksPerFrame, i, 1, odata[j,[0],i:i+nsend,:])
+                            i += nsend
+                            npkt -= nsend
                             
-                            try:
-                                udt.send(desc, time_tag_cur, ticksPerFrame, i*(2*(nstand-1)+1-i)//2+i, 1, sdata)
-                            except Exception as e:
-                                print(type(self).__name__, 'Sending Error', str(e))
-                                
-                            bytesSent += sdata.size*8 + sdata.shape[0]*32   # data size -> packet size
+                            bytesSent += self.nblock_send*nsend*(odata.shape[-1]*8 + 32)   # data size -> packet size
                             while bytesSent/(time.time()-bytesStart) >= rate_limit:
                                 time.sleep(0.001)
                                 
-                            del sdata
                             if time.time()-t0 > tBail:
                                 print('WARNING: vis write bail', time.time()-t0, '@', bytesSent/(time.time()-bytesStart)/1024**2, '->', time.time())
                                 break
@@ -1255,6 +1318,11 @@ class PacketizeOp(object):
                           
                     # Reset to move on to the next input sequence?
                     if not reset_sequence:
+                        try:
+                            del odata
+                        except NameError:
+                            pass
+                            
                         break
         del udt
 
@@ -1444,9 +1512,9 @@ def main(argv):
     cor_bw_max = vbw//ntuning
     
     # TODO:  Figure out what to do with this resize
-    GSIZE = 500
-    ogulp_size = GSIZE *nchan_max*nstand*2
-    obuf_size  = tbf_buffer_secs*25000*nchan_max*nstand*2
+    GSIZE = 512
+    ogulp_size = GSIZE * nchan_max*nstand*2
+    obuf_size  = int(np.ceil(tbf_buffer_secs*CHAN_BW/GSIZE)) * ogulp_size
     tbf_ring.resize(ogulp_size, obuf_size)
     
     ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
@@ -1468,8 +1536,9 @@ def main(argv):
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
                             tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
-                            ntime_gulp=100, nbeam_max=nbeam,
+                            ntime_gulp=GSIZE//4, nbeam_max=nbeam,
                             core=cores.pop(0)))
+    ops[-2].updatePacketizerPreferences(ops[-1])
     if True:
         ccore = ops[2].core
         try:
@@ -1485,6 +1554,7 @@ def main(argv):
                                tuning=tuning, nsnap=nsnap, nchan_max=nchan_max//4,
                                npkt_gulp=1, core=pcore, gpu=tuning % 2,
                                max_bytes_per_sec=cor_bw_max))
+        ops[-2].updatePacketizerPreferences(ops[-1])
         
     threads = [threading.Thread(target=op.main) for op in ops]
     

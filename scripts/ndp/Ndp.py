@@ -62,14 +62,12 @@ class SlotCommandProcessor(object):
         self.cmd_code     = cmd_code
         self.cmd_parser   = cmd_parser
         
-    @ISC.logException
     def process_command(self, msg):
         assert( msg.cmd == self.cmd_code )
         exec_slot = msg.slot + self.exec_delay
         self.cmd_sequence[exec_slot].append(self.cmd_parser(msg))
         return 0
         
-    @ISC.logException
     def execute_commands(self, slot):
         try:
             cmds = self.cmd_sequence.pop(slot)
@@ -151,7 +149,6 @@ class Drx(SlotCommandProcessor):
 
 
 class TbfCommand(object):
-    @ISC.logException
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
@@ -160,7 +157,6 @@ class TbfCommand(object):
 
 
 class Tbf(SlotCommandProcessor):
-    @ISC.logException
     def __init__(self, config, log, messenger, servers):
         SlotCommandProcessor.__init__(self, 'TBF', TbfCommand)
         self.config  = config
@@ -172,7 +168,6 @@ class Tbf(SlotCommandProcessor):
     def _reset_state(self):
         self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
-    @ISC.logException
     def start(self, bits, trigger, samples, mask):
         self.log.info('Starting TBF: bits=%i, trigger=%i, samples=%i, mask=%i' % (bits, trigger, samples, mask))
         
@@ -180,7 +175,6 @@ class Tbf(SlotCommandProcessor):
         
         return True
         
-    @ISC.logException
     def execute(self, cmds):
         for cmd in cmds:
             self.start(cmd.bits, cmd.trigger, cmd.samples, cmd.mask)
@@ -190,7 +184,6 @@ class Tbf(SlotCommandProcessor):
 
 
 class BamCommand(object):
-    @ISC.logException
     def __init__(self, msg):
         self.beam = struct.unpack('>H', msg.data[0:2])[0]
         self.delays = np.ndarray((512,), dtype='>H', buffer=msg.data[2:1026])
@@ -199,7 +192,6 @@ class BamCommand(object):
 
 
 class Bam(SlotCommandProcessor):
-    @ISC.logException
     def __init__(self, config, log, messenger, servers):
         SlotCommandProcessor.__init__(self, 'BAM', BamCommand)
         self.config  = config
@@ -217,7 +209,6 @@ class Bam(SlotCommandProcessor):
             self.cur_delays[i] = [0 for j in range(512)]
             self.cur_gains[i] = [0 for j in range(1024)]
             
-    @ISC.logException
     def start(self, beam, delays, gains, subslot):
         self.log.info("Setting BAM: beam=%i, subslot=%i" % (beam, subslot))
         
@@ -225,7 +216,6 @@ class Bam(SlotCommandProcessor):
         
         return True
         
-    @ISC.logException
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
@@ -236,14 +226,12 @@ class Bam(SlotCommandProcessor):
 
 
 class CorCommand(object):
-    @ISC.logException
     def __init__(self, msg):
         self.navg, self.gain, self.subslot \
             = struct.unpack('>ihB', msg)
 
 
 class Cor(SlotCommandProcessor):
-    @ISC.logException
     def __init__(self, config, log, messenger, servers):
         SlotCommandProcessor.__init__(self, 'COR', CorCommand)
         self.config  = config
@@ -259,7 +247,6 @@ class Cor(SlotCommandProcessor):
             self.cur_navg[i] = 0
             self.cur_gain[i] = 0
             
-    @ISC.logException
     def start(self, navg, gain, subslot):
         self.log.info("Setting COR: navg=%i, gain=%i, subslot=%i" % (navg, gain, subslot))
         
@@ -267,7 +254,6 @@ class Cor(SlotCommandProcessor):
         
         return True
         
-    @ISC.logException
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
@@ -589,8 +575,6 @@ class NdpServerMonitorClient(object):
             return False
 
 
-STAT_SAMP_SIZE = 256
-
 class Snap2MonitorClient(object):
     def __init__(self, config, log, num):
         # Note: num is 1-based index of the snap
@@ -610,7 +594,7 @@ class Snap2MonitorClient(object):
         
     def unprogram(self, reboot=False):
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 self.snap.deprogram()
                 
     def get_samples(self, slot, stand, pol, nsamps=None):
@@ -622,7 +606,7 @@ class Snap2MonitorClient(object):
         """Returns an NDArray of shape (stand,pol,sample)"""
         samps = np.zeros((32,2,STAT_SAMP_SIZE))
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
                 samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
                 samps = np.vstack([samps0, samps1])
@@ -634,7 +618,7 @@ class Snap2MonitorClient(object):
         # Return a dictionary of temperatures on the Snap2 board
         temp = {'error': float('nan')}
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     summary, flags = self.snap.fpga.get_status()
                     temp = {'fpga': summary['temp']}
@@ -647,7 +631,7 @@ class Snap2MonitorClient(object):
         # Estimate the FPGA clock rate in MHz
         rate = float('nan')
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     rate = self.snap.fpga.get_fpga_clock()
                 except Exception as e:
@@ -658,7 +642,7 @@ class Snap2MonitorClient(object):
         # Return the timetag corresponding to a sync pulse.
         tt = None
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 tt = self.snap.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
                 tt = tt[0]
         return tt
@@ -672,7 +656,7 @@ class Snap2MonitorClient(object):
         # Go!
         success = False
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 for i in range(self.config['snap']['max_program_attempts']):
                     try:
                         self.snap.program(firmware)
@@ -688,7 +672,7 @@ class Snap2MonitorClient(object):
         
         status = False
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     status = self.snap.fpga.is_programmed()
                 except Exception as e:
@@ -700,7 +684,7 @@ class Snap2MonitorClient(object):
         
         status = True
         with self.access_lock:
-            if self.snap.is_connected:
+            if self.snap.is_connected():
                 try:
                     summary, flags = self.snap.fpga.get_status()
                     for key in flags.keys():
@@ -745,6 +729,8 @@ class Snap2MonitorClient(object):
         ### X-engine channel mapping
         i = 0
         for ip in macs.keys():
+            if i >= len(self.config['drx']):
+                break
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = self.config['server']['data_ports'][i]
@@ -761,7 +747,7 @@ class Snap2MonitorClient(object):
         # Go!
         success = False
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 for i in range(self.config['snap']['max_program_attempts']):
                     try:
                         self.snap.cold_start_from_config(configname) 
@@ -779,7 +765,7 @@ class Snap2MonitorClient(object):
         
         spectra = []
         with self.access_lock:
-            if self.snap.is_connected and self.snap.fpga.is_programmed():
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 self.snap.autocorr.set_acc_len(acc_len)
                 time.sleep(t_int+0.1)
                 
@@ -869,12 +855,10 @@ class MsgProcessor(ConsumerThread):
         self.start_lock_thread()
         self.start_internal_trigger_thread()
         
-    @ISC.logException
     def start_lock_thread(self):
         self.lock_server = ISC.PipelineEventServer(addr=('ndp',5834), timeout=300)
         self.lock_server.start()
         
-    @ISC.logException
     def stop_lock_thread(self):
         try:
             self.lock_server.stop()
@@ -977,9 +961,9 @@ class MsgProcessor(ConsumerThread):
                     
         ## Stop the pipelines
         self.log.info('Stopping pipelines')
-        for tuning in range(4):
+        for tuning in range(len(self.config['drx'])):
             self.servers.stop_drx(tuning=tuning)
-        for beam in range(4):
+        for beam in range(self.config['drx'][0]['beam_count']):
             self.headnode.stop_tengine(beam=beam)
             
         ## Make sure the pipelines have stopped
@@ -987,13 +971,13 @@ class MsgProcessor(ConsumerThread):
             self._wait_until_pipelines_stopped(max_wait=40)
         except RuntimeError:
             self.log.warning('Some pipelines have failed to stop, trying harder')
-            for beam in range(4):
+            for beam in range(self.config['drx'][0]['beam_count']):
                 for server in self.headnode:
                     pids = server.pid_tengine(beam=beam)
                     for pid in filter(lambda x: x > 0, pids):
                         self.log.warning('  Killing %s TEngine-%i, PID %i', server.host, beam, pid)
                         server.kill_pid(pid)
-            for tuning in range(2):
+            for tuning in range(len(self.config['drx'])):
                 for server in self.servers:
                     pids = server.pid_drx(tuning=tuning)
                     for pid in filter(lambda x: x > 0, pids):
@@ -1506,7 +1490,6 @@ class MsgProcessor(ConsumerThread):
                 
     def shutdown(self):
         self.shutdown_event.set()
-        self.stop_synchronizer_thread()
         self.stop_lock_thread()
         self.stop_internal_trigger_thread()
         # Propagate shutdown to downstream consumers
@@ -1615,7 +1598,7 @@ class MsgProcessor(ConsumerThread):
         if key == 'CLK_VAL':           return MCS2.slot2mpm(slot-1)
         if key == 'UTC_START':         return self.utc_start_str # Not in spec
         if key == 'UPTIME':            return self.uptime() # Not in spec
-        if key == 'STAT_SAMP_SIZE':    return STAT_SAMP_SIZE
+        if key == 'STAT_SAMPLE_SIZE':  return STAT_SAMP_SIZE
         if args[0] == 'ANT':
             inp = args[1]-1
             if not (0 <= inp < NINPUT):

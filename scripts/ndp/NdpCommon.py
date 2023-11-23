@@ -9,8 +9,8 @@ FS               = 196.0e6
 CLOCK            = 196.0e6
 NCHAN            = 4096
 # Note: The very last ('Nyquist') channel is discarded by the F-engine
-# Note: Rounded to mHz to avoid floating-point precision errors
-FREQS            = np.around(np.fft.fftfreq(2*NCHAN, 1./CLOCK)[:NCHAN][:-1], 3)
+# Note: Rounded to 0.01 mHz to avoid floating-point precision errors
+FREQS            = np.around(np.fft.fftfreq(2*NCHAN, 1./CLOCK)[:NCHAN][:-1], 5)
 CHAN_BW          = CLOCK / (2*NCHAN)
 NCHAN_GUARD      = 4
 NCHAN_SELECT_MAX = 1920 # 48 MHz ** TODO: Check what the pipeline limit is!
@@ -25,7 +25,7 @@ FIR_NCOEF        = 32
 NSERVER          = 2
 NBOARD           = 2
 NINPUT_PER_BOARD = 64
-STAT_SAMP_SIZE   = 1024 # The ADC limit is 1024 (TODO: Allow > via multiples)
+STAT_SAMP_SIZE   = 512 # The ADC limit is 512 (TODO: Allow > via multiples)
 MAX_MSGS_PER_SEC = 20
 ADC_BITS         = 8
 ADC_MAXVAL       = (1<<(ADC_BITS-1))-1
