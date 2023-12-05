@@ -548,7 +548,7 @@ class TEngineOp(object):
             if self.gpu != -1:
                 BFSetGPU(self.gpu)
                 
-            phaseState = self.phaseState.copy(space='system')
+            phaseState = np.array(self.phaseState.copy(space='system'))
             phaseState[tuning] = fDiff/(self.nchan_out*CHAN_BW)
             try:
                 if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
@@ -558,7 +558,7 @@ class TEngineOp(object):
                 phaseRot = np.zeros((self.ntime_gulp*self.nchan_out,2), dtype=np.complex64)
             phaseRot[:,tuning] = np.exp(-2j*np.pi*phaseState[tuning]*np.arange(self.ntime_gulp*self.nchan_out, dtype=np.float64))
             phaseRot = phaseRot.astype(np.complex64)
-            copy_array(self.phaseState, phaseState)
+            copy_array(self.phaseState, BFArray(phaseState))
             self.phaseRot = BFAsArray(phaseRot, space='cuda')
             
             ACTIVE_DRX_CONFIG.set()
@@ -581,7 +581,7 @@ class TEngineOp(object):
                 if self.gpu != -1:
                     BFSetGPU(self.gpu)
                     
-                phaseState = self.phaseState.copy(space='system')
+                phaseState = np.array(self.phaseState.copy(space='system'))
                 phaseState[tuning] = fDiff/(self.nchan_out*INT_CHAN_BW)
                 try:
                     if self.phaseRot.shape[0] != self.ntime_gulp*self.nchan_out:
@@ -591,7 +591,7 @@ class TEngineOp(object):
                     phaseRot = np.zeros((self.ntime_gulp*self.nchan_out,2), dtype=np.complex64)
                 phaseRot[:,tuning] = np.exp(-2j*np.pi*phaseState[tuning]*np.arange(self.ntime_gulp*self.nchan_out, dtype=np.float64))
                 phaseRot = phaseRot.astype(np.complex64)
-                copy_array(self.phaseState, phaseState)
+                copy_array(self.phaseState, BFArray(phaseState))
                 self.phaseRot = BFAsArray(phaseRot, space='cuda')
                 
             return False
@@ -675,7 +675,7 @@ class TEngineOp(object):
                     # Adjust the gain to make this ~compatible with LWA1
                     act_gain0 = self.gain[0] + 12 - 3*pfb_inverter
                     act_gain1 = self.gain[1] + 12 - 3*pfb_inverter
-                    rel_gain = np.array([1.0, (2**act_gain0)/(2**act_gain1)], dtype=np.float32)
+                    rel_gain = np.array([1.0, 2**(act_gain0-act_gain1)], dtype=np.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
                     with oring.begin_sequence(time_tag=base_time_tag, header=ohdr_str) as oseq:
@@ -804,7 +804,7 @@ class TEngineOp(object):
                                     ogulp_size = ngulp_size
                                     oshape = nshape
                                     
-                                    self.oring.resize(ogulp_size)
+                                    self.oring.resize(ogulp_size, 10*ogulp_size)
                                     
                                 ### Clean-up
                                 try:
@@ -906,7 +906,7 @@ class PacketizeOp(object):
                 igulp_size = ntime_gulp*nbeam*ntune*npol
                 
                 # Figure out where we need to be in the buffer to be at a frame boundary
-                NPACKET_SET = 16
+                NPACKET_SET = 4
                 ticksPerSample = int(FS) // int(bw)
                 toffset = int(time_tag0) // ticksPerSample
                 soffset = toffset % (NPACKET_SET*int(ntime_pkt))
