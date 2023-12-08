@@ -16,6 +16,7 @@ from bifrost.ndarray import copy_array, memset_array
 from bifrost.fft import Fft
 from bifrost.fir import Fir
 from bifrost.quantize import quantize as Quantize
+from bifrost.transpose import transpose as Transpose
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
 from bifrost import map as BFMap, asarray as BFAsArray
@@ -659,6 +660,8 @@ class TEngineOp(object):
                 while not self.iring.writing_ended():
                     reset_sequence = False
                     
+                    npkts = self.ntime_gulp*self.nchan_out // DRX_NSAMPLE_PER_PKT
+                    
                     ohdr['time_tag'] = base_time_tag
                     ohdr['cfreq0']   = self.rFreq[0]
                     ohdr['cfreq1']   = self.rFreq[1]
@@ -666,6 +669,7 @@ class TEngineOp(object):
                     ohdr['gain0']    = self.gain[0]
                     ohdr['gain1']    = self.gain[1]
                     ohdr['filter']   = self.filt
+                    ohdr['npkts']    = npkts
                     ohdr_str = json.dumps(ohdr)
                     
                     # Update the channels to pull in
@@ -777,12 +781,21 @@ class TEngineOp(object):
                                     qdata = BFArray(shape=fdata.shape, native=False, dtype='ci4', space='cuda')
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                     
+                                ## Transpose
+                                
+                                try:
+                                    qdata = qdata.reshape(npkts,DRX_NSAMPLE_PER_PKT,nbeam,ntune,npol)
+                                    Transpose(tdata, qdata, axes=(3,0,2,4,1))
+                                except NameError:
+                                    tdata = BFArray(shape=(ntune,npkts,nbeam,npol,DRX_NSAMPLE_PER_PKT), native=False, dtype='ci4', space='cuda')
+                                    Transpose(tdata, qdata, axes=(3,0,2,4,1))
+                                    
                                 ## Save
                                 try:
-                                    copy_array(tdata, qdata)
+                                    copy_array(wdata, tdata)
                                 except NameError:
-                                    tdata = qdata.copy('cuda_host')
-                                odata[...] = tdata.view(np.uint8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
+                                    wdata = tdata.copy('cuda_host')
+                                odata[...] = wdata.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
                             base_time_tag += self.ntime_gulp*ticksPerTime
@@ -815,6 +828,7 @@ class TEngineOp(object):
                                     del bfir
                                     del qdata
                                     del tdata
+                                    del wdata
                                 except NameError:
                                     pass
                                     
@@ -838,18 +852,18 @@ class TEngineOp(object):
                             del bfir
                             del qdata
                             del tdata
+                            del wdata
                         except NameError:
                             pass
                             
                         break
 
 class PacketizeOp(object):
-    def __init__(self, log, iring, osock, beam0=1, npkt_gulp=128, nbeam_max=1, ntune_max=2, guarantee=True, core=None):
+    def __init__(self, log, iring, osock, beam0=1, nbeam_max=1, ntune_max=2, guarantee=True, core=None):
         self.log        = log
         self.iring      = iring
         self.osock      = osock
         self.beam0      = beam0
-        self.npkt_gulp  = npkt_gulp
         self.nbeam_max  = nbeam_max
         self.ntune_max  = ntune_max
         self.guarantee  = guarantee
@@ -871,12 +885,7 @@ class PacketizeOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
-        ntime_pkt     = DRX_NSAMPLE_PER_PKT
-        ntime_gulp    = self.npkt_gulp * ntime_pkt
-        ninput_max    = self.nbeam_max * self.ntune_max * 2
-        igulp_size_max = ntime_gulp * ninput_max * 2
-        
-        self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
+        self.size_proclog.update({'nseq_per_gulp': 'dynamic'})
         
         with UDPTransmit('drx', sock=self.osock, core=self.core) as udt:
             desc0 = HeaderInfo()
@@ -897,26 +906,21 @@ class PacketizeOp(object):
                 gain0    = ihdr['gain0']
                 gain1    = ihdr['gain1']
                 filt     = ihdr['filter']
+                npkts    = ihdr['npkts']
                 nbeam    = ihdr['nbeam']
                 ntune    = ihdr['ntune']
                 npol     = ihdr['npol']
                 fdly     = (ihdr['fir_size'] - 1) / 2.0
                 time_tag0 = iseq.time_tag
                 time_tag  = time_tag0
-                igulp_size = ntime_gulp*nbeam*ntune*npol
+                igulp_size = ntune*npkts*nbeam*npol*DRX_NSAMPLE_PER_PKT
                 
-                # Figure out where we need to be in the buffer to be at a frame boundary
-                NPACKET_SET = 4
+                # Figure out how to break up the packets into sets
+                NPACKET_SET = 7 if npkts % 7 == 0 else 5
+                
+                # Correct for FIR filter delay
                 ticksPerSample = int(FS) // int(bw)
-                toffset = int(time_tag0) // ticksPerSample
-                soffset = toffset % (NPACKET_SET*int(ntime_pkt))
-                if soffset != 0:
-                    soffset = NPACKET_SET*ntime_pkt - soffset
-                boffset = soffset*nbeam*ntune*npol
-                print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
-                
-                time_tag += soffset*ticksPerSample                  # Correct for offset
-                time_tag -= int(round(fdly*ticksPerSample))         # Correct for FIR filter delay
+                time_tag -= int(round(fdly*ticksPerSample))
                 
                 prev_time = time.time()
                 desc0.set_decimation(int(FS)//int(bw))
@@ -925,32 +929,32 @@ class PacketizeOp(object):
                 desc1.set_tuning(int(round(cfreq1 / FS * 2**32)))
                 desc_src = ((1&0x7)<<3)
                 
-                for ispan in iseq.read(igulp_size, begin=boffset):
+                for ispan in iseq.read(igulp_size):
                     if ispan.size < igulp_size:
                         continue # Ignore final gulp
                     curr_time = time.time()
                     acquire_time = curr_time - prev_time
                     prev_time = curr_time
                     
-                    shape = (-1,nbeam,ntune,npol)
+                    shape = (ntune,npkts,nbeam*npol,DRX_NSAMPLE_PER_PKT)
                     data = ispan.data_view('ci4').reshape(shape)
                     
-                    data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
-                    data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
+                    data0 = data[0,:,:,:]
+                    data1 = data[1,:,:,:]
                     
-                    for t in range(0, data0.shape[0], NPACKET_SET):
-                        time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
+                    for t in range(0, npkts, NPACKET_SET):
+                        time_tag_cur = time_tag + t*ticksPerSample*DRX_NSAMPLE_PER_PKT
                         
                         if ACTIVE_DRX_CONFIG.is_set():
                             try:
-                                udt.send(desc0, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+self.beam0, 128, 
+                                udt.send(desc0, time_tag_cur, ticksPerSample*DRX_NSAMPLE_PER_PKT, desc_src+self.beam0, 128, 
                                          data0[t:t+NPACKET_SET,:,:])
-                                udt.send(desc1, time_tag_cur, ticksPerSample*ntime_pkt, desc_src+8+self.beam0, 128, 
+                                udt.send(desc1, time_tag_cur, ticksPerSample*DRX_NSAMPLE_PER_PKT, desc_src+8+self.beam0, 128, 
                                          data1[t:t+NPACKET_SET,:,:])
                             except Exception as e:
                                 print(type(self).__name__, 'Sending Error', str(e))
                                         
-                    time_tag += int(ntime_gulp)*ticksPerSample
+                    time_tag += npkts*DRX_NSAMPLE_PER_PKT*ticksPerSample
                     
                     curr_time = time.time()
                     process_time = curr_time - prev_time
@@ -1112,7 +1116,7 @@ def main(argv):
     ops.append(PacketizeOp(log, tengine_ring,
                            osock=rsock,
                            nbeam_max=1, beam0=beam+1,
-                           npkt_gulp=32, core=cores.pop(0)))
+                           core=cores.pop(0)))
     
     threads = [threading.Thread(target=op.main) for op in ops]
     
