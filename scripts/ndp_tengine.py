@@ -637,7 +637,7 @@ class TEngineOp(object):
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
                 self.iring.resize(igulp_size, 10*igulp_size)
                 
-                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
+                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*2       # 8+8 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                 self.oring.resize(ogulp_size, 10*ogulp_size)
                 
@@ -693,7 +693,7 @@ class TEngineOp(object):
                                 
                                 ## Setup and load
                                 idata = ispan.data_view(np.complex64).reshape(ishape)
-                                odata = ospan.data_view(np.int8).reshape(oshape)
+                                odata = ospan.data_view('ci8').reshape(oshape)
                                 
                                 ## Prune the data ahead of the IFFT
                                 try:
@@ -774,7 +774,7 @@ class TEngineOp(object):
                                 try:
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                 except NameError:
-                                    qdata = BFArray(shape=fdata.shape, native=False, dtype='ci4', space='cuda')
+                                    qdata = BFArray(shape=fdata.shape, native=False, dtype='ci8', space='cuda')
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                     
                                 ## Save
@@ -782,7 +782,7 @@ class TEngineOp(object):
                                     copy_array(tdata, qdata)
                                 except NameError:
                                     tdata = qdata.copy('cuda_host')
-                                odata[...] = tdata.view(np.uint8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
+                                odata[...] = tdata.reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
                             base_time_tag += self.ntime_gulp*ticksPerTime
@@ -798,7 +798,7 @@ class TEngineOp(object):
                                 copy_array(self.sampleCount, sample_count)
                                 
                                 ### New output size/shape
-                                ngulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1               # 4+4 complex
+                                ngulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*2               # 8+8 complex
                                 nshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 if ngulp_size != ogulp_size:
                                     ogulp_size = ngulp_size
@@ -878,7 +878,7 @@ class PacketizeOp(object):
         
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
-        with UDPTransmit('drx', sock=self.osock, core=self.core) as udt:
+        with UDPTransmit('drx8', sock=self.osock, core=self.core) as udt:
             desc0 = HeaderInfo()
             desc1 = HeaderInfo()
             
@@ -912,7 +912,7 @@ class PacketizeOp(object):
                 soffset = toffset % (NPACKET_SET*int(ntime_pkt))
                 if soffset != 0:
                     soffset = NPACKET_SET*ntime_pkt - soffset
-                boffset = soffset*nbeam*ntune*npol
+                boffset = soffset*nbeam*ntune*npol*2
                 print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
                 
                 time_tag += soffset*ticksPerSample                  # Correct for offset
@@ -933,7 +933,7 @@ class PacketizeOp(object):
                     prev_time = curr_time
                     
                     shape = (-1,nbeam,ntune,npol)
-                    data = ispan.data_view('ci4').reshape(shape)
+                    data = ispan.data_view('ci8').reshape(shape)
                     
                     data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                     data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
