@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # Rules for routing traffic from the nodes out
 iptables-restore < /etc/iptables.rules
