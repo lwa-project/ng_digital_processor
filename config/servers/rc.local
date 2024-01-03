@@ -4,4 +4,5 @@
 arp -s 192.168.40.10 e8:eb:d3:96:8c:d0
 arp -s 192.168.40.210 e8:eb:d3:96:8c:dc
 
+# Limit the GPU clocks
 nvidia-smi -lgc 1200,1200
