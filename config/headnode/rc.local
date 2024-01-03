@@ -1,3 +1,5 @@
 iptables-restore < /etc/iptables.rules
 
+nvidia-smi -lgc 1200,1200
+
 exit 0
