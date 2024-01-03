@@ -694,7 +694,7 @@ class Snap2MonitorClient(object):
                     pass
         return status
         
-    def configure(self):
+    def configure(self, chan0=None):
         # Configure the FPGA and start data flowing
         
         ## Configuration
@@ -727,6 +727,21 @@ class Snap2MonitorClient(object):
             sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
             
         ### X-engine channel mapping
+        #### Pass 0 - Preserve the `chan0` argument
+        requested_lowest_chan0 = chan0
+        #### Pass 1 - Find the lowest start channel (chan0)
+        i = 0
+        lowest_chan0 = NCHAN+1
+        for ip in macs.keys():
+            if i >= len(self.config['drx']):
+                break
+            chan0 = self.config['drx'][i]['first_channel']
+            if chan0 < lowest_chan0:
+                lowest_chan0 = chan0
+        #### Pass 2 - Figure out the new channel mapping
+        if requested_lowest_chan0 is None:
+            requested_lowest_chan0 = lowest_chan0
+        #### Pass 3 - Make it happen
         i = 0
         for ip in macs.keys():
             if i >= len(self.config['drx']):
@@ -734,7 +749,10 @@ class Snap2MonitorClient(object):
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = self.config['server']['data_ports'][i]
-        
+            
+            ## Adjust
+            chan0 = chan0 - lowest_chan0 + requested_lowest_chan0
+            
             sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
             i += 1
             
@@ -1042,12 +1060,20 @@ class MsgProcessor(ConsumerThread):
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i == 0],
+        
+        chan0 = None
+        if 'STARTFREQ' in arg:
+            sfi = arg.index('STARTFREQ')
+            chan0 = float(arg[sfi+1])*1e6 / CHAN_BW
+            chan0 = int(round(chan0 // 16)) * 16
+            self.log.info("Setting first channel to %i (%.3f MHz)", chan0, chan0*CHAN_BW)
+            
+        if not self.check_success(lambda: [s.configure(chan0=chan0) for i,s in enumerate(self.snaps) if i == 0],
                                   'Configuring master FPGA',
                                   [s.host for i,s in enumerate(self.snaps) if i == 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i != 0],
+        if not self.check_success(lambda: [s.configure(chan0=chan0) for i,s in enumerate(self.snaps) if i != 0],
                                   'Configuring remaining FPGAs',
                                   [s.host for i,s in enumerate(self.snaps) if i != 0]):
             if 'FORCE' not in arg:
