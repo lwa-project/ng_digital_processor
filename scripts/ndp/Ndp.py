@@ -1448,14 +1448,19 @@ class MsgProcessor(ConsumerThread):
                     
                     self.log.info("Monitor BAIL")
                     continue
-                if not problems_found:
+                if problems_found:
+                    self.log.info('problems_found: %s', problems_found)
+                    self.log.info('info.find(0x0E): %i', self.state['info'].find('0x0E'))
+                else:
                     if self.state['status'] == 'WARNING':
                         msg = 'Warning condition(s) cleared'
                         self.state['lastlog'] = msg
                         self.state['status']  = 'NORMAL'
                         self.state['info']    = msg
                         self.log.info(msg)
-                    elif self.state['status'] == 'ERROR' and self.state['info'].find('0x0E') != -1:
+                    elif self.state['status'] == 'ERROR' \
+                         and self.state['info'].find('0x0D') == -1 \
+                         and self.state['info'].find('0x0E') != -1:
                         msg = 'Pipeline error condition(s) cleared, dropping back to warning'
                         self.state['lastlog'] = msg
                         self.state['status']  = 'WARNING'
