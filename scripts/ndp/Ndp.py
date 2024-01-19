@@ -904,8 +904,8 @@ class MsgProcessor(ConsumerThread):
                      'SERVER_STARTUP_FAILED':      (0x09,'Server startup failed'),
                      'SERVER_SHUTDOWN_FAILED':     (0x0A,'Server shutdown failed'), 
                      'PIPELINE_STARTUP_FAILED':    (0x0B,'Pipeline startup failed'),
-                     'ADC_CALIBRATION_FAILED':     (0x0C,'ADC offset calibration failed'),
-                     'ROACH_FFT_SYNC_FAILED':      (0x0D,'Roach FFT window out of sync'),
+                     'SNAP2_CALIBRATION_FAILED':   (0x0C,'ADC calibration failed'),
+                     'SNAP2_INTERNAL_ERROR':       (0x0D,'Internal SNAP2 error condition'),
                      'PIPLINE_PROCESSING_ERROR':   (0x0E,'Pipeline processing error')}
         code, msg = state_map[state]
         self.state['lastlog'] = '%s: Finished with error' % cmd
@@ -1374,7 +1374,7 @@ class MsgProcessor(ConsumerThread):
                     msg = "Found %s SNAP2 board(s) not programmed" % (len(snaps_programmed) - sum(snaps_programmed),)
                     self.state['lastlog'] = msg
                     self.state['status']  = 'ERROR'
-                    self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                    self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                     self.log.error(msg)
                 else:
                     snaps_ok = self.snaps.is_ok()
@@ -1383,7 +1383,7 @@ class MsgProcessor(ConsumerThread):
                         msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
                         self.state['lastlog'] = msg
                         self.state['status']  = 'ERROR'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                         self.log.error(msg)
                         
                 ## De-assert anything that we can de-assert
