@@ -673,8 +673,8 @@ class TEngineOp(object):
                     tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
-                    act_gain0 = self.gain[0] + 12 - 3*pfb_inverter
-                    act_gain1 = self.gain[1] + 12 - 3*pfb_inverter
+                    act_gain0 = self.gain[0] + 5 - 3*pfb_inverter
+                    act_gain1 = self.gain[1] + 5 - 3*pfb_inverter
                     rel_gain = np.array([1.0, 2**(act_gain0-act_gain1)], dtype=np.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
