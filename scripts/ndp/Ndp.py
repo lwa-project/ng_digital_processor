@@ -1257,10 +1257,10 @@ class MsgProcessor(ConsumerThread):
             if summary == 'WARNING':
                 if len(info):
                     info += ', '
-                summary = 'WARNING'
-                info += new_info
-                
-        return summary, info
+            summary = 'WARNING'
+            info += new_info
+            
+        return summary, info[:255]
         
     def run_monitor(self):
         self.log.info("Starting monitor thread")
