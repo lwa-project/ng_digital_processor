@@ -1285,6 +1285,11 @@ class MsgProcessor(ConsumerThread):
             problems_found = False
             
             if self.ready:
+                ## Initial state
+                msg = None
+                status = self.state['status']
+                info = ''
+                
                 ## Check the servers
                 found = {'drx':[], 'tengine':[]}
                 for host in list(pipelines.keys()):
@@ -1336,30 +1341,24 @@ class MsgProcessor(ConsumerThread):
                     if loss > 0.01:    # >1% packet loss
                         problems_found = True
                         msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
-                        self.state['lastlog'] = msg
                         new_status = 'WARNING'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
-                        self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                        new_status, new_info)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
                 for side in range(n_beams):
                     if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
-                        self.state['lastlog'] = msg
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
-                        self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                        new_status, new_info)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                 if len(found['tengine']) != n_beams:
                     problems_found = True
                     msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), n_beams)
-                    self.state['lastlog'] = msg
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
-                    self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                    new_status, new_info)
+                    status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
                     
                 ### DRX pipelines
@@ -1377,39 +1376,31 @@ class MsgProcessor(ConsumerThread):
                     if loss > 0.01:    # >1% packet loss
                         problems_found = True
                         msg = "%s, DRX-%i -- RX loss of %.1f%%" % (host, side, loss*100.0)
-                        self.state['lastlog'] = msg
                         new_status = 'WARNING'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
-                        self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                        new_status, new_info)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
                     if self.drx.cur_freq[side] > 0 and not cact:
                         problems_found = True
                         msg = "%s, DRX-%i -- Correlator not running" % (host, side)
-                        self.state['lastlog'] = msg
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
-                        self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                        new_status, new_info)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                 for side in range(n_tunings):
                     if self.drx.cur_freq[side] > 0 and total_drx_inactive[side] > 0:
                         problems_found = True
                         msg = "DRX-%i -- TX rate of %.1f MB/s" % (side, total_drx_bw[side]/1024.0**2)
-                        self.state['lastlog'] = msg
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
-                        self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                        new_status, new_info)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                 if len(found['drx']) != n_tunings:
                     problems_found = True
                     msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings)
-                    self.state['lastlog'] = msg
                     new_status = 'WARNING'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
-                    self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                    new_status, new_info)
+                    status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.warning(msg)
                     
                 ## Check the snap boards
@@ -1423,22 +1414,18 @@ class MsgProcessor(ConsumerThread):
                 if not all(snaps_programmed):
                     problems_found = True
                     msg = "Found %s SNAP2 board(s) not programmed" % (len(snaps_programmed) - sum(snaps_programmed),)
-                    self.state['lastlog'] = msg
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
-                    self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                    new_status, new_info)
+                    status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
                 else:
                     snaps_ok = self.snaps.is_ok()
                     if not all(snaps_ok):
                         problems_found = True
                         msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
-                        self.state['lastlog'] = msg
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
-                        self.state['status'], self.state['info'] = self._combine_status(self.state['status'], self.state['info'],
-                                                                                        new_status, new_info)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                         
                 ## De-assert anything that we can de-assert
@@ -1454,19 +1441,23 @@ class MsgProcessor(ConsumerThread):
                 else:
                     if self.state['status'] == 'WARNING':
                         msg = 'Warning condition(s) cleared'
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'NORMAL'
-                        self.state['info']    = msg
+                        status = 'NORMAL'
+                        info   = msg
                         self.log.info(msg)
                     elif self.state['status'] == 'ERROR' \
                          and self.state['info'].find('0x0D') == -1 \
                          and self.state['info'].find('0x0E') != -1:
                         msg = 'Pipeline error condition(s) cleared, dropping back to warning'
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'WARNING'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('WARNING', 0x0E, msg)
+                        status = 'WARNING'
+                        info   = '%s! 0x%02X! %s' % ('WARNING', 0x0E, msg)
                         self.log.info(msg)
                 force_recheck = False
+                
+                # Final state
+                if msg is not None:
+                    self.state['lastlog'] = msg
+                self.state['status'] = status
+                self.state['info']   = info
                 
                 self.log.info("Monitor OK")
                 time.sleep(self.config['monitor_interval'])
@@ -1482,6 +1473,11 @@ class MsgProcessor(ConsumerThread):
         while not self.shutdown_event.is_set():
             slot = MCS2.get_current_slot()
             
+            # Initial state
+            msg = None
+            status = self.state['status']
+            info = ''
+            
             # Note: Actually just flattening lists, not summing
             server_temps = sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
             # Remove error values before reducing
@@ -1490,20 +1486,21 @@ class MsgProcessor(ConsumerThread):
                 server_temps = [float('nan')]
             server_temps_max = np.max(server_temps)
             if server_temps_max > self.config['server']['temperature_shutdown']:
-                self.state['lastlog'] = 'Temperature shutdown -- server'
-                self.state['status']  = 'ERROR'
-                self.state['info']    = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
-                                                            'Server temperature shutdown')
+                msg = 'Temperature shutdown -- server'
+                new_status = 'ERROR'
+                new_info   = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
+                                                 'Server temperature shutdown')
+                status, info = self._combine_status(status, info, new_status, new_info)
                 if server_temps_max > self.config['server']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
             elif server_temps_max > self.config['server']['temperature_warning']:
-                if self.state['status'] != 'ERROR':
-                    self.state['lastlog'] = 'Temperature warning -- server'
-                    self.state['status']  = 'WARNING'
-                    self.state['info']    = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
-                                                                'Server temperature warning')
+                msg = 'Temperature warning -- server'
+                new_status = 'WARNING'
+                new_info   = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
+                                                 'Server temperature warning')
+                status, info = self._combine_status(status, info, new_status, new_info)
                     
             # Note: Actually just flattening lists, not summing
             snap_temps  = sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
@@ -1513,21 +1510,28 @@ class MsgProcessor(ConsumerThread):
                 snap_temps = [float('nan')]
             snap_temps_max  = np.max(snap_temps)
             if snap_temps_max > self.config['snap']['temperature_shutdown']:
-                self.state['lastlog'] = 'Temperature shutdown -- snap'
-                self.state['status']  = 'ERROR'
-                self.state['info']    = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
-                                                            'Board temperature shutdown')
+                msg = 'Temperature shutdown -- snap'
+                new_status = 'ERROR'
+                new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
+                                                 'Board temperature shutdown')
+                status, info = self._combine_status(status, info, new_status, new_info)
                 if snap_temps_max > self.config['snap']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
             elif snap_temps_max > self.config['snap']['temperature_warning']:
-                if self.status['status'] != 'ERROR':
-                    self.state['lastlog'] = 'Temperature warning -- snap'
-                    self.state['status']  = 'WARNING'
-                    self.state['info']    = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
-                                                                'Board temperature warning')
-                    
+                msg = 'Temperature warning -- snap'
+                new_status = 'WARNING'
+                new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
+                                                 'Board temperature warning')
+                status, info = self._combine_status(status, info, new_status, new_info)
+                
+            # Final state
+            if msg is not None:
+                self.state['lastlog'] = msg
+            self.state['status'] = status
+            self.state['info']   = info
+            
             self.log.info("Failsafe OK")
             time.sleep(self.config['failsafe_interval'])
             
