@@ -1260,7 +1260,7 @@ class MsgProcessor(ConsumerThread):
             summary = 'WARNING'
             info += new_info
             
-        return summary, info[:255]
+        return summary, info[:250]
         
     def run_monitor(self):
         self.log.info("Starting monitor thread")
