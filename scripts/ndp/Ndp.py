@@ -1253,13 +1253,13 @@ class MsgProcessor(ConsumerThread):
             
         elif new_summary == 'WARNING':
             if summary == 'NORMAL':
+                summary = 'WARNING'
                 info = ''
             if summary == 'WARNING':
                 if len(info):
                     info += ', '
-            summary = 'WARNING'
-            info += new_info
-            
+                info += new_info
+                
         return summary, info
         
     def run_monitor(self):
