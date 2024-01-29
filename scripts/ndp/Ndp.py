@@ -1287,8 +1287,8 @@ class MsgProcessor(ConsumerThread):
             if self.ready:
                 ## Initial state
                 msg = None
-                status = self.state['status']
-                info = ''
+                status = 'NORMAL'
+                info = 'System operating normally'
                 
                 ## Check the servers
                 found = {'drx':[], 'tengine':[]}
@@ -1454,6 +1454,11 @@ class MsgProcessor(ConsumerThread):
                 force_recheck = False
                 
                 # Final state
+                if not self.ready:
+                    ## Deal with the system shutting down in the middle of a poll
+                    force_recheck = True
+                    
+                    self.log.info("Monitor BAIL")
                 if msg is not None:
                     self.state['lastlog'] = msg
                 self.state['status'] = status
@@ -1475,8 +1480,8 @@ class MsgProcessor(ConsumerThread):
             
             # Initial state
             msg = None
-            status = self.state['status']
-            info = ''
+            status = 'NORMAL'
+            info = 'System operating normally'
             
             # Note: Actually just flattening lists, not summing
             server_temps = sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
@@ -1527,11 +1532,12 @@ class MsgProcessor(ConsumerThread):
                 status, info = self._combine_status(status, info, new_status, new_info)
                 
             # Final state
-            if msg is not None:
-                self.state['lastlog'] = msg
-            self.state['status'] = status
-            self.state['info']   = info
-            
+            if status != 'NORMAL':
+                if msg is not None:
+                    self.state['lastlog'] = msg
+                self.state['status'] = status
+                self.state['info']   = info
+                
             self.log.info("Failsafe OK")
             time.sleep(self.config['failsafe_interval'])
             
