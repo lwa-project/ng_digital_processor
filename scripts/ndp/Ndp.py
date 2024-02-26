@@ -437,7 +437,10 @@ class NdpServerMonitorClient(object):
         
     def _request(self, query):
         try:
-            self.sock.send(query)
+            try:
+                self.sock.send(query)
+            except TypeError:
+                self.sock.send_string(query)
             response = self.sock.recv_json()
         except zmq.error.Again:
             raise RuntimeError("Server '%s' did not respond" % self.host)
@@ -1721,7 +1724,7 @@ class MsgProcessor(ConsumerThread):
             if args[2] == 'STAT': return None # TODO
             if args[2] == 'INFO': return None # TODO
             if args[2] == 'TEMP':
-                temps = sum([list(v) for v in self.snaps[board].get_temperatures(slot).values()], [])
+                temps = list(self.snaps[board].get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
             if args[2] == 'FIRMWARE': return self.config['snap']['firmware']
@@ -1741,15 +1744,15 @@ class MsgProcessor(ConsumerThread):
             if args[2] == 'STAT': return sobj.get_status(slot)
             if args[2] == 'INFO': return sobj.get_info(slot)
             if args[2] == 'TEMP':
-                temps = sum([list(v) for v in sobj.get_temperatures(slot).values()], [])
+                temps = list(sobj.get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
             raise KeyError
         if args[0] == 'GLOBAL':
             if args[1] == 'TEMP':
                 temps = []
-                # Note: Actually just flattening lists, not summing
                 temps += list(self.headnode.get_temperatures(slot).values())
+                # Note: Actually just flattening lists, not summing
                 temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
                 temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
