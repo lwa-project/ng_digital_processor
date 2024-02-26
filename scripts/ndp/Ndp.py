@@ -1729,15 +1729,19 @@ class MsgProcessor(ConsumerThread):
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
-            if not (0 <= svr < NSERVER):
+            if not (-1 <= svr < NSERVER):
                 raise ValueError("Unknown server number %i"%(svr+1))
-            if args[2] == 'HOSTNAME': return self.servers[svr].host
+            if svr == -1:
+                sobj = self.headnode
+            else:
+                sobj = self.servers[svr]
+            if args[2] == 'HOSTNAME': return sobj.host
             # TODO: This request() should raise exceptions on failure
             # TODO: Change to .status(), .info()?
-            if args[2] == 'STAT': return self.servers[svr].get_status()
-            if args[2] == 'INFO': return self.servers[svr].get_info()
+            if args[2] == 'STAT': return sobj.get_status(slot)
+            if args[2] == 'INFO': return sobj.get_info(slot)
             if args[2] == 'TEMP':
-                temps = self.servers[svr].get_temperatures(slot).values()
+                temps = sum([list(v) for v in sobj.get_temperatures(slot).values()], [])
                 op = args[3]
                 return reduce_ops[op](temps)
             raise KeyError
@@ -1745,8 +1749,9 @@ class MsgProcessor(ConsumerThread):
             if args[1] == 'TEMP':
                 temps = []
                 # Note: Actually just flattening lists, not summing
-                temps += sum(self.snaps.get_temperatures(slot).values(), [])
-                temps += sum(self.servers.get_temperatures(slot).values(), [])
+                temps += list(self.headnode.get_temperatures(slot).values())
+                temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
                 temps = [val for val in temps if not math.isnan(val)]
                 if len(temps) == 0: # If all values were nan (exceptional!)
