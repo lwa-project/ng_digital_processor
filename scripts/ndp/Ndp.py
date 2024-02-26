@@ -1338,7 +1338,14 @@ class MsgProcessor(ConsumerThread):
                 total_tengine_bw = {0:0, 1:0, 2:0, 3:0}
                 for host,name,side,loss,txbw in found['tengine']:
                     total_tengine_bw[side] += txbw
-                    if loss > 0.01:    # >1% packet loss
+                    if loss > 0.10:    # >10% packet loss
+                        problems_found = True
+                        msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
+                        self.log.error(msg)
+                    elif loss > 0.01:    # >1% packet loss
                         problems_found = True
                         msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
                         new_status = 'WARNING'
@@ -1373,7 +1380,14 @@ class MsgProcessor(ConsumerThread):
                 for host,name,side,loss,txbw,cact in found['drx']:
                     total_drx_bw[side] += txbw
                     total_drx_inactive[side] += (1 if txbw == 0 else 0)
-                    if loss > 0.01:    # >1% packet loss
+                    if loss > 0.10:    # > 10% packet loss
+                        problems_found = True
+                        msg = "%s, DRX-%i -- RX loss of %.1f%%" % (host, side, loss*100.0)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
+                        self.log.error(msg)
+                    elif loss > 0.01:    # >1% packet loss
                         problems_found = True
                         msg = "%s, DRX-%i -- RX loss of %.1f%%" % (host, side, loss*100.0)
                         new_status = 'WARNING'
