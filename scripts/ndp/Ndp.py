@@ -1721,7 +1721,7 @@ class MsgProcessor(ConsumerThread):
             if args[2] == 'STAT': return None # TODO
             if args[2] == 'INFO': return None # TODO
             if args[2] == 'TEMP':
-                temps = self.snaps[board].get_temperatures(slot).values()
+                temps = sum([list(v) for v in self.snaps[board].get_temperatures(slot).values()], [])
                 op = args[3]
                 return reduce_ops[op](temps)
             if args[2] == 'FIRMWARE': return self.config['snap']['firmware']
