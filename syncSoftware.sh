@@ -118,7 +118,7 @@ if [ "${DO_CONFIG}" == "1" ]; then
 	SRC_PATH=/home/ndp/ng_digital_processor/config
 	DST_PATH=/usr/local/share/ndp
 	
-	for node in `seq 0 2`; do
+	for node in `seq 0 1`; do
 		rsync -e ssh -avHL ${SRC_PATH}/ndp_config.json ndp${node}:${DST_PATH}/
 		rsync -e ssh -avH ${SRC_PATH}/equalizer*.txt ndp${node}:${DST_PATH}/
 	done
@@ -136,7 +136,7 @@ if [ "${DO_SOFTWARE}" == "1" ]; then
 	
 	build_tcc
 	
-	for node in `seq 0 2`; do
+	for node in `seq 0 1`; do
 		if [ "${node}" == "0" ]; then
 			rsync -e ssh -avH ${SRC_PATH}/ndp ${SRC_PATH}/ndp_control.py ${SRC_PATH}/ndp_tengine.py ${SRC_PATH}/ndp_enable_triggering.py ndp${node}:${DST_PATH}/
 		else
@@ -155,7 +155,7 @@ if [ "${DO_UPSTART}" == "1" ]; then
 	SRC_PATH=/home/ndp/ng_digital_processor/config
 	DST_PATH=/etc/systemd/system/
 	
-	for node in `seq 0 2`; do
+	for node in `seq 0 1`; do
 		if [ "${node}" == "0" ]; then
 			rsync -e ssh -avH ${SRC_PATH}/headnode/ndp-*.service ndp${node}:${DST_PATH}/
 		elif [ "${node}" == "1" ]; then
@@ -172,13 +172,11 @@ fi
 #
 
 if [ "${DO_RESTART}" == "1" ]; then
-	for node in `seq 0 6`; do
+	for node in `seq 0 1`; do
 		if [ "${node}" == "0" ]; then
 			ssh ndp${node} "restart ndp-control && restart ndp-tengine-0 && restart ndp-tengine-1 && restart ndp-tengine-2 && restart ndp-tengine-3"
-		elif [ "${node}" == "1" ]; then
-			ssh ndp${node} "restart ndp-drx-0 && restart ndp-drx-1"
 		else
-			ssh ndp${node} "restart ndp-drx-2 && restart ndp-drx-3"
+			ssh ndp${node} "restart ndp-drx-0 && restart ndp-drx-1"
 		fi
 	done
 fi
@@ -191,10 +189,8 @@ if [ "${DO_QUERY}" == "1" ]; then
 	for node in `seq 0 2`; do
 		if [ "${node}" == "0" ]; then
 			ssh ndp${node} "status ndp-control && status ndp-tengine-0 && status ndp-tengine-1 && status ndp-tengine-2 && status ndp-tengine-3"
-		elif [ "${node}" == "1" ]; then
-			ssh ndp${node} "status ndp-tbn && status ndp-drx-0 && status ndp-drx-1"
 		else
-			ssh ndp${node} "status ndp-tbn && status ndp-drx-2 && status ndp-drx-3"
+			ssh ndp${node} "status ndp-drx-0 && status ndp-drx-1"
 		fi
 	done
 fi

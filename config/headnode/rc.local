@@ -1,3 +1,9 @@
+#!/bin/sh
+
+# Rules for routing traffic from the nodes out
 iptables-restore < /etc/iptables.rules
+
+# Limit the GPU clocks
+nvidia-smi -lgc 1200,1200
 
 exit 0

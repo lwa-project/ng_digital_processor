@@ -3,11 +3,9 @@
 # Management network
 169.254.128.1  ndp0 ndp
 169.254.128.11 ndp1
-169.254.128.12 ndp2
 
 # Management IPMI
 169.254.128.31 ndp1-ipmi
-169.254.128.32 ndp2-ipmi
 
 # SNAP2 ethernet
 169.254.128.101 snap01
@@ -19,10 +17,8 @@
 # Data network
 192.168.40.10 ndp0-data1 ndp-data1
 192.168.40.11 ndp1-data1
-192.168.40.12 ndp2-data1
 192.168.40.210 ndp0-data2 ndp-data2
 192.168.40.211 ndp1-data2
-192.168.40.212 ndp2-data2
 192.168.40.41 dr1
 192.168.40.42 dr2
 192.168.40.43 dr3
