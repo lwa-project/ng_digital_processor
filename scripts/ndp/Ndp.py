@@ -392,7 +392,7 @@ class NdpServerMonitorClient(object):
         self.log  = log
         self.host = host
         self.host_ipmi = self.host + "-ipmi"
-        self.port = config['mcs']['server']['local_port']
+        self.port = config['mcs']['server']['local_port']+1
         self.sock = _g_zmqctx.socket(zmq.REQ)
         addr = 'tcp://%s:%i' % (self.host,self.port)
         try: self.sock.connect(addr)
