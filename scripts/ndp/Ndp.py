@@ -402,7 +402,11 @@ class NdpServerMonitorClient(object):
         self.sock.RCVTIMEO = int(timeout*1000)
         
     def read_sensors(self):
-        ret = self._ipmi_command('sdr')
+        try:
+            ret = self._ipmi_command('sdr')
+        except subprocess.CalledProcessError:
+            ## Catch for the headnode that requies a slightly different method
+            ret = self._shell_command('ipmitool sdr')
         sensors = {}
         for line in ret.split('\n'):
             if '|' not in line:
@@ -1732,9 +1736,12 @@ class MsgProcessor(ConsumerThread):
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
-            if not (0 <= svr < NSERVER):
+            if not (-1 <= svr < NSERVER):
                 raise ValueError("Unknown server number %i"%(svr+1))
-            sobj = self.servers[svr]
+            if svr == -1:
+                sobj = self.headnode[0]
+            else:
+                sobj = self.servers[svr]
             if args[2] == 'HOSTNAME': return sobj.host
             # TODO: This request() should raise exceptions on failure
             # TODO: Change to .status(), .info()?
@@ -1749,6 +1756,7 @@ class MsgProcessor(ConsumerThread):
             if args[1] == 'TEMP':
                 temps = []
                 # Note: Actually just flattening lists, not summing
+                temps += sum([list(v) for v in self.headnode.get_temperatures(slot).values()], [])
                 temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
                 temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
