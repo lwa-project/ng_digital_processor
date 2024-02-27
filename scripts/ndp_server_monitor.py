@@ -36,8 +36,6 @@ class ServerMonitor(object):
         return [disk.usage() for disk in self.disks]
     def get_pipelines(self):
         return self.pipelines.pipeline_pids()
-    def get_pipeline_data_rates(self):
-        return [(p.rx_rate(), p.rx_loss()) for p in self.pipelines.pipelines()]
 
 class NdpServerMonitor(object):
     def __init__(self, config, log, monitor, timeout=0.1):
@@ -97,12 +95,7 @@ class NdpServerMonitor(object):
             pass
         elif req == 'STAT':
             pname = self.monitor.get_pipelines()
-            pstat = self.monitor.get_pipeline_data_rates()
-            data = ''
-            for n,r in zip(pname, pstat):
-                r,l = r
-                data += f"{n}: RX @ {r/1024**3:.2f GiB/s} with {l:.1%} inst. packet loss, "
-            data = data[:-2]
+            data = ", ".join([str(n) for n in pname])
         elif req == 'INFO':
             dname = self.monitor.get_disk_ids()
             dusage = self.monitor.get_disk_usages()
