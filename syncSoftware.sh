@@ -139,6 +139,7 @@ if [ "${DO_SOFTWARE}" == "1" ]; then
 	for node in `seq 0 1`; do
 		if [ "${node}" == "0" ]; then
 			rsync -e ssh -avH ${SRC_PATH}/ndp ${SRC_PATH}/ndp_control.py ${SRC_PATH}/ndp_tengine.py ${SRC_PATH}/ndp_enable_triggering.py ndp${node}:${DST_PATH}/
+			rsync -e ssh -avH ${SRC_PATH}/ndp ${SRC_PATH}/ndp_server_monitor.py ndp${node}:${DST_PATH}/
 		else
 			rsync -e ssh -avH ${SRC_PATH}/ndp ${SRC_PATH}/ndp_drx.py ndp${node}:${DST_PATH}/
 			rsync -e ssh -avH ${SRC_PATH}/ndp ${SRC_PATH}/ndp_server_monitor.py ndp${node}:${DST_PATH}/
@@ -159,6 +160,7 @@ if [ "${DO_UPSTART}" == "1" ]; then
 	for node in `seq 0 1`; do
 		if [ "${node}" == "0" ]; then
 			rsync -e ssh -avH ${SRC_PATH}/headnode/ndp-*.service ndp${node}:${DST_PATH}/
+			rsync -e ssh -avH ${SRC_PATH}/headnode/ndp-server-monitor.service ndp${node}:${DST_PATH}/
 		else
 			rsync -e ssh -avH ${SRC_PATH}/servers/ndp-drx-[01].service ndp${node}:${DST_PATH}/
 			rsync -e ssh -avH ${SRC_PATH}/servers/ndp-server-monitor.service ndp${node}:${DST_PATH}/
@@ -174,7 +176,7 @@ fi
 if [ "${DO_RESTART}" == "1" ]; then
 	for node in `seq 0 1`; do
 		if [ "${node}" == "0" ]; then
-			ssh ndp${node} "restart ndp-control && restart ndp-tengine-0 && restart ndp-tengine-1 && restart ndp-tengine-2 && restart ndp-tengine-3"
+			ssh ndp${node} "restart ndp-control && restart ndp-tengine-0 && restart ndp-tengine-1 && restart ndp-tengine-2 && restart ndp-tengine-3 && restart ndp-server-monitor"
 		else
 			ssh ndp${node} "restart ndp-drx-0 && restart ndp-drx-1 && restart ndp-server-monitor"
 		fi
@@ -188,7 +190,7 @@ fi
 if [ "${DO_QUERY}" == "1" ]; then
 	for node in `seq 0 2`; do
 		if [ "${node}" == "0" ]; then
-			ssh ndp${node} "status ndp-control && status ndp-tengine-0 && status ndp-tengine-1 && status ndp-tengine-2 && status ndp-tengine-3"
+			ssh ndp${node} "status ndp-control && status ndp-tengine-0 && status ndp-tengine-1 && status ndp-tengine-2 && status ndp-tengine-3 && status ndp-server-monitor"
 		else
 			ssh ndp${node} "status ndp-drx-0 && status ndp-drx-1 && status ndp-server-monitor"
 		fi
