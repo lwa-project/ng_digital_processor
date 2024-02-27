@@ -639,7 +639,7 @@ class TEngineOp(object):
                 
                 ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
-                self.oring.resize(ogulp_size, 10*ogulp_size)
+                self.oring.resize(ogulp_size, 25*ogulp_size)
                 
                 ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
