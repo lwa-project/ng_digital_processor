@@ -1085,7 +1085,7 @@ def main(argv):
     log.info("PFB inverter: %s", str(pfb_inverter))
     
     use_verbs = True
-    if beam == 3:
+    if beam in (1, 3):
         use_verbs = False
         
     iaddr = Address(iaddr, iport)
