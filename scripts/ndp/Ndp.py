@@ -1732,12 +1732,9 @@ class MsgProcessor(ConsumerThread):
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
-            if not (-1 <= svr < NSERVER):
+            if not (0 <= svr < NSERVER):
                 raise ValueError("Unknown server number %i"%(svr+1))
-            if svr == -1:
-                sobj = self.headnode
-            else:
-                sobj = self.servers[svr]
+            sobj = self.servers[svr]
             if args[2] == 'HOSTNAME': return sobj.host
             # TODO: This request() should raise exceptions on failure
             # TODO: Change to .status(), .info()?
@@ -1751,7 +1748,6 @@ class MsgProcessor(ConsumerThread):
         if args[0] == 'GLOBAL':
             if args[1] == 'TEMP':
                 temps = []
-                temps += list(self.headnode.get_temperatures(slot).values())
                 # Note: Actually just flattening lists, not summing
                 temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
                 temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
