@@ -1747,6 +1747,7 @@ class MsgProcessor(ConsumerThread):
             # TODO: Change to .status(), .info()?
             if args[2] == 'STAT': return sobj.get_status(slot)
             if args[2] == 'INFO': return sobj.get_info(slot)
+            if args[2] == 'SOFTWARE': return sobj.get_software(slot)
             if args[2] == 'TEMP':
                 temps = list(sobj.get_temperatures(slot).values())
                 op = args[3]
@@ -1817,6 +1818,8 @@ class MsgProcessor(ConsumerThread):
             'SERVER_TEMP_MAX':    lambda x: struct.pack('>f', x),
             'SERVER_TEMP_MIN':    lambda x: struct.pack('>f', x),
             'SERVER_TEMP_AVG':    lambda x: struct.pack('>f', x),
+            'SERVER_STAT':        lambda x: struct.pack('>B', x),
+            'SERVER_INFO':        lambda x: truncate_message(x, 256),
             'SERVER_SOFTWARE':    lambda x: truncate_message(x, 256),
             'SERVER_HOSTNAME':    lambda x: truncate_message(x, 256),
             'GLOBAL_TEMP_MAX':    lambda x: struct.pack('>f', x),
