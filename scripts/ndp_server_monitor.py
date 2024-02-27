@@ -95,7 +95,7 @@ class NdpServerMonitor(object):
             pass
         elif req == 'STAT':
             pname = self.monitor.get_pipelines()
-            data = ", ".join([str(n) for n in pname])
+            data = f"{len(pname)}"
         elif req == 'INFO':
             dname = self.monitor.get_disk_ids()
             dusage = self.monitor.get_disk_usages()
