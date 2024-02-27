@@ -1818,7 +1818,7 @@ class MsgProcessor(ConsumerThread):
             'SERVER_TEMP_MAX':    lambda x: struct.pack('>f', x),
             'SERVER_TEMP_MIN':    lambda x: struct.pack('>f', x),
             'SERVER_TEMP_AVG':    lambda x: struct.pack('>f', x),
-            'SERVER_STAT':        lambda x: struct.pack('>L', int(x)),
+            'SERVER_STAT':        lambda x: struct.pack('>Q', int(x)),
             'SERVER_INFO':        lambda x: truncate_message(x, 256),
             'SERVER_SOFTWARE':    lambda x: truncate_message(x, 256),
             'SERVER_HOSTNAME':    lambda x: truncate_message(x, 256),
