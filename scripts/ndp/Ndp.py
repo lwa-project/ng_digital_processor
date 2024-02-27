@@ -392,7 +392,7 @@ class NdpServerMonitorClient(object):
         self.log  = log
         self.host = host
         self.host_ipmi = self.host + "-ipmi"
-        self.port = config['mcs']['server']['local_port']
+        self.port = config['mcs']['server']['local_port']+1
         self.sock = _g_zmqctx.socket(zmq.REQ)
         addr = 'tcp://%s:%i' % (self.host,self.port)
         try: self.sock.connect(addr)
@@ -402,7 +402,11 @@ class NdpServerMonitorClient(object):
         self.sock.RCVTIMEO = int(timeout*1000)
         
     def read_sensors(self):
-        ret = self._ipmi_command('sdr')
+        try:
+            ret = self._ipmi_command('sdr')
+        except subprocess.CalledProcessError:
+            ## Catch for the headnode that requies a slightly different method
+            ret = self._shell_command('ipmitool sdr')
         sensors = {}
         for line in ret.split('\n'):
             if '|' not in line:
@@ -437,7 +441,10 @@ class NdpServerMonitorClient(object):
         
     def _request(self, query):
         try:
-            self.sock.send(query)
+            try:
+                self.sock.send(query)
+            except TypeError:
+                self.sock.send_string(query)
             response = self.sock.recv_json()
         except zmq.error.Again:
             raise RuntimeError("Server '%s' did not respond" % self.host)
@@ -1721,7 +1728,7 @@ class MsgProcessor(ConsumerThread):
             if args[2] == 'STAT': return None # TODO
             if args[2] == 'INFO': return None # TODO
             if args[2] == 'TEMP':
-                temps = self.snaps[board].get_temperatures(slot).values()
+                temps = list(self.snaps[board].get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
             if args[2] == 'FIRMWARE': return self.config['snap']['firmware']
@@ -1729,15 +1736,19 @@ class MsgProcessor(ConsumerThread):
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
-            if not (0 <= svr < NSERVER):
+            if not (-1 <= svr < NSERVER):
                 raise ValueError("Unknown server number %i"%(svr+1))
-            if args[2] == 'HOSTNAME': return self.servers[svr].host
+            if svr == -1:
+                sobj = self.headnode[0]
+            else:
+                sobj = self.servers[svr]
+            if args[2] == 'HOSTNAME': return sobj.host
             # TODO: This request() should raise exceptions on failure
             # TODO: Change to .status(), .info()?
-            if args[2] == 'STAT': return self.servers[svr].get_status()
-            if args[2] == 'INFO': return self.servers[svr].get_info()
+            if args[2] == 'STAT': return sobj.get_status(slot)
+            if args[2] == 'INFO': return sobj.get_info(slot)
             if args[2] == 'TEMP':
-                temps = self.servers[svr].get_temperatures(slot).values()
+                temps = list(sobj.get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
             raise KeyError
@@ -1745,8 +1756,9 @@ class MsgProcessor(ConsumerThread):
             if args[1] == 'TEMP':
                 temps = []
                 # Note: Actually just flattening lists, not summing
-                temps += sum(self.snaps.get_temperatures(slot).values(), [])
-                temps += sum(self.servers.get_temperatures(slot).values(), [])
+                temps += sum([list(v) for v in self.headnode.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
                 temps = [val for val in temps if not math.isnan(val)]
                 if len(temps) == 0: # If all values were nan (exceptional!)
