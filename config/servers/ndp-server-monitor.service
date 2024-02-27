@@ -33,7 +33,7 @@ WorkingDirectory=/usr/local/bin
 
 ExecStart=/bin/bash -ec '\
 python3 /usr/local/bin/ndp_server_monitor.py \
-	 --configfile /usr/local/share/ndp/ndp_config.json'
+	 /usr/local/share/ndp/ndp_config.json'
 
 [Install]
 WantedBy=multi-user.target
