@@ -802,7 +802,7 @@ class TEngineOp(object):
                                     copy_array(wdata, tdata)
                                 except NameError:
                                     wdata = tdata.copy('cuda_host')
-                                odata[...] = wdata.view(numpy.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
+                                odata[...] = wdata.view(np.int8).reshape(self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 
                             ## Update the base time tag
                             base_time_tag += self.ntime_gulp*ticksPerTime
