@@ -7,7 +7,7 @@ from ndp import ISC
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
-from bifrost.packet_capture import PacketCaptureCallback, UDPVerbsCapture as UDPCapture
+from bifrost.packet_capture import PacketCaptureCallback, UDPVerbsCapture, UDPCapture
 from bifrost.packet_writer import HeaderInfo, UDPTransmit
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
@@ -90,6 +90,13 @@ class CaptureOp(object):
         self.shutdown_event = threading.Event()
         ## HACK TESTING
         #self.seq_callback = None
+        self.cmethod = UDPVerbsCapture
+        try:
+            if not self.kwargs['verbs']:
+                self.cmethod = UDPCapture
+            del self.kwargs['verbs']
+        except KeyError:
+            pass
     def shutdown(self):
         self.shutdown_event.set()
     def seq_callback(self, seq0, chan0, nchan, nsrc,
@@ -122,7 +129,7 @@ class CaptureOp(object):
     def main(self):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_ibeam(self.seq_callback)
-        with UDPCapture(*self.args,
+        with self.cmethod(*self.args,
                         sequence_callback=seq_callback,
                         **self.kwargs) as capture:
             while not self.shutdown_event.is_set():
@@ -640,7 +647,7 @@ class TEngineOp(object):
                 
                 ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
-                self.oring.resize(ogulp_size, 10*ogulp_size)
+                self.oring.resize(ogulp_size, 25*ogulp_size)
                 
                 ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -1081,6 +1088,10 @@ def main(argv):
     log.info("GPUs:         %s", ' '.join([str(v) for v in gpus]))
     log.info("PFB inverter: %s", str(pfb_inverter))
     
+    use_verbs = True
+    if beam in (1, 3):
+        use_verbs = False
+        
     iaddr = Address(iaddr, iport)
     isock = UDPSocket()
     isock.bind(iaddr)
@@ -1100,7 +1111,7 @@ def main(argv):
     
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
                          nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
-                         nbeam_max=nbeam, 
+                         verbs=use_verbs, nbeam_max=nbeam, 
                          buffer_ntime=GSIZE, slot_ntime=19600, core=cores.pop(0)))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=GSIZE,
                          core=cores[0], gpu=gpus[0]))
