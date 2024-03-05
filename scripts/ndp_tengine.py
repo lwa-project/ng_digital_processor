@@ -783,6 +783,7 @@ class TEngineOp(object):
                                     
                                 ## Quantization
                                 try:
+                                    qdata = qdata.reshape(gdata.shape)
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                 except NameError:
                                     qdata = BFArray(shape=fdata.shape, native=False, dtype='ci4', space='cuda')
