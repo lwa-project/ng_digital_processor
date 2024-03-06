@@ -1200,7 +1200,7 @@ class RetransmitOp(object):
                         
                 # Update the packet rate parameters
                 npps_samp += 1
-                npkt_sent = len(self.udts)*idata.shape[1]
+                npkt_sent += len(self.udts)*idata.shape[1]
                 npkt_time += time.time() - pkt_time_start
                 
                 seq += self.ntime_gulp
