@@ -1151,7 +1151,7 @@ class RetransmitOp(object):
                     desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
             # Packet pacing parameters
-            k_max = 800
+            k_max = 800     # TODO: Should this reset every sequence?
             npps_samp = 0
             npkt_sent = 0
             npkt_time = 0.0
@@ -1174,7 +1174,7 @@ class RetransmitOp(object):
                         k_max_new = k_max - 200
                         
                     if k_max_new != k_max:
-                        self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps} pkts/s)")
+                        self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps:.1f} pkts/s)")
                         k_max = k_max_new
                         
                     ## Reset the counters
