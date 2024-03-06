@@ -89,13 +89,6 @@ class CaptureOp(object):
         self.shutdown_event = threading.Event()
         ## HACK TESTING
         #self.seq_callback = None
-        self.cmethod = UDPVerbsCapture
-        try:
-            if not self.kwargs['verbs']:
-                self.cmethod = UDPCapture
-            del self.kwargs['verbs']
-        except KeyError:
-            pass
     def shutdown(self):
         self.shutdown_event.set()
     def seq_callback(self, seq0, chan0, nchan, nsrc,
@@ -128,9 +121,9 @@ class CaptureOp(object):
     def main(self):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_ibeam(self.seq_callback)
-        with self.cmethod(*self.args,
-                        sequence_callback=seq_callback,
-                        **self.kwargs) as capture:
+        with UDPVerbsCapture(*self.args,
+                             sequence_callback=seq_callback,
+                             **self.kwargs) as capture:
             while not self.shutdown_event.is_set():
                 status = capture.recv()
         del capture
@@ -1084,10 +1077,6 @@ def main(argv):
     log.info("GPUs:         %s", ' '.join([str(v) for v in gpus]))
     log.info("PFB inverter: %s", str(pfb_inverter))
     
-    use_verbs = True
-    if beam in (1, 3):
-        use_verbs = False
-        
     iaddr = Address(iaddr, iport)
     isock = UDPSocket()
     isock.bind(iaddr)
@@ -1107,8 +1096,8 @@ def main(argv):
     
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
                          nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
-                         verbs=use_verbs, nbeam_max=nbeam, 
-                         buffer_ntime=GSIZE, slot_ntime=19600, core=cores.pop(0)))
+                         nbeam_max=nbeam, buffer_ntime=GSIZE, slot_ntime=19600,
+                         core=cores.pop(0)))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=GSIZE,
                          core=cores[0], gpu=gpus[0]))
     ops.append(ReChannelizerOp(log, gpu_ring, rechan_ring, ntime_gulp=GSIZE,
