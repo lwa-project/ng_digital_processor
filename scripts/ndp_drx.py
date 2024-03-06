@@ -1164,7 +1164,7 @@ class RetransmitOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
-                if npps_samp = 1000:
+                if npps_samp == 1000:
                     ## Update the packet pacing parameters based on the latest
                     ## packet rate
                     pps = npkt_sent / npkt_time
