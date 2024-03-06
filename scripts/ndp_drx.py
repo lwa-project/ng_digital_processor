@@ -1150,6 +1150,12 @@ class RetransmitOp(object):
                 for j in range(self.nblock_send):
                     desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
+            # Packet pacing parameters
+            k_max = 800
+            npps_samp = 0
+            npkt_sent = 0
+            npkt_time = 0.0
+            
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1158,7 +1164,27 @@ class RetransmitOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                if npps_samp = 1000:
+                    ## Update the packet pacing parameters based on the latest
+                    ## packet rate
+                    pps = npkt_sent / npkt_time
+                    if pps > 478515 : # +25% - slow down
+                        k_max_new = k_max + 200
+                    elif pps < 440234: # +15% - speed up
+                        k_max_new = k_max - 200
+                        
+                    if k_max_new != k_max:
+                        self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps} pkts/s)")
+                        k_max = k_max_new
+                        
+                    ## Reset the counters
+                    npps_samp = 0
+                    npkt_sent = 0
+                    npkt_time = 0.0
+                    
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
+                
+                pkt_time_start = time.time()
                 for i,udt in enumerate(self.udts):
                     bdata = idata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
@@ -1167,6 +1193,16 @@ class RetransmitOp(object):
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
                         
+                    ## Busy wait where the wait time is controlled through k_max
+                    k = 0
+                    while k < k_max:
+                        k += 1
+                        
+                # Update the packet rate parameters
+                npps_samp += 1
+                npkt_sent = len(self.udts)*data.shapep[1]
+                npkt_time += time.time() - pkt_time_start
+                
                 seq += self.ntime_gulp
                 
                 curr_time = time.time()
