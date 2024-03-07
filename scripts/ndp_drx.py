@@ -579,8 +579,8 @@ class BeamformerOp(object):
         assert(nchan % self.pkt_nchan == 0)
         
         self.ldata =  BFArray(shape=(ntime//self.pkt_gulp,
-                                     nbeam,
                                      nchan//self.pkt_nchan,
+                                     nbeam,
                                      self.pkt_gulp,
                                      self.pkt_nchan,
                                      npol), dtype=self.bdata.dtype, space='cuda')
@@ -590,7 +590,7 @@ class BeamformerOp(object):
                                     npol,
                                     ntime//self.pkt_gulp,
                                     self.pkt_gulp)
-        self.bdata_reorder_axes = (4,2,0,5,1,3)
+        self.bdata_reorder_axes = (4,0,2,5,1,3)
         self.odata_shape = self.ldata.shape
         
     def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
@@ -1102,8 +1102,8 @@ class RetransmitOp(object):
         self.udts = []
         self.nchan_send = min([self.nchan_max, 384])
         self.nblock_send = self.nchan_max // self.nchan_send
-        for sock in self.socks:
-            for i in range(self.nblock_send):
+        for i in range(self.nblock_send):
+            for sock in self.socks:
                 udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
                 self.udts.append(udt)
                 
@@ -1114,8 +1114,8 @@ class RetransmitOp(object):
         
         desc = []
         src_id = []
-        for i in range(len(self.socks)):
-            for j in range(self.nblock_send):
+        for j in range(self.nblock_send):
+            for i in range(len(self.socks)):
                 desc.append(HeaderInfo())
                 desc[-1].set_tuning(1+i)
                 desc[-1].set_nchan(self.nchan_send)
@@ -1141,14 +1141,14 @@ class RetransmitOp(object):
             assert(us_pkt_nchan == self.nchan_send)
             
             igulp_size = nstand*self.ntime_gulp*nchan*npol*8        # complex64
-            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
+            igulp_shape = (self.nblock_send*nstand,self.ntime_gulp,self.nchan_send,npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
             
-            for i in range(nstand):
-                for j in range(self.nblock_send):
-                    desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
+            for j in range(self.nblock_send):
+                for i in range(nstand):
+                    desc[j*nstand + i].set_chan0(chan0 + j*self.nchan_send)
                     
             # Packet pacing parameters
             k_max = 800     # TODO: Should this reset every sequence?
