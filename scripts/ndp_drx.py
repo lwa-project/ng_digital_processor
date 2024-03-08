@@ -1105,6 +1105,7 @@ class RetransmitOp(object):
         for sock in self.socks:
             for i in range(self.nblock_send):
                 udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+                udt.set_rate_limit(478515)
                 self.udts.append(udt)
                 
     def main(self):
@@ -1195,8 +1196,8 @@ class RetransmitOp(object):
                         
                     ## Busy wait where the wait time is controlled through k_max
                     k = 0
-                    while k < k_max:
-                        k += 1
+                    #while k < k_max:
+                    #    k += 1
                         
                 # Update the packet rate parameters
                 npps_samp += 1
