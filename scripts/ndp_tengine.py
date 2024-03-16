@@ -879,6 +879,8 @@ class PacketizeOp(object):
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
         with UDPTransmit('drx', sock=self.osock, core=self.core) as udt:
+            udt.set_rate_limit(21000)
+            
             desc0 = HeaderInfo()
             desc1 = HeaderInfo()
             
