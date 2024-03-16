@@ -1105,7 +1105,7 @@ class RetransmitOp(object):
         for sock in self.socks:
             for i in range(self.nblock_send):
                 udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-                udt.set_rate_limit(478515)
+                udt.set_rate_limit(400000)
                 self.udts.append(udt)
                 
     def main(self):
@@ -1152,7 +1152,6 @@ class RetransmitOp(object):
                     desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
             # Packet pacing parameters
-            k_max = 800     # TODO: Should this reset every sequence?
             npps_samp = 0
             npkt_sent = 0
             npkt_time = 0.0
@@ -1165,19 +1164,11 @@ class RetransmitOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
-                if npps_samp == 1000:
-                    ## Update the packet pacing parameters based on the latest
-                    ## packet rate
+                if npps_samp == 5000:
+                    ## Report the current packet rate
                     pps = npkt_sent / npkt_time
-                    if pps > 478515 : # +25% - slow down
-                        k_max_new = k_max + 200
-                    elif pps < 440234: # +15% - speed up
-                        k_max_new = k_max - 200
-                        
-                    if k_max_new != k_max:
-                        self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps:.1f} pkts/s)")
-                        k_max = k_max_new
-                        
+                    self.log.info(f"Current packet rate is {pps:.1f} pkts/s)")
+                    
                     ## Reset the counters
                     npps_samp = 0
                     npkt_sent = 0
@@ -1193,11 +1184,6 @@ class RetransmitOp(object):
                         udt.send(desc[i], seq, 1, src_id[i], 1, bdata)
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
-                        
-                    ## Busy wait where the wait time is controlled through k_max
-                    k = 0
-                    #while k < k_max:
-                    #    k += 1
                         
                 # Update the packet rate parameters
                 npps_samp += 1
