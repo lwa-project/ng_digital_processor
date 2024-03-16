@@ -1105,7 +1105,7 @@ class RetransmitOp(object):
         for sock in self.socks:
             for i in range(self.nblock_send):
                 udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-                udt.set_rate_limit(400000)
+                udt.set_rate_limit(420000)
                 self.udts.append(udt)
                 
     def main(self):
