@@ -1246,7 +1246,7 @@ class PacketizeOp(object):
                                   'ngpu': 1,
                                   'gpu0': BFGetGPU(),})
         
-        with UDPTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
+        with UDPVerbsTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
