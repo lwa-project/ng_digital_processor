@@ -19,7 +19,7 @@
         "servers": ["ndp1"],
         "snaps": ["snap01", "snap02"],
         "servers-data": ["ndp1-data1", "ndp1-data2"],
-        "tengines": ["ndp-data1", "ndp-data1", "ndp-data2", "ndp-data2"]
+        "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
     },
     "ipmi": {
         "username": "root",
@@ -108,15 +108,15 @@
                 {
                     "pipeline_idx":      1,
                     "recorder_idx":      1,
-                    "cpus":              [8, 10, 11, 12, 13],
-                    "gpus":              [0],
+                    "cpus":              [16, 18, 19, 20, 21],
+                    "gpus":              [1],
                     "pfb_inverter":      true
                 },
                 {
                     "pipeline_idx":      2,
                     "recorder_idx":      2,
-                    "cpus":              [16, 18, 19, 20, 21],
-                    "gpus":              [1],
+                    "cpus":              [8, 10, 11, 12, 13],
+                    "gpus":              [0],
                     "pfb_inverter":      true
                 },
                 {

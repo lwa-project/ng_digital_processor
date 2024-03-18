@@ -1105,6 +1105,7 @@ class RetransmitOp(object):
         for sock in self.socks:
             for i in range(self.nblock_send):
                 udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+                udt.set_rate_limit(420000)
                 self.udts.append(udt)
                 
     def main(self):
@@ -1150,6 +1151,11 @@ class RetransmitOp(object):
                 for j in range(self.nblock_send):
                     desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
+            # Packet pacing parameters
+            npps_samp = 0
+            npkt_sent = 0
+            npkt_time = 0.0
+            
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1158,7 +1164,19 @@ class RetransmitOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                if npps_samp == 5000:
+                    ## Report the current packet rate
+                    pps = npkt_sent / npkt_time
+                    self.log.info(f"Current packet rate is {pps:.1f} pkts/s)")
+                    
+                    ## Reset the counters
+                    npps_samp = 0
+                    npkt_sent = 0
+                    npkt_time = 0.0
+                    
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
+                
+                pkt_time_start = time.time()
                 for i,udt in enumerate(self.udts):
                     bdata = idata[i,:,:,:]
                     bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
@@ -1167,6 +1185,11 @@ class RetransmitOp(object):
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
                         
+                # Update the packet rate parameters
+                npps_samp += 1
+                npkt_sent += len(self.udts)*idata.shape[1]
+                npkt_time += time.time() - pkt_time_start
+                
                 seq += self.ntime_gulp
                 
                 curr_time = time.time()
@@ -1223,7 +1246,7 @@ class PacketizeOp(object):
                                   'ngpu': 1,
                                   'gpu0': BFGetGPU(),})
         
-        with UDPTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
+        with UDPVerbsTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
