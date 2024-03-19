@@ -1885,7 +1885,7 @@ class MsgProcessor(ConsumerThread):
                 if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
                     # Get the beam
                     beam = int(mode[4:], 10)
-                    if beam < 1 or beam > self.nbeam:
+                    if beam < 1 or beam > self.drx.nbeam:
                         self.state['lastlog'] = "STP: Invalid beam"
                         exit_status = 99
                     else:
