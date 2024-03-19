@@ -536,6 +536,12 @@ class TEngineOp(object):
                 self.log.info("TEngine: Not for this beam, skipping")
                 return False
                 
+            if tuning == 2 and freq == 0.0:
+                self.log.info("TEngine: Stopping data output")
+                ACTIVE_DRX_CONFIG.clear()
+                
+                return True
+                
             self.rFreq[tuning] = freq
             self.filt = filt
             self.nchan_out = FILTER2CHAN[filt]

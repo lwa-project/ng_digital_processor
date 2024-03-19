@@ -1882,19 +1882,22 @@ class MsgProcessor(ConsumerThread):
                     self.state['lastlog'] = "STP: Subsystem is not ready"
                     exit_status = 99
             elif mode.startswith('BEAM'):
-                self.state['lastlog'] = "UNIMPLEMENTED STP request"
-                exit_status = -1 # TODO: Implement this
-                ## Get the beam
-                #beam = int(mode[4:], 10)
-                ## Build a dummy BAM command that is all zeros for delay/gain on request beam
-                #msg.data = struct.pack('>H', beam)
-                #msg.data += '\x00'*(1024+2048+2)
-                ## Set tuning 1 and send
-                #msg.data[-2] = struct.pack('>B', 1)
-                #exit_status = self.bam.process_command(msg)
-                ## Change to tuning 2 and send again
-                #msg.data[-2] = struct.pack('>B', 2)
-                #exit_status |= self.bam.process_command(msg)
+                if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
+                    # Get the beam
+                    beam = int(mode[4:], 10)
+                    if beam < 1 or beam > self.nbeam:
+                        self.state['lastlog'] = "STP: Invalid beam"
+                        exit_status = 99
+                    else:
+                        self.drx.messenger.drxConfig(beam, 2, 0, 0, 0, 0)
+                        for tuning in range(self.drx.ntuning):
+                            self.drx.cur_freq[beam*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_filt[beam*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_gain[beam*self.drx.ntuning + tuning] = 0
+                        exit_status = 0
+                else:
+                    self.state['lastlog'] = "STP: Subsystem is not ready"
+                    exit_status = 99
             elif mode == 'COR':
                 self.state['lastlog'] = "UNIMPLEMENTED STP request"
                 exit_status = -1 # TODO: Implement this
