@@ -88,7 +88,7 @@
         "data_port_base":       10000,
         "firmware":             "/home/ndp/ng_digital_processor/caltech-lwa/snap2_f_200msps_64i_4096c/outputs/snap2_f_200msps_64i_4096c_2023-04-26_1706.fpg", 
         "max_program_attempts": 5,
-        "fft_shift":            8180,
+        "fft_shift":            8181,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
         "bypass_pfb":           false,
         "nchan_packet":         96,
