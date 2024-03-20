@@ -1103,9 +1103,10 @@ class RetransmitOp(object):
         self.nchan_send = min([self.nchan_max, 384])
         self.nblock_send = self.nchan_max // self.nchan_send
         for sock in self.socks:
+            udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+            udt.set_rate_limit(420000)
             for i in range(self.nblock_send):
-                udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-                udt.set_rate_limit(420000)
+                # Recycle transmitters so that we can index easier later on
                 self.udts.append(udt)
                 
     def main(self):
@@ -1151,6 +1152,13 @@ class RetransmitOp(object):
                 for j in range(self.nblock_send):
                     desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
+            # Set the output ordering such that we send one subband to all beams
+            # before moving on to the next subband.
+            output_ordering = []
+            for i in range(nstand):
+                for j in range(self.nblock_send):
+                    output_ordering.append(j*nstand + i)
+                    
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1161,9 +1169,9 @@ class RetransmitOp(object):
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 
-                for i,udt in enumerate(self.udts):
+                for i in output_ordering:
                     try:
-                        udt.send(desc[i], seq, 1, src_id[i], 1, idata[i,...])
+                        self.udts[i].send(desc[i], seq, 1, src_id[i], 1, idata[i,...])
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
                         
