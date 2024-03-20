@@ -1142,7 +1142,7 @@ class RetransmitOp(object):
             assert(us_pkt_nchan == self.nchan_send)
             
             igulp_size = nstand*self.ntime_gulp*nchan*npol*8        # complex64
-            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,1,self.nchan_send,npol)
+            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,1,self.nchan_send*npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
