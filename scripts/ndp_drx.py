@@ -1142,7 +1142,7 @@ class RetransmitOp(object):
             assert(us_pkt_nchan == self.nchan_send)
             
             igulp_size = nstand*self.ntime_gulp*nchan*npol*8        # complex64
-            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
+            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,1,self.nchan_send,npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
@@ -1151,11 +1151,6 @@ class RetransmitOp(object):
                 for j in range(self.nblock_send):
                     desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
-            # Packet pacing parameters
-            npps_samp = 0
-            npkt_sent = 0
-            npkt_time = 0.0
-            
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1164,32 +1159,14 @@ class RetransmitOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
-                if npps_samp == 5000:
-                    ## Report the current packet rate
-                    pps = npkt_sent / npkt_time
-                    self.log.info(f"Current packet rate is {pps:.1f} pkts/s)")
-                    
-                    ## Reset the counters
-                    npps_samp = 0
-                    npkt_sent = 0
-                    npkt_time = 0.0
-                    
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 
-                pkt_time_start = time.time()
                 for i,udt in enumerate(self.udts):
-                    bdata = idata[i,:,:,:]
-                    bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
                     try:
-                        udt.send(desc[i], seq, 1, src_id[i], 1, bdata)
+                        udt.send(desc[i], seq, 1, src_id[i], 1, idata[i,...])
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
                         
-                # Update the packet rate parameters
-                npps_samp += 1
-                npkt_sent += len(self.udts)*idata.shape[1]
-                npkt_time += time.time() - pkt_time_start
-                
                 seq += self.ntime_gulp
                 
                 curr_time = time.time()
