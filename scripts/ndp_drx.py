@@ -1222,6 +1222,14 @@ class PacketizeOp(object):
         self.nblock_send = self.nchan_max // self.nchan_send
         nstand, npol = nsnap*32, 2
         
+        # Output packet rate
+        ## nchan_send + npol^2 -> samples per packet
+        samps_per_pkt = self.nchan_send * npol*npol
+        ## dtype (cf32) -> bytes per sample
+        bytes_per_samp = 4*2
+        ## B/s -> pkts/s
+        self.max_pkts_per_sec = self.max_bytes_per_sec / bytes_per_samp / samps_per_pkt
+        
     def main(self):
         cpu_affinity.set_core(self.core)
         if self.gpu != -1:
@@ -1232,6 +1240,8 @@ class PacketizeOp(object):
                                   'gpu0': BFGetGPU(),})
         
         with UDPVerbsTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
+            udt.set_rate_limit(self.max_pkts_per_sec)
+            
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
@@ -1267,8 +1277,6 @@ class PacketizeOp(object):
                 tBail = tInt - 0.2
                 
                 scale_factor = navg / (2*NCHAN)
-                
-                rate_limit = (3.0*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
@@ -1307,14 +1315,6 @@ class PacketizeOp(object):
                             i += nsend
                             npkt -= nsend
                             
-                            bytesSent += self.nblock_send*nsend*(odata.shape[-1]*8 + 32)   # data size -> packet size
-                            while bytesSent/(time.time()-bytesStart) >= rate_limit:
-                                time.sleep(0.001)
-                                
-                            if time.time()-t0 > tBail:
-                                print('WARNING: vis write bail', time.time()-t0, '@', bytesSent/(time.time()-bytesStart)/1024**2, '->', time.time())
-                                break
-                                
                         time_tag += ticksPerFrame
                         
                         curr_time = time.time()
