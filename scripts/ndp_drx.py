@@ -1228,7 +1228,7 @@ class PacketizeOp(object):
         ## dtype (cf32) -> bytes per sample
         bytes_per_samp = 4*2
         ## B/s -> pkts/s
-        self.max_pkts_per_sec = self.max_bytes_per_sec / bytes_per_samp / samps_per_pkt
+        self.max_pkts_per_sec = int(self.max_bytes_per_sec / bytes_per_samp / samps_per_pkt)
         
     def main(self):
         cpu_affinity.set_core(self.core)
@@ -1274,7 +1274,6 @@ class PacketizeOp(object):
                     
                 ticksPerFrame = navg
                 tInt = navg/FS
-                tBail = tInt - 0.2
                 
                 scale_factor = navg / (2*NCHAN)
                 
