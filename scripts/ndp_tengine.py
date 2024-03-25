@@ -983,16 +983,17 @@ class PacketizeOp(object):
                             except Exception as e:
                                 print(type(self).__name__, 'Sending Error', str(e))
                                 
-                        ## Busy wait where the wait time is controlled through k_max
-                        k = 0
-                        while k < k_max:
-                           k += 1
-                           
-                    # Update the packet rate parameters
-                    npps_samp += 1
-                    npkt_sent += data0.shape[0]*2 + data1.shape[0]*2
-                    npkt_time += time.time() - pkt_time_start
-                    
+                            ## Busy wait where the wait time is controlled through k_max
+                            k = 0
+                            while k < k_max:
+                               k += 1
+                               
+                    if ACTIVE_DRX_CONFIG.is_set():
+                        # Update the packet rate parameters
+                        npps_samp += 1
+                        npkt_sent += data.shape[0]*4
+                        npkt_time += time.time() - pkt_time_start
+                        
                     time_tag += int(ntime_gulp)*ticksPerSample
                     
                     curr_time = time.time()
