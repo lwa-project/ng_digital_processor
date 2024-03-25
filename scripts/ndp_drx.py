@@ -1104,7 +1104,7 @@ class RetransmitOp(object):
         self.nblock_send = self.nchan_max // self.nchan_send
         for sock in self.socks:
             udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-            udt.set_rate_limit(480000)
+            udt.set_rate_limit(425000)
             for i in range(self.nblock_send):
                 # Recycle transmitters so that we can index easier later on
                 self.udts.append(udt)
@@ -1159,6 +1159,12 @@ class RetransmitOp(object):
                 for j in range(self.nblock_send):
                     output_ordering.append(j*nstand + i)
                     
+            # Packet pacing parameters
+            k_max = 1600     # TODO: Should this reset every sequence?
+            npps_samp = 0
+            npkt_sent = 0
+            npkt_time = 0.0
+            
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1167,14 +1173,43 @@ class RetransmitOp(object):
                 acquire_time = curr_time - prev_time
                 prev_time = curr_time
                 
+                if npps_samp == 1000:
+                    ## Update the packet pacing parameters based on the latest
+                    ## packet rate
+                    pps = npkt_sent / npkt_time
+                    if pps > 478515 : # +25% - slow down
+                        k_max_new = min([4000, k_max + 200])
+                    elif pps < 440234: # +15% - speed up
+                        k_max_new = max([0, k_max - 200])
+                        
+                    if k_max_new != k_max:
+                        self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps:.1f} pkts/s)")
+                        k_max = k_max_new
+                        
+                    ## Reset the counters
+                    npps_samp = 0
+                    npkt_sent = 0
+                    npkt_time = 0.0
+                    
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
                 
+                pkt_time_start = time.time()
                 for i in output_ordering:
                     try:
                         self.udts[i].send(desc[i], seq, 1, src_id[i], 1, idata[i,...])
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
                         
+                    ## Busy wait where the wait time is controlled through k_max
+                    k = 0
+                    while k < k_max:
+                       k += 1
+                       
+                # Update the packet rate parameters
+                npps_samp += 1
+                npkt_sent += len(output_ordering)*idata.shape[1]
+                npkt_time += time.time() - pkt_time_start
+                
                 seq += self.ntime_gulp
                 
                 curr_time = time.time()
