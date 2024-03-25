@@ -1160,7 +1160,7 @@ class RetransmitOp(object):
                     output_ordering.append(j*nstand + i)
                     
             # Packet pacing parameters
-            k_max = 13400     # TODO: Should this reset every sequence?
+            k_max = 13500     # TODO: Should this reset every sequence?
             npps_samp = 0
             npkt_sent = 0
             npkt_time = 0.0
@@ -1178,9 +1178,9 @@ class RetransmitOp(object):
                     ## packet rate
                     pps = npkt_sent / npkt_time
                     if pps > 480000 : # +25% - slow down
-                        k_max_new = min([40000, k_max + 400])
+                        k_max_new = min([40000, k_max + 750])
                     elif pps < 440000: # +15% - speed up
-                        k_max_new = max([0, k_max - 400])
+                        k_max_new = max([0, k_max - 750])
                         
                     if k_max_new != k_max:
                         self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps:.1f} pkts/s)")
