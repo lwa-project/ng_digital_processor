@@ -885,7 +885,7 @@ class PacketizeOp(object):
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
         with UDPTransmit('drx', sock=self.osock, core=self.core) as udt:
-            udt.set_rate_limit(21000)
+            udt.set_rate_limit(24000)
             
             desc0 = HeaderInfo()
             desc1 = HeaderInfo()
@@ -933,6 +933,12 @@ class PacketizeOp(object):
                 desc1.set_tuning(int(round(cfreq1 / FS * 2**32)))
                 desc_src = ((1&0x7)<<3)
                 
+                # Packet pacing parameters
+                k_max = 13500     # TODO: Should this reset every sequence?
+                npps_samp = 0
+                npkt_sent = 0
+                npkt_time = 0.0
+                
                 for ispan in iseq.read(igulp_size, begin=boffset):
                     if ispan.size < igulp_size:
                         continue # Ignore final gulp
@@ -940,12 +946,31 @@ class PacketizeOp(object):
                     acquire_time = curr_time - prev_time
                     prev_time = curr_time
                     
+                    if npps_samp == 100:
+                        ## Update the packet pacing parameters based on the latest
+                        ## packet rate
+                        pps = npkt_sent / npkt_time
+                        if pps > 24000 : # +25% - slow down
+                            k_max_new = min([40000, k_max + 750])
+                        elif pps < 22000: # +15% - speed up
+                            k_max_new = max([0, k_max - 750])
+                            
+                        if k_max_new != k_max:
+                            self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps:.1f} pkts/s)")
+                            k_max = k_max_new
+                            
+                        ## Reset the counters
+                        npps_samp = 0
+                        npkt_sent = 0
+                        npkt_time = 0.0
+                        
                     shape = (-1,nbeam,ntune,npol)
                     data = ispan.data_view('ci4').reshape(shape)
                     
                     data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                     data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                     
+                    pkt_time_start = time.time()
                     for t in range(0, data0.shape[0], NPACKET_SET):
                         time_tag_cur = time_tag + t*ticksPerSample*ntime_pkt
                         
@@ -957,7 +982,17 @@ class PacketizeOp(object):
                                          data1[t:t+NPACKET_SET,:,:])
                             except Exception as e:
                                 print(type(self).__name__, 'Sending Error', str(e))
-                                        
+                                
+                        ## Busy wait where the wait time is controlled through k_max
+                        k = 0
+                        while k < k_max:
+                           k += 1
+                           
+                    # Update the packet rate parameters
+                    npps_samp += 1
+                    npkt_sent += data0.shape[0]*2 + data1.shape[0]*2
+                    npkt_time += time.time() - pkt_time_start
+                    
                     time_tag += int(ntime_gulp)*ticksPerSample
                     
                     curr_time = time.time()
