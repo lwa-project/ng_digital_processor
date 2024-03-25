@@ -1104,7 +1104,7 @@ class RetransmitOp(object):
         self.nblock_send = self.nchan_max // self.nchan_send
         for sock in self.socks:
             udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
-            udt.set_rate_limit(425000)
+            udt.set_rate_limit(440000)
             for i in range(self.nblock_send):
                 # Recycle transmitters so that we can index easier later on
                 self.udts.append(udt)
@@ -1160,7 +1160,7 @@ class RetransmitOp(object):
                     output_ordering.append(j*nstand + i)
                     
             # Packet pacing parameters
-            k_max = 1600     # TODO: Should this reset every sequence?
+            k_max = 4000     # TODO: Should this reset every sequence?
             npps_samp = 0
             npkt_sent = 0
             npkt_time = 0.0
@@ -1177,9 +1177,9 @@ class RetransmitOp(object):
                     ## Update the packet pacing parameters based on the latest
                     ## packet rate
                     pps = npkt_sent / npkt_time
-                    if pps > 478515 : # +25% - slow down
-                        k_max_new = min([4000, k_max + 200])
-                    elif pps < 440234: # +15% - speed up
+                    if pps > 480000 : # +25% - slow down
+                        k_max_new = min([20000, k_max + 200])
+                    elif pps < 440000: # +15% - speed up
                         k_max_new = max([0, k_max - 200])
                         
                     if k_max_new != k_max:
