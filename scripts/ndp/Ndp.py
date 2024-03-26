@@ -1891,9 +1891,9 @@ class MsgProcessor(ConsumerThread):
                     else:
                         self.drx.messenger.drxConfig(beam-1, 3-1, 0, 0, 0, 0)
                         for tuning in range(self.drx.ntuning):
-                            self.drx.cur_freq[beam*self.drx.ntuning + tuning] = 0
-                            self.drx.cur_filt[beam*self.drx.ntuning + tuning] = 0
-                            self.drx.cur_gain[beam*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_freq[(beam-1)*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_filt[(beam-1)*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_gain[(beam-1)*self.drx.ntuning + tuning] = 0
                         exit_status = 0
                 else:
                     self.state['lastlog'] = "STP: Subsystem is not ready"
