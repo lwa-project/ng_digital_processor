@@ -208,10 +208,10 @@ interface Ethernet30
    flowcontrol receive on
 !
 interface Ethernet31
-   flowcontrol send off
+   flowcontrol send on
 !
 interface Ethernet32
-   flowcontrol send off
+   flowcontrol send on
 !
 interface Ethernet33
    flowcontrol send on
