@@ -24,10 +24,12 @@ no aaa root
 username admin privilege 15 role network-admin secret sha512 $6$uhtNpzVR.fg4DL/p$N6SmJfAqWwTKaaI25Kcyig0K36ZHKEFRkg9/Tsu3QZmwuyFKOg6bF3aVY4v7RDVcmIn7JbPJ7gLAvgzZC5Stb.
 !
 interface Ethernet1
+   flowcontrol receive on
 !
 interface Ethernet2
 !
 interface Ethernet3
+   flowcontrol receive on
 !
 interface Ethernet4
 !
@@ -198,12 +200,12 @@ interface Ethernet28/1
    speed forced 40gfull
 !
 interface Ethernet29
-   flowcontrol send off
-   flowcontrol receive off
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet30
-   flowcontrol send off
-   flowcontrol receive off
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet31
    flowcontrol send off
@@ -212,10 +214,10 @@ interface Ethernet32
    flowcontrol send off
 !
 interface Ethernet33
-   flowcontrol send off
+   flowcontrol send on
 !
 interface Ethernet34
-   flowcontrol send off
+   flowcontrol send on
 !
 interface Ethernet35
 !
