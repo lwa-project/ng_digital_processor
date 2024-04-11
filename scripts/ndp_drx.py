@@ -1181,6 +1181,8 @@ class RetransmitOp(object):
                         k_max_new = min([40000, k_max + 750])
                     elif pps < 440000: # +15% - speed up
                         k_max_new = max([0, k_max - 750])
+                    else:
+                        k_max_new = k_max
                         
                     if k_max_new != k_max:
                         self.log.info(f"Changing packet pacing parameter from {k_max} to {k_max_new} (found {pps:.1f} pkts/s)")
