@@ -1467,9 +1467,9 @@ class MsgProcessor(ConsumerThread):
                         self.log.error(msg)
                     else:
                         snaps_sending = self.snaps.is_sending()
-                        if not all(snaps_ok):
+                        if not all(snaps_sending):
                             problems_found = True
-                            msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
+                            msg = "Found %s SNAP2 board(s) not sending data" % (len(snaps_sending) - sum(snaps_sending),)
                             new_status = 'ERROR'
                             new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                             status, info = self._combine_status(status, info, new_status, new_info)
