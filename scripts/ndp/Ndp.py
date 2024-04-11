@@ -701,6 +701,23 @@ class Snap2MonitorClient(object):
                     pass
         return status
         
+    def is_sending(self):
+        # Is the FPGA sending data out?
+        
+        status = True
+        with self.access_lock:
+            if self.snap.is_connected():
+                try:
+                    summary, flags = self.snap.eth.get_status()
+                    if summary['gpbs'] == 0:
+                        status = False
+                    for key in flags.keys():
+                        if flags[key] == FENG_ERROR_CODE:
+                            status = False
+                except Exception as e:
+                    pass
+        return status
+        
     def configure(self):
         # Configure the FPGA and start data flowing
         
@@ -1448,7 +1465,16 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                        
+                    else:
+                        snaps_sending = self.snaps.is_sending()
+                        if not all(snaps_ok):
+                            problems_found = True
+                            msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
+                            new_status = 'ERROR'
+                            new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
+                            status, info = self._combine_status(status, info, new_status, new_info)
+                            self.log.error(msg)
+                            
                 ## De-assert anything that we can de-assert
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
