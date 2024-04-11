@@ -4,6 +4,7 @@
 iptables-restore < /etc/iptables.rules
 
 # Limit the GPU clocks
+nvidia-smi -pm 1
 nvidia-smi -lgc 1300,1300
 
 exit 0
