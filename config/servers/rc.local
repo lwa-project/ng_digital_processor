@@ -4,5 +4,8 @@
 arp -s 192.168.40.10 e8:eb:d3:96:8c:d0
 arp -s 192.168.40.210 e8:eb:d3:96:8c:dc
 
+# Add an ARP entry for Orville
+arp -s 192.168.40.46 e8:eb:d3:96:8c:d6
+
 # Limit the GPU clocks
 nvidia-smi -lgc 1200,1200
