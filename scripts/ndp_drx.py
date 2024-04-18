@@ -604,13 +604,13 @@ class BeamformerOp(object):
         # Can we act on this configuration change now?
         if config:
             ## Pull out the tuning (something unique to DRX/BAM/COR)
-            beam = config[0]
+            beam = config[1]
             if beam >= self.nbeam_max:
                 return False
                 
-            ## Set the configuration time - BAM commands are for the specified slot in the next second
-            slot = config[3] / 100.0
-            config_time = int(time.time()) + 1 + slot
+            ## Set the configuration time - BAM commands are for the specified subslot two seconds from when it was received
+            slot = config[0] + config[4] / 100.0
+            config_time = slot + 2
             
             ## Is this command from the future?
             if pipeline_time < config_time:
@@ -641,7 +641,7 @@ class BeamformerOp(object):
                 
         if config:
             self.log.info("Beamformer: New configuration received for beam %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
-            beam, delays, gains, slot = config
+            _, beam, delays, gains, slot = config
             
             #Search for the "code word" gain pattern which specifies an achromatic observation.
             if ( gains[0,:,:] == np.array([[8191, 16383],[32767,65535]]) ).all():
@@ -873,9 +873,9 @@ class CorrelatorOp(object):
         
         # Can we act on this configuration change now?
         if config:
-            ## Set the configuration time - COR commands are for the specified slot in the next second
-            slot = config[2] / 100.0
-            config_time = int(time.time()) + 1 + slot
+            ## Set the configuration time - COR commands are for the specified subslot two seconds from it was received
+            slot = config[0] + config[3] / 100.0
+            config_time = slow + 2
             
             ## Is this command from the future?
             if pipeline_time < config_time:
@@ -906,7 +906,7 @@ class CorrelatorOp(object):
                 
         if config:
             self.log.info("Correlator: New configuration received for tuning %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
-            navg, gain, slot = config
+            _, navg, gain, slot = config
             
             self.navg_tt = int(round(navg/100 * FS // (2*NCHAN*self.ntime_gulp))) * (2*NCHAN*self.ntime_gulp)
             self.navg_seq = self.navg_tt // (2*NCHAN)

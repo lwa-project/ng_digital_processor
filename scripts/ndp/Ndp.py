@@ -80,6 +80,7 @@ class DrxCommand(object):
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
+        self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.subslot \
             = struct.unpack('>BBfBhB', msg.data)
         assert( 1 <= self.beam <= 4 )
@@ -92,7 +93,7 @@ class DrxCommand(object):
 
 class Drx(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'DRX', DrxCommand)
+        SlotCommandProcessor.__init__(self, 'DRX', DrxCommand, exec_delay=1)
         self.config  = config
         self.log     = log
         self.messenger = messenger
@@ -109,13 +110,13 @@ class Drx(SlotCommandProcessor):
             self.cur_filt[i] = 0
             self.cur_gain[i] = 0
             
-    def tune(self, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, subslot=0, internal=False):
+    def tune(self, slot=0, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, subslot=0, internal=False):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Tuning DRX %i-%i: freq=%f,filt=%i,gain=%i @ subslot=%i" % (beam, tuning, freq, filt, gain, subslot))
+        self.log.info("Tuning DRX %i-%i: slot=%i freq=%f,filt=%i,gain=%i @ subslot=%i" % (beam, tuning, slot, freq, filt, gain, subslot))
         
-        self.messenger.drxConfig(beam, tuning, freq, filt, gain, subslot)
+        self.messenger.drxConfig(slot, beam, tuning, freq, filt, gain, subslot)
         
         if not internal:
             self.cur_freq[beam*self.ntuning + tuning] = freq
@@ -124,20 +125,20 @@ class Drx(SlotCommandProcessor):
             
         return True
         
-    def start(self, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
+    def start(self, slot=0, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Starting DRX %i-%i data: freq=%f,filt=%i,gain=%i,subslot=%i" % (beam, tuning, freq, filt, gain, subslot))
+        self.log.info("Starting DRX %i-%i data:slot=%i freq=%f,filt=%i,gain=%i,subslot=%i" % (beam, tuning, slot, freq, filt, gain, subslot))
         
-        ret = self.tune(beam=beam, tuning=tuning, freq=freq, filt=filt, gain=gain, subslot=subslot)
+        ret = self.tune(slot=slot, beam=beam, tuning=tuning, freq=freq, filt=filt, gain=gain, subslot=subslot)
         
         return ret
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain, cmd.subslot)
+            self.start(cmd.slot, cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain, cmd.subslot)
             
     def stop(self):
         self.log.info("Stopping DRX data")
@@ -185,6 +186,7 @@ class Tbf(SlotCommandProcessor):
 
 class BamCommand(object):
     def __init__(self, msg):
+        self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.beam = struct.unpack('>H', msg.data[0:2])[0]
         self.delays = np.ndarray((512,), dtype='>H', buffer=msg.data[2:1026])
         self.gains = np.ndarray((256,2,2), dtype='>H', buffer=msg.data[1026:3074])
@@ -193,7 +195,7 @@ class BamCommand(object):
 
 class Bam(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'BAM', BamCommand)
+        SlotCommandProcessor.__init__(self, 'BAM', BamCommand, exec_delay=1)
         self.config  = config
         self.log     = log
         self.messenger = messenger
@@ -209,17 +211,17 @@ class Bam(SlotCommandProcessor):
             self.cur_delays[i] = [0 for j in range(512)]
             self.cur_gains[i] = [0 for j in range(1024)]
             
-    def start(self, beam, delays, gains, subslot):
-        self.log.info("Setting BAM: beam=%i, subslot=%i" % (beam, subslot))
+    def start(self, slot, beam, delays, gains, subslot):
+        self.log.info("Setting BAM: slot=%i, beam=%i, subslot=%i" % (slot, beam, subslot))
         
-        self.messenger.bamConfig(beam, delays, gains, subslot)
+        self.messenger.bamConfig(slot, beam, delays, gains, subslot)
         
         return True
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.beam-1, cmd.delays, cmd.gains, cmd.subslot)
+            self.start(cmd.slot, cmd.beam-1, cmd.delays, cmd.gains, cmd.subslot)
             
     def stop(self):
         return False
@@ -227,13 +229,14 @@ class Bam(SlotCommandProcessor):
 
 class CorCommand(object):
     def __init__(self, msg):
+        self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.navg, self.gain, self.subslot \
             = struct.unpack('>ihB', msg)
 
 
 class Cor(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'COR', CorCommand)
+        SlotCommandProcessor.__init__(self, 'COR', CorCommand, exec_delay=1)
         self.config  = config
         self.log     = log
         self.messenger = messenger
@@ -247,17 +250,17 @@ class Cor(SlotCommandProcessor):
             self.cur_navg[i] = 0
             self.cur_gain[i] = 0
             
-    def start(self, navg, gain, subslot):
-        self.log.info("Setting COR: navg=%i, gain=%i, subslot=%i" % (navg, gain, subslot))
+    def start(self, slot, navg, gain, subslot):
+        self.log.info("Setting COR: slot=%i, navg=%i, gain=%i, subslot=%i" % (slot, navg, gain, subslot))
         
-        self.messenger.corConfig(navg, gain, subslot)
+        self.messenger.corConfig(slot, navg, gain, subslot)
         
         return True
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.navg, cmd.gain, cmd.subslot)
+            self.start(cmd.slot, cmd.navg, cmd.gain, cmd.subslot)
             
     def stop(self):
         return False
@@ -1915,7 +1918,7 @@ class MsgProcessor(ConsumerThread):
                         self.state['lastlog'] = "STP: Invalid beam"
                         exit_status = 99
                     else:
-                        self.drx.messenger.drxConfig(beam-1, 3-1, 0, 0, 0, 0)
+                        self.drx.messenger.drxConfig(0, beam-1, 3-1, 0, 0, 0, 0)
                         for tuning in range(self.drx.ntuning):
                             self.drx.cur_freq[(beam-1)*self.drx.ntuning + tuning] = 0
                             self.drx.cur_filt[(beam-1)*self.drx.ntuning + tuning] = 0
