@@ -159,7 +159,7 @@ class TbfCommand(object):
 
 class Tbf(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'TBF', TbfCommand, exec_delay=1)
+        SlotCommandProcessor.__init__(self, 'TBF', TbfCommand)
         self.config  = config
         self.log     = log
         self.messenger = messenger
