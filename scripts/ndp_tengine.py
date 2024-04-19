@@ -505,7 +505,8 @@ class TEngineOp(object):
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                self._pending.append( (config_time, config) )
+                idx = bisect.bisect_right(self._pending, (config_time, None))
+                self._pending.insert(idx, (config_time, config))
                 config = None
                 
                 ### Is there something pending?
@@ -530,7 +531,7 @@ class TEngineOp(object):
                 pass
                 
         if config:
-            self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[0], config[1], (pipeline_time-config_time)*100.0)
+            self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[1], config[2], (pipeline_time-config_time)*100.0)
             _, beam, tuning, freq, filt, gain, subslot = config
             if beam != self.beam:
                 self.log.info("TEngine: Not for this beam, skipping")

@@ -31,6 +31,7 @@ import signal
 import logging
 import time
 import os
+import bisect
 import argparse
 import ctypes
 import threading
@@ -615,7 +616,8 @@ class BeamformerOp(object):
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                self._pending.append( (config_time, config) )
+                idx = bisect.bisect_right(self._pending, (config_time, None))
+                self._pending.insert(idx, (config_time, config))
                 config = None
                 
                 ### Is there something pending?
@@ -640,7 +642,7 @@ class BeamformerOp(object):
                 pass
                 
         if config:
-            self.log.info("Beamformer: New configuration received for beam %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
+            self.log.info("Beamformer: New configuration received for beam %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
             _, beam, delays, gains, slot = config
             
             #Search for the "code word" gain pattern which specifies an achromatic observation.
@@ -880,7 +882,8 @@ class CorrelatorOp(object):
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                self._pending.append( (config_time, config) )
+                idx = bisect.bisect_right(self._pending, (config_time, None))
+                self._pending.insert(idx, (config_time, config))
                 config = None
                 
                 ### Is there something pending?
@@ -905,7 +908,7 @@ class CorrelatorOp(object):
                 pass
                 
         if config:
-            self.log.info("Correlator: New configuration received for tuning %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
+            self.log.info("Correlator: New configuration received for tuning (delta = %.1f subslots)", (pipeline_time-config_time)*100.0)
             _, navg, gain, slot = config
             
             self.navg_tt = int(round(navg/100 * FS // (2*NCHAN*self.ntime_gulp))) * (2*NCHAN*self.ntime_gulp)
