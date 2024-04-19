@@ -506,7 +506,7 @@ class TEngineOp(object):
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                idx = bisect.bisect_right(self._pending, (config_time, None))
+                idx = bisect.bisect_right(self._pending, (config_time,))
                 self._pending.insert(idx, (config_time, config))
                 config = None
                 
