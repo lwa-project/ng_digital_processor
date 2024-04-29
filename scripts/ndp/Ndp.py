@@ -1918,7 +1918,8 @@ class MsgProcessor(ConsumerThread):
                         self.state['lastlog'] = "STP: Invalid beam"
                         exit_status = 99
                     else:
-                        self.drx.messenger.drxConfig(0, beam-1, 3-1, 0, 0, 0, 0)
+                        stp_slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
+                        self.drx.messenger.drxConfig(stp_slot, beam-1, 3-1, 0, 0, 0, 0)
                         for tuning in range(self.drx.ntuning):
                             self.drx.cur_freq[(beam-1)*self.drx.ntuning + tuning] = 0
                             self.drx.cur_filt[(beam-1)*self.drx.ntuning + tuning] = 0
