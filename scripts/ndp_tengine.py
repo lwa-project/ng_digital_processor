@@ -27,6 +27,7 @@ import signal
 import logging
 import time
 import os
+import bisect
 import argparse
 import ctypes
 import threading
@@ -494,18 +495,19 @@ class TEngineOp(object):
         # Can we act on this configuration change now?
         if config:
             ## Pull out the beam (something unique to DRX/BAM/COR)
-            beam = config[0]
+            beam = config[1]
             if beam != self.beam:
                 return False
                 
-            ## Set the configuration time - DRX commands are for the specified subslot in the next second
-            subslot = config[-1] / 100.0
-            config_time = int(time.time()) + 1 + subslot
+            ## Set the configuration time - DRX commands are for the specified subslot two seconds from when it was received
+            slot = config[0] + config[-1] / 100.0
+            config_time = slot + 2
             
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                self._pending.append( (config_time, config) )
+                idx = bisect.bisect_right(self._pending, (config_time,))
+                self._pending.insert(idx, (config_time, config))
                 config = None
                 
                 ### Is there something pending?
@@ -530,8 +532,8 @@ class TEngineOp(object):
                 pass
                 
         if config:
-            self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[0], config[1], (pipeline_time-config_time)*100.0)
-            beam, tuning, freq, filt, gain, subslot = config
+            self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[1], config[2], (pipeline_time-config_time)*100.0)
+            _, beam, tuning, freq, filt, gain, subslot = config
             if beam != self.beam:
                 self.log.info("TEngine: Not for this beam, skipping")
                 return False

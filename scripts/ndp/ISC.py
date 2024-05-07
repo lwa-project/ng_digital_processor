@@ -98,10 +98,11 @@ class PipelineMessageServer(object):
             pass
         self.socket.send_string('UTC %s' % utcStartTime)
         
-    def drxConfig(self, beam, tuning, frequency, filter, gain, subslot):
+    def drxConfig(self, slot, beam, tuning, frequency, filter, gain, subslot):
         """
         Send DRX configuration information out to the clients.  This 
         includes:
+          * the execution slot
           * the beam number this update applied to
           * the tuning number this update applied to
           * frequency in Hz
@@ -110,11 +111,12 @@ class PipelineMessageServer(object):
           * execution subslot
         """
         
-        self.socket.send_string('DRX %i %i %.6f %i %i %i' % (beam, tuning, frequency, filter, gain, subslot))
+        self.socket.send_string('DRX %i %i %i %.6f %i %i %i' % (slot, beam, tuning, frequency, filter, gain, subslot))
         
-    def bamConfig(self, beam, delays, gains, subslot):
+    def bamConfig(self, slot, beam, delays, gains, subslot):
         """
         Send BAM configuration information out to the clients.  This includes:
+          * the execution slot
           * the beam number this update applies to
           * the delays as a 1-D numpy array
           * the gains as a 3-D numpy array
@@ -123,17 +125,18 @@ class PipelineMessageServer(object):
         
         bDelays = binascii.hexlify( delays.tostring() ).decode()
         bGains = binascii.hexlify( gains.tostring() ).decode()
-        self.socket.send_string('BAM %i %s %s %i' % (beam, bDelays, bGains, subslot))
+        self.socket.send_string('BAM %i %i %s %s %i' % (slot, beam, bDelays, bGains, subslot))
         
-    def corConfig(self, navg, gain, subslot):
+    def corConfig(self, slot, navg, gain, subslot):
         """
         Send COR configuration information out the clients.  This includes:
+          * the execution slot
           * the integration time in units of subslots
           * the gain
           * the subslot in which the configuration is implemented
         """
         
-        self.socket.send_string('COR %i %i %i' % (navg, gain, subslot))
+        self.socket.send_string('COR %i %i %i %i' % (slot, navg, gain, subslot))
         
     def trigger(self, trigger, samples, mask, local=False):
         """
@@ -260,14 +263,15 @@ class DRXConfigurationClient(PipelineMessageClient):
             return False
         else:
             # Unpack
-            fields    = msg.split(None, 6)
-            beam      = int(fields[1], 10)
-            tuning    = int(fields[2], 10)
-            frequency = float(fields[3])
-            filter    = int(fields[4], 10)
-            gain      = int(fields[5], 10)
-            subslot   = int(fields[6], 10)
-            return beam, tuning, frequency, filter, gain, subslot
+            fields    = msg.split(None, 7)
+            slot      = int(fields[1], 10)
+            beam      = int(fields[2], 10)
+            tuning    = int(fields[3], 10)
+            frequency = float(fields[4])
+            filter    = int(fields[5], 10)
+            gain      = int(fields[6], 10)
+            subslot   = int(fields[7], 10)
+            return slot, beam, tuning, frequency, filter, gain, subslot
 
 
 class BAMConfigurationClient(PipelineMessageClient):
@@ -287,13 +291,14 @@ class BAMConfigurationClient(PipelineMessageClient):
         else:
             # Unpack
             fields = msg.split(None, 5)
-            beam = int(fields[1], 10)
-            delays = numpy.fromstring( binascii.unhexlify(fields[2]), dtype='>H' )
+            slot = int(fields[1], 10)
+            beam = int(fields[2], 10)
+            delays = numpy.fromstring( binascii.unhexlify(fields[3]), dtype='>H' )
             delays.shape = (512,)
-            gains = numpy.fromstring( binascii.unhexlify(fields[3]), dtype='>H' )
+            gains = numpy.fromstring( binascii.unhexlify(fields[4]), dtype='>H' )
             gains.shape = (256,2,2)
-            subslot = int(fields[4], 10)
-            return beam, delays, gains, subslot
+            subslot = int(fields[5], 10)
+            return slot, beam, delays, gains, subslot
 
 
 class CORConfigurationClient(PipelineMessageClient):
@@ -312,11 +317,12 @@ class CORConfigurationClient(PipelineMessageClient):
             return False
         else:
             # Unpack
-            fields  = msg.split(None, 3)
-            navg    = int(fields[0], 10)
-            gain    = int(fields[1], 10)
-            subslot = int(fields[2], 10)
-            return navg, gain, subslot
+            fields  = msg.split(None, 4)
+            slot    = int(fields[1], 10)
+            navg    = int(fields[2], 10)
+            gain    = int(fields[3], 10)
+            subslot = int(fields[4], 10)
+            return slot, navg, gain, subslot
 
 
 class PipelineSynchronizationServer(object):
