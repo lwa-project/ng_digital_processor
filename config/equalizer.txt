@@ -1,1 +1,1 @@
-equalizer_flat.txt
+equalizer_lwana.txt
