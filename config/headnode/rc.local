@@ -7,4 +7,7 @@ iptables-restore < /etc/iptables.rules
 nvidia-smi -pm 1
 nvidia-smi -lgc 1300,1300
 
-exit 0
+# Set CPUs to performance mode
+for i in `seq 0 1 63`; do
+        echo performance > /sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor
+done
