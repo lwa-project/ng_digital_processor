@@ -33,6 +33,7 @@ Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_verbs_py3/pyt
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
+numactl --cpunodebind=0-3 --membind=0-3 -- \
 python3 /usr/local/bin/ndp_tengine.py \
 	 --beam       2 \
 	 --configfile /usr/local/share/ndp/ndp_config.json \
