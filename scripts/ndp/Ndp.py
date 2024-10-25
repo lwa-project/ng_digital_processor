@@ -1708,11 +1708,11 @@ class MsgProcessor(ConsumerThread):
         if key == 'NUM_DRX_TUNINGS':   return self.drx.ntuning
         if args[0] == 'DRX' and args[1] == 'CONFIG':
             beam_tuning = (args[2]-1)*self.drx.ntuning + args[3]-1
-            if args[3] == 'FREQ':
+            if args[4] == 'FREQ':
                 return self.drx.cur_freq[beam_tuning]
-            if args[3] == 'FILTER':
+            if args[4] == 'FILTER':
                 return self.drx.cur_filt[beam_tuning]
-            if args[3] == 'GAIN':
+            if args[4] == 'GAIN':
                 return self.drx.cur_gain[beam_tuning]
         if key == 'NUM_FREQ_CHANS':    return NCHAN
         if key == 'FIR_CHAN_INDEX':    return self._get_next_fir_index()
