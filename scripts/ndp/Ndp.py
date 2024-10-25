@@ -1702,18 +1702,18 @@ class MsgProcessor(ConsumerThread):
         if key == 'NUM_STANDS':        return NSTAND
         if key == 'NUM_SERVERS':       return NSERVER
         if key == 'NUM_BOARDS':        return NBOARD
-        # TODO: NUM_BEAMS
+        if key == 'NUM_BOARDS':        return self.drx.nbeam
         if key == 'BEAM_FIR_COEFFS':   return FIR_NCOEF
         # TODO: T_NOM
         if key == 'NUM_DRX_TUNINGS':   return self.drx.ntuning
         if args[0] == 'DRX' and args[1] == 'CONFIG':
-            tuning = args[2]-1
+            beam_tuning = (args[2]-1)*self.drx.ntuning + args[3]-1
             if args[3] == 'FREQ':
-                return self.drx.cur_freq[tuning]
+                return self.drx.cur_freq[beam_tuning]
             if args[3] == 'FILTER':
-                return self.drx.cur_filt[tuning]
+                return self.drx.cur_filt[beam_tuning]
             if args[3] == 'GAIN':
-                return self.drx.cur_gain[tuning]
+                return self.drx.cur_gain[beam_tuning]
         if key == 'NUM_FREQ_CHANS':    return NCHAN
         if key == 'FIR_CHAN_INDEX':    return self._get_next_fir_index()
         if key == 'FIR':
@@ -1813,7 +1813,7 @@ class MsgProcessor(ConsumerThread):
             #'TBF_TUNING_MASK':
             'NUM_DRX_TUNINGS':    lambda x: struct.pack('>B', x),
             'NUM_FREQ_CHANS':     lambda x: struct.pack('>H', x),
-            #'NUM_BEAMS':
+            'NUM_BEAMS':          lambda x: struct.pack('>B', x),
             'NUM_STANDS':         lambda x: struct.pack('>H', x),
             'NUM_BOARDS':         lambda x: struct.pack('>B', x),
             'NUM_SERVERS':        lambda x: struct.pack('>B', x),
@@ -1855,9 +1855,9 @@ class MsgProcessor(ConsumerThread):
             'GLOBAL_TEMP_MIN':    lambda x: struct.pack('>f', x),
             'GLOBAL_TEMP_AVG':    lambda x: struct.pack('>f', x),
             'CMD_STAT':           lambda x: pack_reply_CMD_STAT(*x),
-            'DRX_CONFIG_FREQ':  lambda x: struct.pack('>f', x),
-            'DRX_CONFIG_FILTER':lambda x: struct.pack('>H', x),
-            'DRX_CONFIG_GAIN':  lambda x: struct.pack('>H', x)
+            'DRX_CONFIG_FREQ':    lambda x: struct.pack('>f', x),
+            'DRX_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
+            'DRX_CONFIG_GAIN':    lambda x: struct.pack('>H', x)
         }[key](value)
         
     def _format_report_result(self, key, value):
