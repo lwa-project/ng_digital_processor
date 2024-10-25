@@ -1702,7 +1702,7 @@ class MsgProcessor(ConsumerThread):
         if key == 'NUM_STANDS':        return NSTAND
         if key == 'NUM_SERVERS':       return NSERVER
         if key == 'NUM_BOARDS':        return NBOARD
-        if key == 'NUM_BOARDS':        return self.drx.nbeam
+        if key == 'NUM_BEAMS':         return self.drx.nbeam
         if key == 'BEAM_FIR_COEFFS':   return FIR_NCOEF
         # TODO: T_NOM
         if key == 'NUM_DRX_TUNINGS':   return self.drx.ntuning
