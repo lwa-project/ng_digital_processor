@@ -424,9 +424,13 @@ class NdpServerMonitorClient(object):
     def get_temperatures(self, slot):
         try:
             sensors = self.read_sensors()
-            return {key: float(sensors[key])
-                    for key in self.config['server']['temperatures']
-                    if  key in sensors}
+            temps =  {key: float(sensors[key])
+                      for key in self.config['server']['temperatures']
+                      if  key in sensors}
+            for key in temps:
+                if temps[key] > 225:
+                    temps[key] = 256 - temps[key]
+            return temps
         except:
             return {'error': float('nan')}
             
