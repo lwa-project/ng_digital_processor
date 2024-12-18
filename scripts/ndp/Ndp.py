@@ -829,7 +829,7 @@ class Snap2MonitorClient(object):
             if self.snap.is_connected() and self.snap.fpga.is_programmed():
                 info['fft_shift'] = self.snap.pfb.get_fft_shift()
                 info['pfb_enabled'] = self.snap.pfb.fir_is_enabled()
-                info['input'] = self.snap.input.get_switch_positions()
+                info['inputs'] = self.snap.input.get_switch_positions()
                 info['eq_tvg_enabled'] = self.snap.eqtvg.get_status()[0]['tvg_enabled']
                 fstat = self.snap.fpga.get_status()[0]
                 info['fw_version'] = fstat['fw_version']
