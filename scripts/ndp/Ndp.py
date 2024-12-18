@@ -836,14 +836,14 @@ class Snap2MonitorClient(object):
                 info['sw_version'] = fstat['sw_version']
                 info['fw_supported'] = fstat['fw_supported']
                 info['flash_md5'] = fstat['flash_firmware_md5']
-        if info['input'] != 'unknown':
+        if info['inputs'] != 'unknown':
             spos = {}
-            for i in info['input']:
+            for i in info['inputs']:
                 try:
                     spos[i] += 1
                 except KeyError:
                     spos[i] = 1
-            info['input'] = spos
+            info['inputs'] = spos
         if json:
             info = json.dumps(info)
         return info
