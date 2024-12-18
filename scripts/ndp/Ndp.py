@@ -806,6 +806,48 @@ class Snap2MonitorClient(object):
         spectra = spectra.reshape(-1, spectra.shape[-1])
         return spectra
         
+    def get_board_status(self, json=False):
+        status = {'fft_overflows': -1, 'clip_count': -1,
+                  'tx_overflow': -1, 'tx_full': -1}
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                status['fft_overflows'] = self.snap.pfb.get_overflow_count()
+                status['clip_count'] = self.snap.eq.clip_count()
+                estat = self.snap.eth.get_status()[0]
+                status['tx_overflow'] = estat['tx_of']
+                status['tx_full'] = estat['tx_full']
+        if json:
+            status = json.dumps(status)
+        return status
+        
+    def get_board_info(self, json=False):
+        info = {'fft_shift': -1, 'pfb_enabled': False, 'inputs': 'unknown',
+                'eq_tvg_enabled': False,
+                'fw_version': 'unknown', 'sw_version': 'unknown',
+                'fw_supported': False, 'flash_md5': 'unknown'}
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                info['fft_shift'] = self.snap.pfb.get_fft_shift()
+                info['pfb_enabled'] = self.snap.pfb.fir_is_enabled()
+                info['input'] = self.snap.input.get_switch_positions()
+                info['eq_tvg_enabled'] = self.snap.eqtvg.get_status()[0]['tvg_enabled']
+                fstat = self.snap.fpga.get_status()[0]
+                info['fw_version'] = fstat['fw_version']
+                info['sw_version'] = fstat['sw_version']
+                info['fw_supported'] = fstat['fw_supported']
+                info['flash_md5'] = fstat['flash_firmware_md5']
+        if info['input'] != 'unknown':
+            spos = {}
+            for i in info['input']:
+                try:
+                    spos[i] += 1
+                except KeyError:
+                    spos[i] = 1
+            info['input'] = spos
+        if json:
+            info = json.dumps(info)
+        return info
+
     # TODO: Configure channel selection (based on FST)
     # TODO: start/stop data flow (remember to call snap.reset() before start)
 
@@ -1758,8 +1800,8 @@ class MsgProcessor(ConsumerThread):
             board = args[1]-1
             if not (0 <= board < NBOARD):
                 raise ValueError("Unknown board number %i"%(board+1))
-            if args[2] == 'STAT': return None # TODO
-            if args[2] == 'INFO': return None # TODO
+            if args[2] == 'STAT': return self.snaps[board].get_board_status(json=True)  
+            if args[2] == 'INFO': return self.snaps[board].get_board_info(json=True)
             if args[2] == 'TEMP':
                 temps = list(self.snaps[board].get_temperatures(slot).values())
                 op = args[3]
@@ -1841,7 +1883,8 @@ class MsgProcessor(ConsumerThread):
             #'BEAM_PEAK':          lambda x: struct.pack('>i', x),
             # TODO: In the spec this is >I ?
             'HEALTH_CHECK':       lambda x: truncate_message(x, 1024),
-            'BOARD_STAT':         lambda x: struct.pack('>L', x),
+            'BOARD_STAT':         lambda x: truncate_message(x, 256),
+            'BOARD_INFO':         lambda x: truncate_message(x, 256),
             'BOARD_TEMP_MAX':     lambda x: struct.pack('>f', x),
             'BOARD_TEMP_MIN':     lambda x: struct.pack('>f', x),
             'BOARD_TEMP_AVG':     lambda x: struct.pack('>f', x),
