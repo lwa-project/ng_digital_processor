@@ -1853,7 +1853,7 @@ class MsgProcessor(ConsumerThread):
             'SUBSYSTEM':          lambda x: x[:3],
             'SERIALNO':           lambda x: x[:5],
             'VERSION':            lambda x: truncate_message(x, 256),
-            'ROACH_CONFIG':       lambda x: truncate_message(x, 1024),
+            'SNAP_CONFIG':        lambda x: truncate_message(x, 1024),
             'TENGINE_CONFIG':     lambda x: truncate_message(x, 1024),
             #'TBF_STATUS':
             #'TBF_TUNING_MASK':
