@@ -806,7 +806,7 @@ class Snap2MonitorClient(object):
         spectra = spectra.reshape(-1, spectra.shape[-1])
         return spectra
         
-    def get_board_status(self, json=False):
+    def get_board_status(self, return_json=False):
         status = {'fft_overflows': -1, 'clip_count': -1,
                   'tx_overflow': -1, 'tx_full': -1}
         with self.access_lock:
@@ -816,11 +816,11 @@ class Snap2MonitorClient(object):
                 estat = self.snap.eth.get_status()[0]
                 status['tx_overflow'] = estat['tx_of']
                 status['tx_full'] = estat['tx_full']
-        if json:
+        if return_json:
             status = json.dumps(status)
         return status
         
-    def get_board_info(self, json=False):
+    def get_board_info(self, return_json=False):
         info = {'fft_shift': -1, 'pfb_enabled': False, 'inputs': 'unknown',
                 'eq_tvg_enabled': False,
                 'fw_version': 'unknown', 'sw_version': 'unknown',
@@ -844,7 +844,7 @@ class Snap2MonitorClient(object):
                 except KeyError:
                     spos[i] = 1
             info['inputs'] = spos
-        if json:
+        if return_json:
             info = json.dumps(info)
         return info
 
@@ -1800,8 +1800,8 @@ class MsgProcessor(ConsumerThread):
             board = args[1]-1
             if not (0 <= board < NBOARD):
                 raise ValueError("Unknown board number %i"%(board+1))
-            if args[2] == 'STAT': return self.snaps[board].get_board_status(json=True)  
-            if args[2] == 'INFO': return self.snaps[board].get_board_info(json=True)
+            if args[2] == 'STAT': return self.snaps[board].get_board_status(return_json=True)
+            if args[2] == 'INFO': return self.snaps[board].get_board_info(return_json=True)
             if args[2] == 'TEMP':
                 temps = list(self.snaps[board].get_temperatures(slot).values())
                 op = args[3]
