@@ -929,7 +929,9 @@ class PacketizeOp(object):
             soffset = toffset % (NPACKET_SET*int(ntime_pkt))
             if soffset != 0:
                 soffset = NPACKET_SET*ntime_pkt - soffset
-            boffset = soffset*nbeam*ntune*npol*2
+            boffset = soffset*nbeam*ntune*npol
+            if nbit == 8:
+                boffset *= 2
             print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
             
             time_tag += soffset*ticksPerSample                  # Correct for offset
