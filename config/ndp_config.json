@@ -19,7 +19,7 @@
         "servers": ["ndp1"],
         "snaps": ["snap01", "snap02"],
         "servers-data": ["ndp1-data1", "ndp1-data2"],
-        "tengines": ["ndp-data1", "ndp-data1", "ndp-data2", "ndp-data2"]
+        "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
     },
     "ipmi": {
         "username": "root",
@@ -88,7 +88,7 @@
         "data_port_base":       10000,
         "firmware":             "/home/ndp/ng_digital_processor/caltech-lwa/snap2_f_200msps_64i_4096c/outputs/snap2_f_200msps_64i_4096c_2023-04-26_1706.fpg", 
         "max_program_attempts": 5,
-        "fft_shift":            8180,
+        "fft_shift":            8191,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
         "bypass_pfb":           false,
         "nchan_packet":         96,
@@ -115,14 +115,14 @@
                 {
                     "pipeline_idx":      2,
                     "recorder_idx":      2,
-                    "cpus":              [6, 8, 9, 10, 11],
+                    "cpus":              [8, 10, 11, 12, 13],
                     "gpus":              [0],
                     "pfb_inverter":      true
                 },
                 {
                     "pipeline_idx":      3,
                     "recorder_idx":      3,
-                    "cpus":              [22, 24, 25, 26, 27],
+                    "cpus":              [24, 26, 27, 28, 29],
                     "gpus":              [1],
                     "pfb_inverter":      true
                 }
@@ -149,7 +149,7 @@
                     "max_bytes_per_sec": 104851000
                 },
                 {
-                    "host":              "ndp2-data1",
+                    "host":              "orville",
                     "port":              11000,
                     "max_bytes_per_sec": 104851000
                 }

@@ -31,6 +31,7 @@ import signal
 import logging
 import time
 import os
+import bisect
 import argparse
 import ctypes
 import threading
@@ -396,7 +397,7 @@ class TriggeredDumpOp(object):
         # HACK TESTING
         dump_time_tag = time_tag
         if (dump_time_tag == 0 and local) or not local:
-            time_offset    = -0.5
+            time_offset    = -4.0
             time_offset_s  = int(time_offset)
             time_offset_us = int(round((time_offset-time_offset_s)*1e6))
             time_offset    = datetime.timedelta(seconds=time_offset_s, microseconds=time_offset_us)
@@ -604,18 +605,19 @@ class BeamformerOp(object):
         # Can we act on this configuration change now?
         if config:
             ## Pull out the tuning (something unique to DRX/BAM/COR)
-            beam = config[0]
+            beam = config[1]
             if beam >= self.nbeam_max:
                 return False
                 
-            ## Set the configuration time - BAM commands are for the specified slot in the next second
-            slot = config[3] / 100.0
-            config_time = int(time.time()) + 1 + slot
+            ## Set the configuration time - BAM commands are for the specified subslot two seconds from when it was received
+            slot = config[0] + config[4] / 100.0
+            config_time = slot + 2
             
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                self._pending.append( (config_time, config) )
+                idx = bisect.bisect_right(self._pending, (config_time,))
+                self._pending.insert(idx, (config_time, config))
                 config = None
                 
                 ### Is there something pending?
@@ -640,8 +642,8 @@ class BeamformerOp(object):
                 pass
                 
         if config:
-            self.log.info("Beamformer: New configuration received for beam %i (delta = %.1f subslots)", config[0], (pipeline_time-config_time)*100.0)
-            beam, delays, gains, slot = config
+            self.log.info("Beamformer: New configuration received for beam %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
+            _, beam, delays, gains, slot = config
             
             #Search for the "code word" gain pattern which specifies an achromatic observation.
             if ( gains[0,:,:] == np.array([[8191, 16383],[32767,65535]]) ).all():
@@ -873,14 +875,15 @@ class CorrelatorOp(object):
         
         # Can we act on this configuration change now?
         if config:
-            ## Set the configuration time - COR commands are for the specified slot in the next second
-            slot = config[2] / 100.0
-            config_time = int(time.time()) + 1 + slot
+            ## Set the configuration time - COR commands are for the specified subslot two seconds from it was received
+            slot = config[0] + config[3] / 100.0
+            config_time = slow + 2
             
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                self._pending.append( (config_time, config) )
+                idx = bisect.bisect_right(self._pending, (config_time,))
+                self._pending.insert(idx, (config_time, config))
                 config = None
                 
                 ### Is there something pending?
@@ -905,8 +908,8 @@ class CorrelatorOp(object):
                 pass
                 
         if config:
-            self.log.info("Correlator: New configuration received for tuning %i (delta = %.1f subslots)", config[1], (pipeline_time-config_time)*100.0)
-            navg, gain, slot = config
+            self.log.info("Correlator: New configuration received for tuning (delta = %.1f subslots)", (pipeline_time-config_time)*100.0)
+            _, navg, gain, slot = config
             
             self.navg_tt = int(round(navg/100 * FS // (2*NCHAN*self.ntime_gulp))) * (2*NCHAN*self.ntime_gulp)
             self.navg_seq = self.navg_tt // (2*NCHAN)
@@ -1103,8 +1106,10 @@ class RetransmitOp(object):
         self.nchan_send = min([self.nchan_max, 384])
         self.nblock_send = self.nchan_max // self.nchan_send
         for sock in self.socks:
+            udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+            udt.set_rate_limit(430000)
             for i in range(self.nblock_send):
-                udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
+                # Recycle transmitters so that we can index easier later on
                 self.udts.append(udt)
                 
     def main(self):
@@ -1141,7 +1146,7 @@ class RetransmitOp(object):
             assert(us_pkt_nchan == self.nchan_send)
             
             igulp_size = nstand*self.ntime_gulp*nchan*npol*8        # complex64
-            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,self.nchan_send,npol)
+            igulp_shape = (nstand*self.nblock_send,self.ntime_gulp,1,self.nchan_send*npol)
             
             seq0 = ihdr['seq0']
             seq = seq0
@@ -1150,6 +1155,19 @@ class RetransmitOp(object):
                 for j in range(self.nblock_send):
                     desc[i*self.nblock_send + j].set_chan0(chan0 + j*self.nchan_send)
                     
+            # Set the output ordering such that we send one subband to all beams
+            # before moving on to the next subband.
+            output_ordering = []
+            for i in range(nstand):
+                for j in range(self.nblock_send):
+                    output_ordering.append(j*nstand + i)
+                    
+            # Offset the pipelines
+            if self.tuning % 2 == 1:
+                output_ordering = deque(output_ordering)
+                output_ordering.rotate(-1)
+                output_ordering = list(output_ordering)
+                
             prev_time = time.time()
             for ispan in iseq.read(igulp_size):
                 if ispan.size < igulp_size:
@@ -1159,11 +1177,11 @@ class RetransmitOp(object):
                 prev_time = curr_time
                 
                 idata = ispan.data_view(np.complex64).reshape(igulp_shape)
-                for i,udt in enumerate(self.udts):
-                    bdata = idata[i,:,:,:]
-                    bdata = bdata.reshape(self.ntime_gulp,1,self.nchan_send*npol)
+                
+                pkt_time_start = time.time()
+                for i in output_ordering:
                     try:
-                        udt.send(desc[i], seq, 1, src_id[i], 1, bdata)
+                        self.udts[i].send(desc[i], seq, 1, src_id[i], 1, idata[i,...])
                     except Exception as e:
                         print(type(self).__name__, "Sending Error beam %i, block %i" % (i//self.nblock_send+1, i%self.nblock_send+1), str(e))
                         
@@ -1214,6 +1232,14 @@ class PacketizeOp(object):
         self.nblock_send = self.nchan_max // self.nchan_send
         nstand, npol = nsnap*32, 2
         
+        # Output packet rate
+        ## nchan_send + npol^2 -> samples per packet
+        samps_per_pkt = self.nchan_send * npol*npol
+        ## dtype (cf32) -> bytes per sample
+        bytes_per_samp = 4*2
+        ## B/s -> pkts/s
+        self.max_pkts_per_sec = int(self.max_bytes_per_sec / bytes_per_samp / samps_per_pkt)
+        
     def main(self):
         cpu_affinity.set_core(self.core)
         if self.gpu != -1:
@@ -1223,7 +1249,9 @@ class PacketizeOp(object):
                                   'ngpu': 1,
                                   'gpu0': BFGetGPU(),})
         
-        with UDPTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
+        with UDPVerbsTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
+            udt.set_rate_limit(self.max_pkts_per_sec)
+            
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
@@ -1256,11 +1284,8 @@ class PacketizeOp(object):
                     
                 ticksPerFrame = navg
                 tInt = navg/FS
-                tBail = tInt - 0.2
                 
                 scale_factor = navg / (2*NCHAN)
-                
-                rate_limit = (3.0*(nchan/72.0)*10/(tInt-0.5)) * 1024**2
                 
                 reset_sequence = True
                 
@@ -1299,14 +1324,6 @@ class PacketizeOp(object):
                             i += nsend
                             npkt -= nsend
                             
-                            bytesSent += self.nblock_send*nsend*(odata.shape[-1]*8 + 32)   # data size -> packet size
-                            while bytesSent/(time.time()-bytesStart) >= rate_limit:
-                                time.sleep(0.001)
-                                
-                            if time.time()-t0 > tBail:
-                                print('WARNING: vis write bail', time.time()-t0, '@', bytesSent/(time.time()-bytesStart)/1024**2, '->', time.time())
-                                break
-                                
                         time_tag += ticksPerFrame
                         
                         curr_time = time.time()
@@ -1536,7 +1553,7 @@ def main(argv):
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
                             tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
-                            ntime_gulp=GSIZE//4, nbeam_max=nbeam,
+                            ntime_gulp=GSIZE, nbeam_max=nbeam,
                             core=cores.pop(0)))
     ops[-2].updatePacketizerPreferences(ops[-1])
     if True:

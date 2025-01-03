@@ -7,7 +7,7 @@ from ndp import ISC
 
 from bifrost.address import Address
 from bifrost.udp_socket import UDPSocket
-from bifrost.packet_capture import PacketCaptureCallback, UDPVerbsCapture as UDPCapture
+from bifrost.packet_capture import PacketCaptureCallback, UDPVerbsCapture, UDPCapture
 from bifrost.packet_writer import HeaderInfo, UDPTransmit
 from bifrost.ring import Ring
 import bifrost.affinity as cpu_affinity
@@ -27,6 +27,7 @@ import signal
 import logging
 import time
 import os
+import bisect
 import argparse
 import ctypes
 import threading
@@ -121,9 +122,9 @@ class CaptureOp(object):
     def main(self):
         seq_callback = PacketCaptureCallback()
         seq_callback.set_ibeam(self.seq_callback)
-        with UDPCapture(*self.args,
-                        sequence_callback=seq_callback,
-                        **self.kwargs) as capture:
+        with UDPVerbsCapture(*self.args,
+                             sequence_callback=seq_callback,
+                             **self.kwargs) as capture:
             while not self.shutdown_event.is_set():
                 status = capture.recv()
         del capture
@@ -494,18 +495,19 @@ class TEngineOp(object):
         # Can we act on this configuration change now?
         if config:
             ## Pull out the beam (something unique to DRX/BAM/COR)
-            beam = config[0]
+            beam = config[1]
             if beam != self.beam:
                 return False
                 
-            ## Set the configuration time - DRX commands are for the specified subslot in the next second
-            subslot = config[-1] / 100.0
-            config_time = int(time.time()) + 1 + subslot
+            ## Set the configuration time - DRX commands are for the specified subslot two seconds from when it was received
+            slot = config[0] + config[-1] / 100.0
+            config_time = slot + 2
             
             ## Is this command from the future?
             if pipeline_time < config_time:
                 ### Looks like it, save it for later
-                self._pending.append( (config_time, config) )
+                idx = bisect.bisect_right(self._pending, (config_time,))
+                self._pending.insert(idx, (config_time, config))
                 config = None
                 
                 ### Is there something pending?
@@ -530,11 +532,17 @@ class TEngineOp(object):
                 pass
                 
         if config:
-            self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[0], config[1], (pipeline_time-config_time)*100.0)
-            beam, tuning, freq, filt, gain, subslot = config
+            self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[1], config[2], (pipeline_time-config_time)*100.0)
+            _, beam, tuning, freq, filt, gain, subslot = config
             if beam != self.beam:
                 self.log.info("TEngine: Not for this beam, skipping")
                 return False
+                
+            if tuning == 2 and freq == 0.0:
+                self.log.info("TEngine: Stopping data output")
+                ACTIVE_DRX_CONFIG.clear()
+                
+                return True
                 
             self.rFreq[tuning] = freq
             self.filt = filt
@@ -639,7 +647,7 @@ class TEngineOp(object):
                 
                 ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*2       # 8+8 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
-                self.oring.resize(ogulp_size, 10*ogulp_size)
+                self.oring.resize(ogulp_size, 25*ogulp_size)
                 
                 ticksPerTime = int(FS) // int(INT_CHAN_BW)
                 base_time_tag = iseq.time_tag
@@ -673,8 +681,8 @@ class TEngineOp(object):
                     tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
-                    act_gain0 = self.gain[0] + 12 - 3*pfb_inverter
-                    act_gain1 = self.gain[1] + 12 - 3*pfb_inverter
+                    act_gain0 = self.gain[0] + 5 - 3*pfb_inverter
+                    act_gain1 = self.gain[1] + 5 - 3*pfb_inverter
                     rel_gain = np.array([1.0, 2**(act_gain0-act_gain1)], dtype=np.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
@@ -879,6 +887,7 @@ class PacketizeOp(object):
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
         with UDPTransmit('drx8', sock=self.osock, core=self.core) as udt:
+            udt.set_rate_limit(22000)
             desc0 = HeaderInfo()
             desc1 = HeaderInfo()
             
@@ -949,7 +958,7 @@ class PacketizeOp(object):
                                          data1[t:t+NPACKET_SET,:,:])
                             except Exception as e:
                                 print(type(self).__name__, 'Sending Error', str(e))
-                                        
+                                
                     time_tag += int(ntime_gulp)*ticksPerSample
                     
                     curr_time = time.time()
@@ -1096,8 +1105,8 @@ def main(argv):
     
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
                          nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
-                         nbeam_max=nbeam, 
-                         buffer_ntime=GSIZE, slot_ntime=19600, core=cores.pop(0)))
+                         nbeam_max=nbeam, buffer_ntime=GSIZE, slot_ntime=19600,
+                         core=cores.pop(0)))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=GSIZE,
                          core=cores[0], gpu=gpus[0]))
     ops.append(ReChannelizerOp(log, gpu_ring, rechan_ring, ntime_gulp=GSIZE,

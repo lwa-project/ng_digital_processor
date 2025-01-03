@@ -80,6 +80,7 @@ class DrxCommand(object):
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
+        self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.subslot \
             = struct.unpack('>BBfBhB', msg.data)
         assert( 1 <= self.beam <= 4 )
@@ -92,7 +93,7 @@ class DrxCommand(object):
 
 class Drx(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'DRX', DrxCommand)
+        SlotCommandProcessor.__init__(self, 'DRX', DrxCommand, exec_delay=1)
         self.config  = config
         self.log     = log
         self.messenger = messenger
@@ -109,13 +110,13 @@ class Drx(SlotCommandProcessor):
             self.cur_filt[i] = 0
             self.cur_gain[i] = 0
             
-    def tune(self, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, subslot=0, internal=False):
+    def tune(self, slot=0, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, subslot=0, internal=False):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Tuning DRX %i-%i: freq=%f,filt=%i,gain=%i @ subslot=%i" % (beam, tuning, freq, filt, gain, subslot))
+        self.log.info("Tuning DRX %i-%i: slot=%i freq=%f,filt=%i,gain=%i @ subslot=%i" % (beam, tuning, slot, freq, filt, gain, subslot))
         
-        self.messenger.drxConfig(beam, tuning, freq, filt, gain, subslot)
+        self.messenger.drxConfig(slot, beam, tuning, freq, filt, gain, subslot)
         
         if not internal:
             self.cur_freq[beam*self.ntuning + tuning] = freq
@@ -124,20 +125,20 @@ class Drx(SlotCommandProcessor):
             
         return True
         
-    def start(self, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
+    def start(self, slot=0, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Starting DRX %i-%i data: freq=%f,filt=%i,gain=%i,subslot=%i" % (beam, tuning, freq, filt, gain, subslot))
+        self.log.info("Starting DRX %i-%i data:slot=%i freq=%f,filt=%i,gain=%i,subslot=%i" % (beam, tuning, slot, freq, filt, gain, subslot))
         
-        ret = self.tune(beam=beam, tuning=tuning, freq=freq, filt=filt, gain=gain, subslot=subslot)
+        ret = self.tune(slot=slot, beam=beam, tuning=tuning, freq=freq, filt=filt, gain=gain, subslot=subslot)
         
         return ret
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain, cmd.subslot)
+            self.start(cmd.slot, cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain, cmd.subslot)
             
     def stop(self):
         self.log.info("Stopping DRX data")
@@ -185,6 +186,7 @@ class Tbf(SlotCommandProcessor):
 
 class BamCommand(object):
     def __init__(self, msg):
+        self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.beam = struct.unpack('>H', msg.data[0:2])[0]
         self.delays = np.ndarray((512,), dtype='>H', buffer=msg.data[2:1026])
         self.gains = np.ndarray((256,2,2), dtype='>H', buffer=msg.data[1026:3074])
@@ -193,7 +195,7 @@ class BamCommand(object):
 
 class Bam(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'BAM', BamCommand)
+        SlotCommandProcessor.__init__(self, 'BAM', BamCommand, exec_delay=1)
         self.config  = config
         self.log     = log
         self.messenger = messenger
@@ -209,17 +211,17 @@ class Bam(SlotCommandProcessor):
             self.cur_delays[i] = [0 for j in range(512)]
             self.cur_gains[i] = [0 for j in range(1024)]
             
-    def start(self, beam, delays, gains, subslot):
-        self.log.info("Setting BAM: beam=%i, subslot=%i" % (beam, subslot))
+    def start(self, slot, beam, delays, gains, subslot):
+        self.log.info("Setting BAM: slot=%i, beam=%i, subslot=%i" % (slot, beam, subslot))
         
-        self.messenger.bamConfig(beam, delays, gains, subslot)
+        self.messenger.bamConfig(slot, beam, delays, gains, subslot)
         
         return True
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.beam-1, cmd.delays, cmd.gains, cmd.subslot)
+            self.start(cmd.slot, cmd.beam-1, cmd.delays, cmd.gains, cmd.subslot)
             
     def stop(self):
         return False
@@ -227,13 +229,14 @@ class Bam(SlotCommandProcessor):
 
 class CorCommand(object):
     def __init__(self, msg):
+        self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.navg, self.gain, self.subslot \
             = struct.unpack('>ihB', msg)
 
 
 class Cor(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'COR', CorCommand)
+        SlotCommandProcessor.__init__(self, 'COR', CorCommand, exec_delay=1)
         self.config  = config
         self.log     = log
         self.messenger = messenger
@@ -247,17 +250,17 @@ class Cor(SlotCommandProcessor):
             self.cur_navg[i] = 0
             self.cur_gain[i] = 0
             
-    def start(self, navg, gain, subslot):
-        self.log.info("Setting COR: navg=%i, gain=%i, subslot=%i" % (navg, gain, subslot))
+    def start(self, slot, navg, gain, subslot):
+        self.log.info("Setting COR: slot=%i, navg=%i, gain=%i, subslot=%i" % (slot, navg, gain, subslot))
         
-        self.messenger.corConfig(navg, gain, subslot)
+        self.messenger.corConfig(slot, navg, gain, subslot)
         
         return True
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.navg, cmd.gain, cmd.subslot)
+            self.start(cmd.slot, cmd.navg, cmd.gain, cmd.subslot)
             
     def stop(self):
         return False
@@ -392,7 +395,7 @@ class NdpServerMonitorClient(object):
         self.log  = log
         self.host = host
         self.host_ipmi = self.host + "-ipmi"
-        self.port = config['mcs']['server']['local_port']
+        self.port = config['mcs']['server']['local_port']+1
         self.sock = _g_zmqctx.socket(zmq.REQ)
         addr = 'tcp://%s:%i' % (self.host,self.port)
         try: self.sock.connect(addr)
@@ -402,7 +405,11 @@ class NdpServerMonitorClient(object):
         self.sock.RCVTIMEO = int(timeout*1000)
         
     def read_sensors(self):
-        ret = self._ipmi_command('sdr')
+        try:
+            ret = self._ipmi_command('sdr')
+        except subprocess.CalledProcessError:
+            ## Catch for the headnode that requies a slightly different method
+            ret = self._shell_command('ipmitool sdr')
         sensors = {}
         for line in ret.split('\n'):
             if '|' not in line:
@@ -417,9 +424,13 @@ class NdpServerMonitorClient(object):
     def get_temperatures(self, slot):
         try:
             sensors = self.read_sensors()
-            return {key: float(sensors[key])
-                    for key in self.config['server']['temperatures']
-                    if  key in sensors}
+            temps =  {key: float(sensors[key])
+                      for key in self.config['server']['temperatures']
+                      if  key in sensors}
+            for key in temps:
+                if temps[key] > 225:
+                    temps[key] = 256 - temps[key]
+            return temps
         except:
             return {'error': float('nan')}
             
@@ -437,7 +448,10 @@ class NdpServerMonitorClient(object):
         
     def _request(self, query):
         try:
-            self.sock.send(query)
+            try:
+                self.sock.send(query)
+            except TypeError:
+                self.sock.send_string(query)
             response = self.sock.recv_json()
         except zmq.error.Again:
             raise RuntimeError("Server '%s' did not respond" % self.host)
@@ -694,6 +708,23 @@ class Snap2MonitorClient(object):
                     pass
         return status
         
+    def is_sending(self):
+        # Is the FPGA sending data out?
+        
+        status = True
+        with self.access_lock:
+            if self.snap.is_connected():
+                try:
+                    summary, flags = self.snap.eth.get_status()
+                    if summary['gpbs'] == 0:
+                        status = False
+                    for key in flags.keys():
+                        if flags[key] == FENG_ERROR_CODE:
+                            status = False
+                except Exception as e:
+                    pass
+        return status
+        
     def configure(self):
         # Configure the FPGA and start data flowing
         
@@ -775,6 +806,48 @@ class Snap2MonitorClient(object):
         spectra = spectra.reshape(-1, spectra.shape[-1])
         return spectra
         
+    def get_board_status(self, return_json=False):
+        status = {'fft_overflows': -1, 'clip_count': -1,
+                  'tx_overflow': -1, 'tx_full': -1}
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                status['fft_overflows'] = self.snap.pfb.get_overflow_count()
+                status['clip_count'] = self.snap.eq.clip_count()
+                estat = self.snap.eth.get_status()[0]
+                status['tx_overflow'] = estat['tx_of']
+                status['tx_full'] = estat['tx_full']
+        if return_json:
+            status = json.dumps(status)
+        return status
+        
+    def get_board_info(self, return_json=False):
+        info = {'fft_shift': -1, 'pfb_enabled': False, 'inputs': 'unknown',
+                'eq_tvg_enabled': False,
+                'fw_version': 'unknown', 'sw_version': 'unknown',
+                'fw_supported': False, 'flash_md5': 'unknown'}
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                info['fft_shift'] = self.snap.pfb.get_fft_shift()
+                info['pfb_enabled'] = self.snap.pfb.fir_is_enabled()
+                info['inputs'] = self.snap.input.get_switch_positions()
+                info['eq_tvg_enabled'] = self.snap.eqtvg.get_status()[0]['tvg_enabled']
+                fstat = self.snap.fpga.get_status()[0]
+                info['fw_version'] = fstat['fw_version']
+                info['sw_version'] = fstat['sw_version']
+                info['fw_supported'] = fstat['fw_supported']
+                info['flash_md5'] = fstat['flash_firmware_md5']
+        if info['inputs'] != 'unknown':
+            spos = {}
+            for i in info['inputs']:
+                try:
+                    spos[i] += 1
+                except KeyError:
+                    spos[i] = 1
+            info['inputs'] = spos
+        if return_json:
+            info = json.dumps(info)
+        return info
+
     # TODO: Configure channel selection (based on FST)
     # TODO: start/stop data flow (remember to call snap.reset() before start)
 
@@ -904,8 +977,8 @@ class MsgProcessor(ConsumerThread):
                      'SERVER_STARTUP_FAILED':      (0x09,'Server startup failed'),
                      'SERVER_SHUTDOWN_FAILED':     (0x0A,'Server shutdown failed'), 
                      'PIPELINE_STARTUP_FAILED':    (0x0B,'Pipeline startup failed'),
-                     'ADC_CALIBRATION_FAILED':     (0x0C,'ADC offset calibration failed'),
-                     'ROACH_FFT_SYNC_FAILED':      (0x0D,'Roach FFT window out of sync'),
+                     'SNAP2_CALIBRATION_FAILED':   (0x0C,'ADC calibration failed'),
+                     'SNAP2_INTERNAL_ERROR':       (0x0D,'Internal SNAP2 error condition'),
                      'PIPLINE_PROCESSING_ERROR':   (0x0E,'Pipeline processing error')}
         code, msg = state_map[state]
         self.state['lastlog'] = '%s: Finished with error' % cmd
@@ -1231,6 +1304,37 @@ class MsgProcessor(ConsumerThread):
             time.sleep(0.1)
             slot += 1
             
+    @staticmethod
+    def _combine_status(summary, info, new_summary, new_info):
+        """
+        Combine together an old summary/info pair with a new summary/info while
+        respecting the hiererarchy of summaries:
+         * normal is overridden by warning and error
+         * warning overrides normal but not error
+         * error overrides normal and warning
+         * if the new summary is the same as the old summary and is either
+           warning or error then the infos are combined.
+        """
+        
+        if new_summary == 'ERROR':
+            if summary != 'ERROR':
+                info = ''
+            if len(info):
+                info += ', '
+            summary = 'ERROR'
+            info += new_info
+            
+        elif new_summary == 'WARNING':
+            if summary == 'NORMAL':
+                summary = 'WARNING'
+                info = ''
+            if summary == 'WARNING':
+                if len(info):
+                    info += ', '
+                info += new_info
+                
+        return summary, info
+        
     def run_monitor(self):
         self.log.info("Starting monitor thread")
         
@@ -1254,6 +1358,11 @@ class MsgProcessor(ConsumerThread):
             problems_found = False
             
             if self.ready:
+                ## Initial state
+                msg = None
+                status = 'NORMAL'
+                info = 'System operating normally'
+                
                 ## Check the servers
                 found = {'drx':[], 'tengine':[]}
                 for host in list(pipelines.keys()):
@@ -1295,115 +1404,161 @@ class MsgProcessor(ConsumerThread):
                 ### T-engines
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
+                    force_recheck = True
+                    
+                    self.log.info("Monitor BAIL")
                     continue
                 total_tengine_bw = {0:0, 1:0, 2:0, 3:0}
                 for host,name,side,loss,txbw in found['tengine']:
                     total_tengine_bw[side] += txbw
-                    if loss > 0.01:    # >1% packet loss
+                    if loss > 0.10:    # >10% packet loss
                         problems_found = True
                         msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
-                        if self.state['status'] != 'ERROR':
-                            self.state['lastlog'] = msg
-                            self.state['status'] = 'WARNING'
-                            self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
+                        self.log.error(msg)
+                    elif loss > 0.01:    # >1% packet loss
+                        problems_found = True
+                        msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
+                        new_status = 'WARNING'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
                 for side in range(n_beams):
                     if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'ERROR'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                 if len(found['tengine']) != n_beams:
                     problems_found = True
                     msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), n_beams)
-                    self.state['lastlog'] = msg
-                    self.state['status']  = 'ERROR'
-                    self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                    new_status = 'ERROR'
+                    new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                    status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
                     
                 ### DRX pipelines
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
+                    force_recheck = True
+                    
+                    self.log.info("Monitor BAIL")
                     continue
                 total_drx_bw = {0:0, 1:0, 2:0, 3:0}
                 total_drx_inactive = {0:0, 1:0, 2:0, 3:0}
                 for host,name,side,loss,txbw,cact in found['drx']:
                     total_drx_bw[side] += txbw
                     total_drx_inactive[side] += (1 if txbw == 0 else 0)
-                    if loss > 0.01:    # >1% packet loss
+                    if loss > 0.10:    # > 10% packet loss
                         problems_found = True
                         msg = "%s, DRX-%i -- RX loss of %.1f%%" % (host, side, loss*100.0)
-                        if self.state['status'] != 'ERROR':
-                            self.state['lastlog'] = msg
-                            self.state['status'] = 'WARNING'
-                            self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
+                        self.log.error(msg)
+                    elif loss > 0.01:    # >1% packet loss
+                        problems_found = True
+                        msg = "%s, DRX-%i -- RX loss of %.1f%%" % (host, side, loss*100.0)
+                        new_status = 'WARNING'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
                     if self.drx.cur_freq[side] > 0 and not cact:
                         problems_found = True
                         msg = "%s, DRX-%i -- Correlator not running" % (host, side)
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'ERROR'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                 for side in range(n_tunings):
                     if self.drx.cur_freq[side] > 0 and total_drx_inactive[side] > 0:
                         problems_found = True
                         msg = "DRX-%i -- TX rate of %.1f MB/s" % (side, total_drx_bw[side]/1024.0**2)
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'ERROR'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                 if len(found['drx']) != n_tunings:
                     problems_found = True
                     msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings)
-                    if self.state['status'] != 'ERROR':
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'WARNING'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                    new_status = 'WARNING'
+                    new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                    status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.warning(msg)
                     
                 ## Check the snap boards
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
+                    force_recheck = True
+                    
+                    self.log.info("Monitor BAIL")
                     continue
                 snaps_programmed = self.snaps.is_programmed()
                 if not all(snaps_programmed):
                     problems_found = True
                     msg = "Found %s SNAP2 board(s) not programmed" % (len(snaps_programmed) - sum(snaps_programmed),)
-                    self.state['lastlog'] = msg
-                    self.state['status']  = 'ERROR'
-                    self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                    new_status = 'ERROR'
+                    new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
+                    status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
                 else:
                     snaps_ok = self.snaps.is_ok()
                     if not all(snaps_ok):
                         problems_found = True
                         msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'ERROR'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        new_status = 'ERROR'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                        
+                    else:
+                        snaps_sending = self.snaps.is_sending()
+                        if not all(snaps_sending):
+                            problems_found = True
+                            msg = "Found %s SNAP2 board(s) not sending data" % (len(snaps_sending) - sum(snaps_sending),)
+                            new_status = 'ERROR'
+                            new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
+                            status, info = self._combine_status(status, info, new_status, new_info)
+                            self.log.error(msg)
+                            
                 ## De-assert anything that we can de-assert
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
+                    force_recheck = True
+                    
+                    self.log.info("Monitor BAIL")
                     continue
-                if not problems_found:
+                if problems_found:
+                    self.log.info('problems_found: %s', problems_found)
+                    self.log.info('info.find(0x0E): %i', self.state['info'].find('0x0E'))
+                else:
                     if self.state['status'] == 'WARNING':
                         msg = 'Warning condition(s) cleared'
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'NORMAL'
-                        self.state['info']    = msg
+                        status = 'NORMAL'
+                        info   = msg
                         self.log.info(msg)
-                    elif self.state['status'] == 'ERROR' and self.state['info'].find('0x0E') != -1:
+                    elif self.state['status'] == 'ERROR' \
+                         and self.state['info'].find('0x0D') == -1 \
+                         and self.state['info'].find('0x0E') != -1:
                         msg = 'Pipeline error condition(s) cleared, dropping back to warning'
-                        self.state['lastlog'] = msg
-                        self.state['status']  = 'WARNING'
-                        self.state['info']    = '%s! 0x%02X! %s' % ('WARNING', 0x0E, msg)
+                        status = 'WARNING'
+                        info   = '%s! 0x%02X! %s' % ('WARNING', 0x0E, msg)
                         self.log.info(msg)
                 force_recheck = False
+                
+                # Final state
+                if not self.ready:
+                    ## Deal with the system shutting down in the middle of a poll
+                    force_recheck = True
+                    
+                    self.log.info("Monitor BAIL")
+                if msg is not None:
+                    self.state['lastlog'] = msg
+                self.state['status'] = status
+                self.state['info']   = info
                 
                 self.log.info("Monitor OK")
                 time.sleep(self.config['monitor_interval'])
@@ -1419,6 +1574,11 @@ class MsgProcessor(ConsumerThread):
         while not self.shutdown_event.is_set():
             slot = MCS2.get_current_slot()
             
+            # Initial state
+            msg = None
+            status = 'NORMAL'
+            info = 'System operating normally'
+            
             # Note: Actually just flattening lists, not summing
             server_temps = sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
             # Remove error values before reducing
@@ -1427,20 +1587,21 @@ class MsgProcessor(ConsumerThread):
                 server_temps = [float('nan')]
             server_temps_max = np.max(server_temps)
             if server_temps_max > self.config['server']['temperature_shutdown']:
-                self.state['lastlog'] = 'Temperature shutdown -- server'
-                self.state['status']  = 'ERROR'
-                self.state['info']    = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
-                                                            'Server temperature shutdown')
+                msg = 'Temperature shutdown -- server'
+                new_status = 'ERROR'
+                new_info   = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
+                                                 'Server temperature shutdown')
+                status, info = self._combine_status(status, info, new_status, new_info)
                 if server_temps_max > self.config['server']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
             elif server_temps_max > self.config['server']['temperature_warning']:
-                if self.state['status'] != 'ERROR':
-                    self.state['lastlog'] = 'Temperature warning -- server'
-                    self.state['status']  = 'WARNING'
-                    self.state['info']    = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
-                                                                'Server temperature warning')
+                msg = 'Temperature warning -- server'
+                new_status = 'WARNING'
+                new_info   = '%s! 0x%02X! %s' % ('SERVER_TEMP_MAX', 0x01,
+                                                 'Server temperature warning')
+                status, info = self._combine_status(status, info, new_status, new_info)
                     
             # Note: Actually just flattening lists, not summing
             snap_temps  = sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
@@ -1450,21 +1611,29 @@ class MsgProcessor(ConsumerThread):
                 snap_temps = [float('nan')]
             snap_temps_max  = np.max(snap_temps)
             if snap_temps_max > self.config['snap']['temperature_shutdown']:
-                self.state['lastlog'] = 'Temperature shutdown -- snap'
-                self.state['status']  = 'ERROR'
-                self.state['info']    = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
-                                                            'Board temperature shutdown')
+                msg = 'Temperature shutdown -- snap'
+                new_status = 'ERROR'
+                new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
+                                                 'Board temperature shutdown')
+                status, info = self._combine_status(status, info, new_status, new_info)
                 if snap_temps_max > self.config['snap']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
             elif snap_temps_max > self.config['snap']['temperature_warning']:
-                if self.status['status'] != 'ERROR':
-                    self.state['lastlog'] = 'Temperature warning -- snap'
-                    self.state['status']  = 'WARNING'
-                    self.state['info']    = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
-                                                                'Board temperature warning')
-                    
+                msg = 'Temperature warning -- snap'
+                new_status = 'WARNING'
+                new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
+                                                 'Board temperature warning')
+                status, info = self._combine_status(status, info, new_status, new_info)
+                
+            # Final state
+            if status != 'NORMAL':
+                if msg is not None:
+                    self.state['lastlog'] = msg
+                self.state['status'] = status
+                self.state['info']   = info
+                
             self.log.info("Failsafe OK")
             time.sleep(self.config['failsafe_interval'])
             
@@ -1579,18 +1748,18 @@ class MsgProcessor(ConsumerThread):
         if key == 'NUM_STANDS':        return NSTAND
         if key == 'NUM_SERVERS':       return NSERVER
         if key == 'NUM_BOARDS':        return NBOARD
-        # TODO: NUM_BEAMS
+        if key == 'NUM_BEAMS':         return self.drx.nbeam
         if key == 'BEAM_FIR_COEFFS':   return FIR_NCOEF
         # TODO: T_NOM
         if key == 'NUM_DRX_TUNINGS':   return self.drx.ntuning
         if args[0] == 'DRX' and args[1] == 'CONFIG':
-            tuning = args[2]-1
-            if args[3] == 'FREQ':
-                return self.drx.cur_freq[tuning]
-            if args[3] == 'FILTER':
-                return self.drx.cur_filt[tuning]
-            if args[3] == 'GAIN':
-                return self.drx.cur_gain[tuning]
+            beam_tuning = (args[2]-1)*self.drx.ntuning + args[3]-1
+            if args[4] == 'FREQ':
+                return self.drx.cur_freq[beam_tuning]
+            if args[4] == 'FILTER':
+                return self.drx.cur_filt[beam_tuning]
+            if args[4] == 'GAIN':
+                return self.drx.cur_gain[beam_tuning]
         if key == 'NUM_FREQ_CHANS':    return NCHAN
         if key == 'FIR_CHAN_INDEX':    return self._get_next_fir_index()
         if key == 'FIR':
@@ -1631,10 +1800,10 @@ class MsgProcessor(ConsumerThread):
             board = args[1]-1
             if not (0 <= board < NBOARD):
                 raise ValueError("Unknown board number %i"%(board+1))
-            if args[2] == 'STAT': return None # TODO
-            if args[2] == 'INFO': return None # TODO
+            if args[2] == 'STAT': return self.snaps[board].get_board_status(return_json=True)
+            if args[2] == 'INFO': return self.snaps[board].get_board_info(return_json=True)
             if args[2] == 'TEMP':
-                temps = self.snaps[board].get_temperatures(slot).values()
+                temps = list(self.snaps[board].get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
             if args[2] == 'FIRMWARE': return self.config['snap']['firmware']
@@ -1642,15 +1811,20 @@ class MsgProcessor(ConsumerThread):
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
-            if not (0 <= svr < NSERVER):
+            if not (-1 <= svr < NSERVER):
                 raise ValueError("Unknown server number %i"%(svr+1))
-            if args[2] == 'HOSTNAME': return self.servers[svr].host
+            if svr == -1:
+                sobj = self.headnode[0]
+            else:
+                sobj = self.servers[svr]
+            if args[2] == 'HOSTNAME': return sobj.host
             # TODO: This request() should raise exceptions on failure
             # TODO: Change to .status(), .info()?
-            if args[2] == 'STAT': return self.servers[svr].get_status()
-            if args[2] == 'INFO': return self.servers[svr].get_info()
+            if args[2] == 'STAT': return sobj.get_status(slot)
+            if args[2] == 'INFO': return sobj.get_info(slot)
+            if args[2] == 'SOFTWARE': return sobj.get_software(slot)
             if args[2] == 'TEMP':
-                temps = self.servers[svr].get_temperatures(slot).values()
+                temps = list(sobj.get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
             raise KeyError
@@ -1658,8 +1832,9 @@ class MsgProcessor(ConsumerThread):
             if args[1] == 'TEMP':
                 temps = []
                 # Note: Actually just flattening lists, not summing
-                temps += sum(self.snaps.get_temperatures(slot).values(), [])
-                temps += sum(self.servers.get_temperatures(slot).values(), [])
+                temps += sum([list(v) for v in self.headnode.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
                 temps = [val for val in temps if not math.isnan(val)]
                 if len(temps) == 0: # If all values were nan (exceptional!)
@@ -1678,13 +1853,13 @@ class MsgProcessor(ConsumerThread):
             'SUBSYSTEM':          lambda x: x[:3],
             'SERIALNO':           lambda x: x[:5],
             'VERSION':            lambda x: truncate_message(x, 256),
-            'ROACH_CONFIG':       lambda x: truncate_message(x, 1024),
+            'SNAP_CONFIG':        lambda x: truncate_message(x, 1024),
             'TENGINE_CONFIG':     lambda x: truncate_message(x, 1024),
             #'TBF_STATUS':
             #'TBF_TUNING_MASK':
             'NUM_DRX_TUNINGS':    lambda x: struct.pack('>B', x),
             'NUM_FREQ_CHANS':     lambda x: struct.pack('>H', x),
-            #'NUM_BEAMS':
+            'NUM_BEAMS':          lambda x: struct.pack('>B', x),
             'NUM_STANDS':         lambda x: struct.pack('>H', x),
             'NUM_BOARDS':         lambda x: struct.pack('>B', x),
             'NUM_SERVERS':        lambda x: struct.pack('>B', x),
@@ -1708,7 +1883,8 @@ class MsgProcessor(ConsumerThread):
             #'BEAM_PEAK':          lambda x: struct.pack('>i', x),
             # TODO: In the spec this is >I ?
             'HEALTH_CHECK':       lambda x: truncate_message(x, 1024),
-            'BOARD_STAT':         lambda x: struct.pack('>L', x),
+            'BOARD_STAT':         lambda x: truncate_message(x, 256),
+            'BOARD_INFO':         lambda x: truncate_message(x, 256),
             'BOARD_TEMP_MAX':     lambda x: struct.pack('>f', x),
             'BOARD_TEMP_MIN':     lambda x: struct.pack('>f', x),
             'BOARD_TEMP_AVG':     lambda x: struct.pack('>f', x),
@@ -1718,15 +1894,17 @@ class MsgProcessor(ConsumerThread):
             'SERVER_TEMP_MAX':    lambda x: struct.pack('>f', x),
             'SERVER_TEMP_MIN':    lambda x: struct.pack('>f', x),
             'SERVER_TEMP_AVG':    lambda x: struct.pack('>f', x),
+            'SERVER_STAT':        lambda x: struct.pack('>Q', int(x)),
+            'SERVER_INFO':        lambda x: truncate_message(x, 256),
             'SERVER_SOFTWARE':    lambda x: truncate_message(x, 256),
             'SERVER_HOSTNAME':    lambda x: truncate_message(x, 256),
             'GLOBAL_TEMP_MAX':    lambda x: struct.pack('>f', x),
             'GLOBAL_TEMP_MIN':    lambda x: struct.pack('>f', x),
             'GLOBAL_TEMP_AVG':    lambda x: struct.pack('>f', x),
             'CMD_STAT':           lambda x: pack_reply_CMD_STAT(*x),
-            'DRX_CONFIG_FREQ':  lambda x: struct.pack('>f', x),
-            'DRX_CONFIG_FILTER':lambda x: struct.pack('>H', x),
-            'DRX_CONFIG_GAIN':  lambda x: struct.pack('>H', x)
+            'DRX_CONFIG_FREQ':    lambda x: struct.pack('>f', x),
+            'DRX_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
+            'DRX_CONFIG_GAIN':    lambda x: struct.pack('>H', x)
         }[key](value)
         
     def _format_report_result(self, key, value):
@@ -1780,19 +1958,23 @@ class MsgProcessor(ConsumerThread):
                     self.state['lastlog'] = "STP: Subsystem is not ready"
                     exit_status = 99
             elif mode.startswith('BEAM'):
-                self.state['lastlog'] = "UNIMPLEMENTED STP request"
-                exit_status = -1 # TODO: Implement this
-                ## Get the beam
-                #beam = int(mode[4:], 10)
-                ## Build a dummy BAM command that is all zeros for delay/gain on request beam
-                #msg.data = struct.pack('>H', beam)
-                #msg.data += '\x00'*(1024+2048+2)
-                ## Set tuning 1 and send
-                #msg.data[-2] = struct.pack('>B', 1)
-                #exit_status = self.bam.process_command(msg)
-                ## Change to tuning 2 and send again
-                #msg.data[-2] = struct.pack('>B', 2)
-                #exit_status |= self.bam.process_command(msg)
+                if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
+                    # Get the beam
+                    beam = int(mode[4:], 10)
+                    if beam < 1 or beam > self.drx.nbeam:
+                        self.state['lastlog'] = "STP: Invalid beam"
+                        exit_status = 99
+                    else:
+                        stp_slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
+                        self.drx.messenger.drxConfig(stp_slot, beam-1, 3-1, 0, 0, 0, 0)
+                        for tuning in range(self.drx.ntuning):
+                            self.drx.cur_freq[(beam-1)*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_filt[(beam-1)*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_gain[(beam-1)*self.drx.ntuning + tuning] = 0
+                        exit_status = 0
+                else:
+                    self.state['lastlog'] = "STP: Subsystem is not ready"
+                    exit_status = 99
             elif mode == 'COR':
                 self.state['lastlog'] = "UNIMPLEMENTED STP request"
                 exit_status = -1 # TODO: Implement this

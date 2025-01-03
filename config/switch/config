@@ -24,12 +24,16 @@ no aaa root
 username admin privilege 15 role network-admin secret sha512 $6$uhtNpzVR.fg4DL/p$N6SmJfAqWwTKaaI25Kcyig0K36ZHKEFRkg9/Tsu3QZmwuyFKOg6bF3aVY4v7RDVcmIn7JbPJ7gLAvgzZC5Stb.
 !
 interface Ethernet1
+   flowcontrol receive on
 !
 interface Ethernet2
+   flowcontrol receive on
 !
 interface Ethernet3
+   flowcontrol receive on
 !
 interface Ethernet4
+   flowcontrol receive on
 !
 interface Ethernet6/1
 !
@@ -226,6 +230,12 @@ interface Management1
 !
 interface Vlan1
    ip pim sparse-mode
+!
+mac address-table static e8eb.d396.8cdc vlan 1 interface Ethernet29
+mac address-table static e8eb.d396.8cd0 vlan 1 interface Ethernet30
+mac address-table static e8eb.d396.8cda vlan 1 interface Ethernet31
+mac address-table static e8eb.d396.8cd8 vlan 1 interface Ethernet32
+mac address-table static e8eb.d396.8cd6 vlan 1 interface Ethernet34
 !
 ip routing
 !
