@@ -462,6 +462,7 @@ class TEngineOp(object):
         self.rFreq = [30e6, 60e6]
         self.filt = 7
         self.nchan_out = FILTER2CHAN[self.filt]
+        self.out_dtype = 'ci4'
         
         coeffs = np.array([ 0.0111580, -0.0074330,  0.0085684, -0.0085984,  0.0070656, -0.0035905, 
                            -0.0020837,  0.0099858, -0.0199800,  0.0316360, -0.0443470,  0.0573270, 
@@ -548,6 +549,7 @@ class TEngineOp(object):
             self.filt = filt
             self.nchan_out = FILTER2CHAN[filt]
             self.gain[tuning] = gain
+            self.out_dtype = 'ci4'
             
             chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
             fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
@@ -645,7 +647,7 @@ class TEngineOp(object):
                 ishape = (self.ntime_gulp,nchan,nbeam,npol)
                 self.iring.resize(igulp_size, 10*igulp_size)
                 
-                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*2       # 8+8 complex
+                ogulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*1       # 4+4 complex
                 oshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                 self.oring.resize(ogulp_size, 25*ogulp_size)
                 
@@ -674,6 +676,7 @@ class TEngineOp(object):
                     ohdr['gain0']    = self.gain[0]
                     ohdr['gain1']    = self.gain[1]
                     ohdr['filter']   = self.filt
+                    ohdr['nbit']     = 4 if self.out_dtype == 'ci4' else 8
                     ohdr_str = json.dumps(ohdr)
                     
                     # Update the channels to pull in
@@ -701,7 +704,7 @@ class TEngineOp(object):
                                 
                                 ## Setup and load
                                 idata = ispan.data_view(np.complex64).reshape(ishape)
-                                odata = ospan.data_view('ci8').reshape(oshape)
+                                odata = ospan.data_view(self.out_dtype).reshape(oshape)
                                 
                                 ## Prune the data ahead of the IFFT
                                 try:
@@ -782,7 +785,7 @@ class TEngineOp(object):
                                 try:
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                 except NameError:
-                                    qdata = BFArray(shape=fdata.shape, native=False, dtype='ci8', space='cuda')
+                                    qdata = BFArray(shape=fdata.shape, native=False, dtype=self.out_dtype, space='cuda')
                                     Quantize(fdata, qdata, scale=8./(2**act_gain0 * np.sqrt(self.nchan_out)))
                                     
                                 ## Save
@@ -806,7 +809,8 @@ class TEngineOp(object):
                                 copy_array(self.sampleCount, sample_count)
                                 
                                 ### New output size/shape
-                                ngulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*2               # 8+8 complex
+                                gfactor = 1 if self.out_dtype == 'ci4' else 2
+                                ngulp_size = self.ntime_gulp*self.nchan_out*nbeam*ntune*npol*gfactor               # 4+4 or 8+8 complex
                                 nshape = (self.ntime_gulp*self.nchan_out,nbeam,ntune,npol)
                                 if ngulp_size != ogulp_size:
                                     ogulp_size = ngulp_size
@@ -886,46 +890,53 @@ class PacketizeOp(object):
         
         self.size_proclog.update({'nseq_per_gulp': ntime_gulp})
         
-        with UDPTransmit('drx8', sock=self.osock, core=self.core) as udt:
-            udt.set_rate_limit(22000)
-            desc0 = HeaderInfo()
-            desc1 = HeaderInfo()
+        desc0 = HeaderInfo()
+        desc1 = HeaderInfo()
+        
+        was_active = False
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tostring())
             
-            was_active = False
-            for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+            self.sequence_proclog.update(ihdr)
+            
+            self.log.info("Writer: Start of new sequence: %s", str(ihdr))
+            
+            time_tag = ihdr['time_tag']
+            cfreq0   = ihdr['cfreq0']
+            cfreq1   = ihdr['cfreq1']
+            bw       = ihdr['bw']
+            gain0    = ihdr['gain0']
+            gain1    = ihdr['gain1']
+            filt     = ihdr['filter']
+            nbeam    = ihdr['nbeam']
+            ntune    = ihdr['ntune']
+            npol     = ihdr['npol']
+            fdly     = (ihdr['fir_size'] - 1) / 2.0
+            nbit     = ihdr['nbit']
+            time_tag0 = iseq.time_tag
+            time_tag  = time_tag0
+            igulp_size = ntime_gulp*nbeam*ntune*npol
+            
+            in_dtype = 'ci4' if nbit == 4 else 'ci8'
+            out_fmt = 'drx' if nbit == 4 else 'drx8'
+            if nbit == 8:
+                igulp_size *= 2
                 
-                self.sequence_proclog.update(ihdr)
-                
-                self.log.info("Writer: Start of new sequence: %s", str(ihdr))
-                
-                time_tag = ihdr['time_tag']
-                cfreq0   = ihdr['cfreq0']
-                cfreq1   = ihdr['cfreq1']
-                bw       = ihdr['bw']
-                gain0    = ihdr['gain0']
-                gain1    = ihdr['gain1']
-                filt     = ihdr['filter']
-                nbeam    = ihdr['nbeam']
-                ntune    = ihdr['ntune']
-                npol     = ihdr['npol']
-                fdly     = (ihdr['fir_size'] - 1) / 2.0
-                time_tag0 = iseq.time_tag
-                time_tag  = time_tag0
-                igulp_size = ntime_gulp*nbeam*ntune*npol
-                
-                # Figure out where we need to be in the buffer to be at a frame boundary
-                NPACKET_SET = 4
-                ticksPerSample = int(FS) // int(bw)
-                toffset = int(time_tag0) // ticksPerSample
-                soffset = toffset % (NPACKET_SET*int(ntime_pkt))
-                if soffset != 0:
-                    soffset = NPACKET_SET*ntime_pkt - soffset
-                boffset = soffset*nbeam*ntune*npol*2
-                print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
-                
-                time_tag += soffset*ticksPerSample                  # Correct for offset
-                time_tag -= int(round(fdly*ticksPerSample))         # Correct for FIR filter delay
+            # Figure out where we need to be in the buffer to be at a frame boundary
+            NPACKET_SET = 4
+            ticksPerSample = int(FS) // int(bw)
+            toffset = int(time_tag0) // ticksPerSample
+            soffset = toffset % (NPACKET_SET*int(ntime_pkt))
+            if soffset != 0:
+                soffset = NPACKET_SET*ntime_pkt - soffset
+            boffset = soffset*nbeam*ntune*npol*2
+            print('!!', '@', self.beam0, toffset, '->', (toffset*int(round(bw))), ' or ', soffset, ' and ', boffset, ' at ', ticksPerSample)
+            
+            time_tag += soffset*ticksPerSample                  # Correct for offset
+            time_tag -= int(round(fdly*ticksPerSample))         # Correct for FIR filter delay
+            
+            with UDPTransmit(out_fmt, sock=self.osock, core=self.core) as udt:
+                udt.set_rate_limit(22000)
                 
                 prev_time = time.time()
                 desc0.set_decimation(int(FS)//int(bw))
@@ -942,7 +953,7 @@ class PacketizeOp(object):
                     prev_time = curr_time
                     
                     shape = (-1,nbeam,ntune,npol)
-                    data = ispan.data_view('ci8').reshape(shape)
+                    data = ispan.data_view(in_dtype).reshape(shape)
                     
                     data0 = data[:,:,0,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
                     data1 = data[:,:,1,:].reshape(-1,ntime_pkt,nbeam*npol).transpose(0,2,1).copy()
