@@ -45,7 +45,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbf_recorder_idx":  0,
                 "cor_recorder_idx":  4,
-                "cpus":              [16, 18, 19, 20, 21],
+                "cpus":              [16, 18, 19, 30, 31],
                 "gpus":              [1]
             }
     ],
