@@ -31,7 +31,7 @@
                 "capture_bandwidth": 36.75e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
-                "tengine_idx":       [0, 1, 2, 3],
+                "tengine_idx":       [24, 26, 27, 28, 29],
                 "tbf_recorder_idx":  0,
                 "cor_recorder_idx":  4,
                 "cpus":              [0, 2, 3, 4, 5],
@@ -74,7 +74,7 @@
         "gpu_ids":         [0, 1],
         "disk_ids":        ["/"],
         "data_ports":      [10000, 10000, 10000, 10000],
-        "data_ifaces":     ["enp1s0np0", "enp129s0np0", "enp1s0np0", "enp129s0np0"],
+        "data_ifaces":     ["enp161s0f0np0", "enp161s0f1np1", "enp161s0f0np0", "enp161s0f1np1"],
         "startup_timeout": 240,
         "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
                          "SYS_Air_Inlet",  "SYS_Air_Outlet",
@@ -101,7 +101,7 @@
                 {
                     "pipeline_idx":      0,
                     "recorder_idx":      0,
-                    "cpus":              [0, 2, 3, 4, 5],
+                    "cpus":              [24, 26, 27, 28, 29],
                     "gpus":              [0],
                     "pfb_inverter":      true
                 },
@@ -115,14 +115,14 @@
                 {
                     "pipeline_idx":      2,
                     "recorder_idx":      2,
-                    "cpus":              [8, 10, 11, 12, 13],
+                    "cpus":              [28, 28, 28, 30, 31],
                     "gpus":              [0],
                     "pfb_inverter":      true
                 },
                 {
                     "pipeline_idx":      3,
                     "recorder_idx":      3,
-                    "cpus":              [24, 26, 27, 28, 29],
+                    "cpus":              [20, 20, 20, 22, 23],
                     "gpus":              [1],
                     "pfb_inverter":      true
                 }

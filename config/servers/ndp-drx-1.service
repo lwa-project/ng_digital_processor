@@ -35,7 +35,7 @@ Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=/usr/local/bin
 
 ExecStart=/bin/bash -ec '\
-numactl --cpunodebind=4-7 --membind=4-7 -- \
+numactl --cpunodebind=1 --membind=1 -- \
 python3 /usr/local/bin/ndp_drx.py \
 	 --tuning     1 \
 	 --configfile /usr/local/share/ndp/ndp_config.json \

@@ -3,6 +3,9 @@
 # Rules for routing traffic from the nodes out
 iptables-restore < /etc/iptables.rules
 
+ethtool -A enp161s0f0np0 rx off
+ethtool -A enp161s0f1np1 rx off
+
 # Limit the GPU clocks
 nvidia-smi -pm 1
 nvidia-smi -lgc 1300,1300

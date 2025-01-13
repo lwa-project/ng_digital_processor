@@ -1,8 +1,11 @@
 #!/bin/sh
 
+ethtool -A enp161s0f0np0 rx off
+ethtool -A enp161s0f1np1 rx off
+
 # Add ARP entries for the two headnode data interfaces
-arp -s 192.168.40.10 e8:eb:d3:96:8c:d0
-arp -s 192.168.40.210 e8:eb:d3:96:8c:dc
+arp -s 192.168.40.10  08:c0:eb:8c:47:64
+arp -s 192.168.40.210  08:c0:eb:8c:47:65
 
 # Add an ARP entry for Orville
 arp -s 192.168.40.46 e8:eb:d3:96:8c:d6
