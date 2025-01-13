@@ -31,10 +31,10 @@
                 "capture_bandwidth": 36.75e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
-                "tengine_idx":       [24, 26, 27, 28, 29],
+                "tengine_idx":       [0, 1, 2, 3],
                 "tbf_recorder_idx":  0,
                 "cor_recorder_idx":  4,
-                "cpus":              [0, 2, 3, 4, 5],
+                "cpus":              [24, 26, 27, 28, 29],
                 "gpus":              [0]
             }, 
             {
