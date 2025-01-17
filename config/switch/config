@@ -231,10 +231,10 @@ interface Management1
 interface Vlan1
    ip pim sparse-mode
 !
-mac address-table static e8eb.d396.8cdc vlan 1 interface Ethernet29
-mac address-table static e8eb.d396.8cd0 vlan 1 interface Ethernet30
-mac address-table static e8eb.d396.8cda vlan 1 interface Ethernet31
-mac address-table static e8eb.d396.8cd8 vlan 1 interface Ethernet32
+mac address-table static 08c0.eb8c.4765 vlan 1 interface Ethernet29
+mac address-table static 08c0.eb8c.4764 vlan 1 interface Ethernet30
+mac address-table static 08c0.eba2.79ad vlan 1 interface Ethernet31
+mac address-table static 08c0.eba2.79ac vlan 1 interface Ethernet32
 mac address-table static e8eb.d396.8cd6 vlan 1 interface Ethernet34
 !
 ip routing
