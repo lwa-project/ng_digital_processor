@@ -1101,7 +1101,7 @@ def main(argv):
     GSIZE = 1960
     nchan_max = int(round(sum([c['capture_bandwidth'] for c in drxConfigs])/CHAN_BW))    # Subtly different from what is in ndp_drx.py
     
-    nblock = int(round(drxConfig['capture_bandwidth']/CHAN_BW)) // 512
+    nblock = int(round(drxConfig['capture_bandwidth']/CHAN_BW)) // 384
     nblock = max([nblock, 1])
     
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
