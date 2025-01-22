@@ -1250,7 +1250,7 @@ class PacketizeOp(object):
                                   'gpu0': BFGetGPU(),})
         
         with UDPVerbsTransmit('cor_%i' % self.nchan_send, sock=self.sock, core=self.core) as udt:
-            #udt.set_rate_limit(self.max_pkts_per_sec)
+            udt.set_rate_limit(self.max_pkts_per_sec)
             
             desc = []
             for i in range(self.nblock_send):
@@ -1553,7 +1553,7 @@ def main(argv):
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
                             tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
-                            ntime_gulp=GSIZE, nbeam_max=nbeam,
+                            ntime_gulp=GSIZE//2, nbeam_max=nbeam,
                             core=cores.pop(0)))
     ops[-2].updatePacketizerPreferences(ops[-1])
     if True:
