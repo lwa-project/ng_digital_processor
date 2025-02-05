@@ -549,7 +549,7 @@ class TEngineOp(object):
             self.filt = filt
             self.nchan_out = FILTER2CHAN[filt]
             self.gain[tuning] = gain
-            self.out_dtype = 'ci4'
+            self.out_dtype = 'ci8' if high_dr else 'ci4'
             
             chan0 = int(self.rFreq[tuning] / INT_CHAN_BW + 0.5) - self.nchan_out//2
             fDiff = freq - (chan0 + 0.5*(self.nchan_out-1))*INT_CHAN_BW - (1-self.nchan_out%2) * INT_CHAN_BW / 2
