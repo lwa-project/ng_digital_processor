@@ -13,7 +13,7 @@ from uuid import uuid4
 from collections import deque
 
 
-__version__ = '0.6'
+__version__ = '0.7'
 __all__ = ['logException', 'PipelineMessageServer', 'StartTimeClient', 'TriggerClient',
            'DRXConfigurationClient', 'BAMConfigurationClient',
            'CORConfigurationClient', 'PipelineSynchronizationServer',
@@ -98,7 +98,7 @@ class PipelineMessageServer(object):
             pass
         self.socket.send_string('UTC %s' % utcStartTime)
         
-    def drxConfig(self, slot, beam, tuning, frequency, filter, gain, subslot):
+    def drxConfig(self, slot, beam, tuning, frequency, filter, gain, high_dir, subslot):
         """
         Send DRX configuration information out to the clients.  This 
         includes:
@@ -108,10 +108,11 @@ class PipelineMessageServer(object):
           * frequency in Hz
           * filter code
           * gain setting
+          * high dynamic range flag
           * execution subslot
         """
         
-        self.socket.send_string('DRX %i %i %i %.6f %i %i %i' % (slot, beam, tuning, frequency, filter, gain, subslot))
+        self.socket.send_string('DRX %i %i %i %.6f %i %i %i %i' % (slot, beam, tuning, frequency, filter, gain, high_dr, subslot))
         
     def bamConfig(self, slot, beam, delays, gains, subslot):
         """
@@ -270,8 +271,9 @@ class DRXConfigurationClient(PipelineMessageClient):
             frequency = float(fields[4])
             filter    = int(fields[5], 10)
             gain      = int(fields[6], 10)
-            subslot   = int(fields[7], 10)
-            return slot, beam, tuning, frequency, filter, gain, subslot
+            high_dr   = int(fields[7], 10)
+            subslot   = int(fields[8], 10)
+            return slot, beam, tuning, frequency, filter, gain, high_dr, subslot
 
 
 class BAMConfigurationClient(PipelineMessageClient):
