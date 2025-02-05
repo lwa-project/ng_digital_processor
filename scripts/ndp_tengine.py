@@ -533,7 +533,7 @@ class TEngineOp(object):
                 
         if config:
             self.log.info("TEngine: New configuration received for beam %i, tuning %i (delta = %.1f subslots)", config[1], config[2], (pipeline_time-config_time)*100.0)
-            _, beam, tuning, freq, filt, gain, subslot = config
+            _, beam, tuning, freq, filt, gain, high_dr, subslot = config
             if beam != self.beam:
                 self.log.info("TEngine: Not for this beam, skipping")
                 return False

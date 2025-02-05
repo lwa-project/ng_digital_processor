@@ -81,13 +81,14 @@ class DrxCommand(object):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
         self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
-        self.beam, self.tuning, self.freq, self.filt, self.gain, self.subslot \
-            = struct.unpack('>BBfBhB', msg.data)
+        self.beam, self.tuning, self.freq, self.filt, self.gain, self.high_dr, self.subslot \
+            = struct.unpack('>BBfBhBB', msg.data)
         assert( 1 <= self.beam <= 4 )
         assert( 1 <= self.tuning <= 2 )
         # TODO: Check allowed range of freq
         assert( 0 <= self.filt    <= 8 )
         assert( 0 <= self.gain    <= 15 )
+        assert( 0 <= self.high_dr <= 1 )
         assert( 0 <= self.subslot <= 99)
 
 
@@ -103,48 +104,52 @@ class Drx(SlotCommandProcessor):
         self.cur_freq = [0]*self.nbeam*self.ntuning
         self.cur_filt = [0]*self.nbeam*self.ntuning
         self.cur_gain = [0]*self.nbeam*self.ntuning
+        self.cur_hdr  = [0]*self.nbeam*self.ntuning
         
     def _reset_state(self):
         for i in range(self.nbeam*self.ntuning):
             self.cur_freq[i] = 0
             self.cur_filt[i] = 0
             self.cur_gain[i] = 0
+            self.cur_hdr[i]  = 0
             
-    def tune(self, slot=0, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, subslot=0, internal=False):
+    def tune(self, slot=0, beam=0, tuning=0, freq=38.00e6, filt=1, gain=1, high_dr=0, subslot=0, internal=False):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Tuning DRX %i-%i: slot=%i freq=%f,filt=%i,gain=%i @ subslot=%i" % (beam, tuning, slot, freq, filt, gain, subslot))
+        self.log.info("Tuning DRX %i-%i: slot=%i freq=%f,filt=%i,gain=%i,high_dr=%i @ subslot=%i" % (beam, tuning, slot, freq, filt, gain, high_dr, subslot))
         
-        self.messenger.drxConfig(slot, beam, tuning, freq, filt, gain, subslot)
+        self.messenger.drxConfig(slot, beam, tuning, freq, filt, gain, high_dr, subslot)
         
         if not internal:
             self.cur_freq[beam*self.ntuning + tuning] = freq
             self.cur_filt[beam*self.ntuning + tuning] = filt
             self.cur_gain[beam*self.ntuning + tuning] = gain
+            self.cur_hdr[beam*self.ntuning + tuning] = high_dr
             
         return True
         
-    def start(self, slot=0, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, subslot=0):
+    def start(self, slot=0, beam=0, tuning=0, freq=59.98e6, filt=1, gain=1, high_dr=0, subslot=0):
         ## Convert to the DP frequency scale
         freq = FS * int(freq / FS * 2**32) / 2**32
         
-        self.log.info("Starting DRX %i-%i data:slot=%i freq=%f,filt=%i,gain=%i,subslot=%i" % (beam, tuning, slot, freq, filt, gain, subslot))
+        self.log.info("Starting DRX %i-%i data:slot=%i freq=%f,filt=%i,gain=%i,high_dr=%i,subslot=%i" % (beam, tuning, slot, freq, filt, gain, high_dr, subslot))
         
-        ret = self.tune(slot=slot, beam=beam, tuning=tuning, freq=freq, filt=filt, gain=gain, subslot=subslot)
+        ret = self.tune(slot=slot, beam=beam, tuning=tuning, freq=freq, filt=filt, gain=gain, high_dr=high_dr, subslot=subslot)
         
         return ret
         
     def execute(self, cmds):
         for cmd in cmds:
             # Note: Converts from 1-based to 0-based tuning
-            self.start(cmd.slot, cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain, cmd.subslot)
+            self.start(cmd.slot, cmd.beam-1, cmd.tuning-1, cmd.freq, cmd.filt, cmd.gain, cmd.high_dr, cmd.subslot)
             
     def stop(self):
         self.log.info("Stopping DRX data")
         self.cur_freq = [0]*self.nbeam*self.ntuning
         self.cur_filt = [0]*self.nbeam*self.ntuning
         self.cur_gain = [0]*self.nbeam*self.ntuning
+        self.cur_hdr  = [0]*self.nbeam*self.ntuning
         self.log.info("DRX stopped")
         return 0
 
@@ -1760,6 +1765,8 @@ class MsgProcessor(ConsumerThread):
                 return self.drx.cur_filt[beam_tuning]
             if args[4] == 'GAIN':
                 return self.drx.cur_gain[beam_tuning]
+            if args[4] == 'HIGH_DR':
+                return self.drx.cur_hdr[beam_tuning]
         if key == 'NUM_FREQ_CHANS':    return NCHAN
         if key == 'FIR_CHAN_INDEX':    return self._get_next_fir_index()
         if key == 'FIR':
@@ -1966,11 +1973,12 @@ class MsgProcessor(ConsumerThread):
                         exit_status = 99
                     else:
                         stp_slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
-                        self.drx.messenger.drxConfig(stp_slot, beam-1, 3-1, 0, 0, 0, 0)
+                        self.drx.messenger.drxConfig(stp_slot, beam-1, 3-1, 0, 0, 0, 0, 0)
                         for tuning in range(self.drx.ntuning):
                             self.drx.cur_freq[(beam-1)*self.drx.ntuning + tuning] = 0
                             self.drx.cur_filt[(beam-1)*self.drx.ntuning + tuning] = 0
                             self.drx.cur_gain[(beam-1)*self.drx.ntuning + tuning] = 0
+                            self.drx.cur_hdr[(beam-1)*self.drx.ntuning + tuning] = 0
                         exit_status = 0
                 else:
                     self.state['lastlog'] = "STP: Subsystem is not ready"
