@@ -7,8 +7,8 @@ network:
       dhcp4: true
     enp129s0np0:
       dhcp4: true
-      routes:
-      - to: 239.168.40.0/24
     enp1s0np0:
       dhcp4: true
+      routes:
+      - to: 239.168.40.0/24
   version: 2
