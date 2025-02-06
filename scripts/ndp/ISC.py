@@ -98,7 +98,7 @@ class PipelineMessageServer(object):
             pass
         self.socket.send_string('UTC %s' % utcStartTime)
         
-    def drxConfig(self, slot, beam, tuning, frequency, filter, gain, high_dir, subslot):
+    def drxConfig(self, slot, beam, tuning, frequency, filter, gain, high_dr, subslot):
         """
         Send DRX configuration information out to the clients.  This 
         includes:
@@ -264,7 +264,7 @@ class DRXConfigurationClient(PipelineMessageClient):
             return False
         else:
             # Unpack
-            fields    = msg.split(None, 7)
+            fields    = msg.split(None, 8)
             slot      = int(fields[1], 10)
             beam      = int(fields[2], 10)
             tuning    = int(fields[3], 10)
