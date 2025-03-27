@@ -26,6 +26,10 @@
 192.168.40.46 orville
 
 # Multicast data network
+239.168.40.10   mcg40s0-data1 mcg40-data1
+239.168.40.11   mcg40s1-data1
+239.168.40.210  mcg40s0-data2 mcg40-data2
+239.168.40.211  mcg40s1-data2
 239.168.40.41   mcg40s41-data mcg40-dr1
 239.168.40.42   mcg40s42-data mcg40-dr2
 239.168.40.43   mcg40s43-data mcg40-dr3
