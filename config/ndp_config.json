@@ -17,8 +17,12 @@
     },
     "host": {
         "servers": ["ndp1"],
-        "snaps": ["snap01", "snap02"],
-        "servers-data": ["ndp1-data1", "ndp1-data2"],
+        "zcus": ["zcu01", "zcu02", "zcu03", "zcu04",
+                 "zcu05", "zcu06", "zcu07", "zcu08",
+                 "zcu09", "zcu10", "zcu11", "zcu12",
+                 "zcu13", "zcu14", "zcu15", "zcu16"],
+        "servers-data": ["ndp1-data1", "ndp1-data2", "ndp2-data1", "ndp2-data2",
+                         "ndp3-data1", "ndp3-data2", "ndp4-data1", "ndp4-data2"],
         "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
     },
     "ipmi": {
@@ -28,7 +32,7 @@
     "drx": [
             {
                 "first_channel":     640,
-                "capture_bandwidth": 36.75e6,
+                "capture_bandwidth": 9.1875e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -36,10 +40,76 @@
                 "cor_recorder_idx":  4,
                 "cpus":              [0, 2, 3, 4, 5],
                 "gpus":              [0]
-            }, 
+            },
+            {
+                "first_channel":     1024,
+                "capture_bandwidth": 9.1875e6,
+                "beam_count":        4,
+                "pipeline_idx":      1,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbf_recorder_idx":  0,
+                "cor_recorder_idx":  4,
+                "cpus":              [16, 18, 19, 20, 21],
+                "gpus":              [1]
+            },
+            {
+                "first_channel":     1408,
+                "capture_bandwidth": 9.1875e6,
+                "beam_count":        4,
+                "pipeline_idx":      0,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbf_recorder_idx":  0,
+                "cor_recorder_idx":  4,
+                "cpus":              [0, 2, 3, 4, 5],
+                "gpus":              [0]
+            },
+            {
+                "first_channel":     1792,
+                "capture_bandwidth": 9.1875e6,
+                "beam_count":        4,
+                "pipeline_idx":      1,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbf_recorder_idx":  0,
+                "cor_recorder_idx":  4,
+                "cpus":              [16, 18, 19, 20, 21],
+                "gpus":              [1]
+            },
             {
                 "first_channel":     2176,
-                "capture_bandwidth": 36.75e6,
+                "capture_bandwidth": 9.1875e6,
+                "beam_count":        4,
+                "pipeline_idx":      0,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbf_recorder_idx":  0,
+                "cor_recorder_idx":  4,
+                "cpus":              [0, 2, 3, 4, 5],
+                "gpus":              [0]
+            },
+            {
+                "first_channel":     2560,
+                "capture_bandwidth": 9.1875e6,
+                "beam_count":        4,
+                "pipeline_idx":      1,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbf_recorder_idx":  0,
+                "cor_recorder_idx":  4,
+                "cpus":              [16, 18, 19, 20, 21],
+                "gpus":              [1]
+            },
+            {
+                "first_channel":     2944,
+                "capture_bandwidth": 9.1875e6,
+                "beam_count":        4,
+                "pipeline_idx":      0,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbf_recorder_idx":  0,
+                "cor_recorder_idx":  4,
+                "cpus":              [0, 2, 3, 4, 5],
+                "gpus":              [0]
+            },
+            {
+                "first_channel":     3328,
+                "capture_bandwidth": 9.1875e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -74,7 +144,7 @@
         "gpu_ids":         [0, 1],
         "disk_ids":        ["/"],
         "data_ports":      [10000, 10000, 10000, 10000],
-        "data_ifaces":     ["enp1s0np0", "enp129s0np0", "enp1s0np0", "enp129s0np0"],
+        "data_ifaces":     ["p2p1", "p8p1", "p2p1", "p8p1"],
         "startup_timeout": 240,
         "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
                          "SYS_Air_Inlet",  "SYS_Air_Outlet",
@@ -83,7 +153,7 @@
         "temperature_shutdown": 85.0,
         "temperature_scram":    90.0
     },
-    "snap": {
+    "zcu": {
         "data_ip_base":         "192.168.40.101",
         "data_port_base":       10000,
         "firmware":             "/home/ndp/ng_digital_processor/caltech-lwa/snap2_f_200msps_64i_4096c/outputs/snap2_f_200msps_64i_4096c_2023-04-26_1706.fpg", 

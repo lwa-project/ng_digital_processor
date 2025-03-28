@@ -56,8 +56,8 @@ class CaptureOp(object):
         self.log    = log
         self.args   = args
         self.kwargs = kwargs
-        self.nsnap = self.kwargs['nsnap']
-        del self.kwargs['nsnap']
+        self.nzcu = self.kwargs['nzcu']
+        del self.kwargs['nzcu']
         self.shutdown_event = threading.Event()
     def shutdown(self):
         self.shutdown_event.set()
@@ -67,14 +67,14 @@ class CaptureOp(object):
         time_tag_ptr[0] = time_tag
         print("++++++++++++++++ seq0     =", seq0)
         print("                 time_tag =", time_tag)
-        nchan = nchan * (self.kwargs['nsrc'] // self.nsnap)
+        nchan = nchan * (self.kwargs['nsrc'] // self.nzcu)
         hdr = {'time_tag': time_tag,
                'seq0':     seq0, 
                'chan0':    chan0,
                'nchan':    nchan,
                'cfreq':    (chan0 + 0.5*(nchan-1))*CHAN_BW,
                'bw':       nchan*CHAN_BW,
-               'nstand':   self.nsnap*32,
+               'nstand':   self.nzcu*16,
                'npol':     2,
                'complex':  True,
                'nbit':     4}
@@ -89,7 +89,7 @@ class CaptureOp(object):
         return 0
     def main(self):
         seq_callback = PacketCaptureCallback()
-        seq_callback.set_snap2(self.seq_callback)
+        seq_callback.set_zcu102(self.seq_callback)
         with UDPCapture(*self.args,
                         sequence_callback=seq_callback,
                         **self.kwargs) as capture:
@@ -508,12 +508,12 @@ class TriggeredDumpOp(object):
 
 class BeamformerOp(object):
     # Note: Input data are: [time,chan,ant,pol,cpx,8bit]
-    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nbeam_max=1, nsnap=16, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
+    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nbeam_max=1, nzcu=16, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
         self.log   = log
         self.iring = iring
         self.oring = oring
         self.tuning = tuning
-        ninput_max = nsnap*32#*2
+        ninput_max = nzcu*16#*2
         self.ntime_gulp = ntime_gulp
         self.guarantee = guarantee
         self.core = core
@@ -540,7 +540,7 @@ class BeamformerOp(object):
             BFSetGPU(self.gpu)
         ## Metadata
         nchan = self.nchan_max
-        nstand, npol = nsnap*32, 2
+        nstand, npol = nzcu*16, 2
         ## Object
         self.bfbf = LinAlg()
         ## Delays and gains
@@ -548,7 +548,7 @@ class BeamformerOp(object):
         self.gains = np.zeros((self.nbeam_max*2,nstand*npol), dtype=np.float64)
         self.cgains = BFArray(shape=(self.nbeam_max*2,nchan,nstand*npol), dtype=np.complex64, space='cuda')
         ## Intermidiate arrays
-        ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
+        ## NOTE:  This should be OK to do since the zcus only output one bandwidth per INI
         self.bdata = BFArray(shape=(nchan,self.nbeam_max*2,self.ntime_gulp), dtype=np.complex64, space='cuda')
         self.ldata = BFArray(shape=(self.ntime_gulp,self.nbeam_max,nchan,2), dtype=self.bdata.dtype, space='cuda')
         self.bdata_reorder_shape = (nchan,self.nbeam_max,2,self.ntime_gulp)
@@ -793,12 +793,12 @@ class BeamformerOp(object):
 
 class CorrelatorOp(object):
     # Note: Input data are: [time,chan,ant,pol,cpx,8bit]
-    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nsnap=16, ntime_gulp=2500, utc_start_tt=None, guarantee=True, core=-1, gpu=-1):
+    def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nzcu=16, ntime_gulp=2500, utc_start_tt=None, guarantee=True, core=-1, gpu=-1):
         self.log   = log
         self.iring = iring
         self.oring = oring
         self.tuning = tuning
-        ninput_max = nsnap*32#*2
+        ninput_max = nzcu*16#*2
         self.ntime_gulp = ntime_gulp
         self.guarantee = guarantee
         self.core = core
@@ -835,12 +835,12 @@ class CorrelatorOp(object):
         self.decim = 4
         nchan = self.nchan_max
         ochan = nchan//self.decim
-        nstand, npol = nsnap*32, 2
+        nstand, npol = nzcu*16, 2
         ## Object
         self.bfcc = Btcc()
         self.bfcc.init(8, int(np.ceil((self.ntime_gulp/16.0))*16), ochan, nstand, npol, 1)
         ## Intermediate arrays
-        ## NOTE:  This should be OK to do since the snaps only output one bandwidth per INI
+        ## NOTE:  This should be OK to do since the zcus only output one bandwidth per INI
         self.udata = BFArray(shape=(int(np.ceil((self.ntime_gulp/16.0))*16),ochan,nstand*npol), dtype='ci8', space='cuda')
         self.cdata = BFArray(shape=(ochan,nstand*(nstand+1)//2*npol*npol), dtype='ci32', space='cuda')
         self.tdata = BFArray(shape=(nstand*(nstand+1)//2,ochan,npol*npol), dtype='ci32', space='cuda')
@@ -1201,7 +1201,7 @@ class RetransmitOp(object):
 
 class PacketizeOp(object):
     # Note: Input data are: [time,beam,pol,iq]
-    def __init__(self, log, iring, osock, tuning=0, nchan_max=256, nsnap=16, npkt_gulp=128, core=-1, gpu=-1, max_bytes_per_sec=None):
+    def __init__(self, log, iring, osock, tuning=0, nchan_max=256, nzcu=16, npkt_gulp=128, core=-1, gpu=-1, max_bytes_per_sec=None):
         self.log   = log
         self.iring = iring
         self.sock  = osock
@@ -1230,7 +1230,7 @@ class PacketizeOp(object):
         ## Metadata
         self.nchan_send = min([self.nchan_max, 192])
         self.nblock_send = self.nchan_max // self.nchan_send
-        nstand, npol = nsnap*32, 2
+        nstand, npol = nzcu*16, 2
         
         # Output packet rate
         ## nchan_send + npol^2 -> samples per packet
@@ -1391,7 +1391,7 @@ def main(argv):
     config = Ndp.parse_config_file(args.configfile)
     ntuning = len(config['drx'])
     drxConfig = config['drx'][tuning]
-    snapConfig = config['snap']
+    zcuConfig = config['zcu']
     
     log = logging.getLogger(__name__)
     logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
@@ -1477,10 +1477,10 @@ def main(argv):
         taddrs.append( config['host']['tengines'][tengine_idx] )
         tports.append( config['server']['data_ports' ][tngConfig['pipeline_idx']] + i + 1)
         
-    nsnap_tot = len(config['host']['snaps'])
+    nzcu_tot = len(config['host']['zcus'])
     nserver    = len(config['host']['servers'])
-    nsnap, snap0 = nsnap_tot, 0
-    nstand = nsnap*32
+    nzcu, zcu0 = nzcu_tot, 0
+    nstand = nzcu*16
     nbeam = drxConfig['beam_count']
     cores = drxConfig['cpus']
     gpus  = drxConfig['gpus']
@@ -1490,7 +1490,7 @@ def main(argv):
     log.info("COR address:  %s:%i", vaddr, vport)
     for taddr,tport in zip(taddrs, tports):
         log.info("TNG address:  %s:%i", taddr, tport)
-    log.info("Snaps:        %i-%i", snap0+1, snap0+nsnap)
+    log.info("ZCUs:        %i-%i", zcu0+1, zcu0+nzcu)
     log.info("Tunings:      %i (of %i)", tuning+1, ntuning)
     log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
     log.info("GPUs:         %s", ' '.join([str(v) for v in gpus]))
@@ -1524,7 +1524,7 @@ def main(argv):
         tsocks[-1].connect(ctaddr)
         
     nchan_max  = int(round(drxConfig['capture_bandwidth']/CHAN_BW))
-    nsrc       = nchan_max // snapConfig['nchan_packet'] * nsnap
+    nsrc       = nchan_max // zcuConfig['nchan_packet'] * nzcu
     tbf_bw_max = obw/ntuning
     cor_bw_max = vbw//ntuning
     
@@ -1534,8 +1534,8 @@ def main(argv):
     obuf_size  = int(np.ceil(tbf_buffer_secs*CHAN_BW/GSIZE)) * ogulp_size
     tbf_ring.resize(ogulp_size, obuf_size)
     
-    ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
-                         nsrc=nsrc, nsnap=nsnap, src0=snap0, max_payload_size=6500,
+    ops.append(CaptureOp(log, fmt="zcu102", sock=isock, ring=capture_ring,
+                         nsrc=nsrc, nzcu=nzcu, src0=zcu0, max_payload_size=6500,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
     ops.append(BufferCopyOp(log, capture_ring, tbf_ring,
                             tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
@@ -1549,7 +1549,7 @@ def main(argv):
                          ntime_gulp=GSIZE, core=cores[0], gpu=gpus[0]))
     ops.append(BeamformerOp(log=log, iring=gpu_ring, oring=tengine_ring,
                             tuning=tuning, ntime_gulp=GSIZE,
-                            nsnap=nsnap, nchan_max=nchan_max, nbeam_max=nbeam,
+                            nzcu=nzcu, nchan_max=nchan_max, nbeam_max=nbeam,
                             core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(RetransmitOp(log=log, osocks=tsocks, iring=tengine_ring,
                             tuning=tuning, ntuning=ntuning, nchan_max=nchan_max,
@@ -1564,11 +1564,11 @@ def main(argv):
             pcore = ccore
         ops.append(CorrelatorOp(log=log, iring=gpu_ring, oring=vis_ring, 
                                 tuning=tuning, ntime_gulp=GSIZE,
-                                nsnap=nsnap, nchan_max=nchan_max,
+                                nzcu=nzcu, nchan_max=nchan_max,
                                 utc_start_tt=utc_start_tt,
                                 core=ccore, gpu=tuning % 2))
         ops.append(PacketizeOp(log=log, iring=vis_ring, osock=vsock,
-                               tuning=tuning, nsnap=nsnap, nchan_max=nchan_max//4,
+                               tuning=tuning, nzcu=nzcu, nchan_max=nchan_max//4,
                                npkt_gulp=1, core=pcore, gpu=tuning % 2,
                                max_bytes_per_sec=cor_bw_max))
         ops[-2].updatePacketizerPreferences(ops[-1])

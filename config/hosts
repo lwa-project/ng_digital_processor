@@ -3,13 +3,33 @@
 # Management network
 169.254.128.1  ndp0 ndp
 169.254.128.11 ndp1
+169.254.128.12 ndp2
+169.254.128.13 ndp3
+169.254.128.14 ndp4
 
 # Management IPMI
 169.254.128.31 ndp1-ipmi
+169.254.128.32 ndp2-ipmi
+169.254.128.33 ndp3-ipmi
+169.254.128.34 ndp4-ipmi
 
-# SNAP2 ethernet
-169.254.128.101 snap01
-169.254.128.102 snap02
+# ZCU102 ethernet
+169.254.128.101 zcu01
+169.254.128.102 zcu02
+169.254.128.103 zcu03
+169.254.128.104 zcu04
+169.254.128.105 zcu05
+169.254.128.106 zcu06
+169.254.128.107 zcu07
+169.254.128.108 zcu08
+169.254.128.109 zcu09
+169.254.128.110 zcu10
+169.254.128.111 zcu11
+169.254.128.112 zcu12
+169.254.128.113 zcu13
+169.254.128.114 zcu14
+169.254.128.115 zcu15
+169.254.128.126 zcu16
 
 # Switch management
 169.254.128.150 arista
@@ -17,24 +37,36 @@
 # Data network
 192.168.40.10 ndp0-data1 ndp-data1
 192.168.40.11 ndp1-data1
+192.168.40.12 ndp2-data1
+192.168.40.13 ndp3-data1
+192.168.40.14 ndp4-data1
 192.168.40.210 ndp0-data2 ndp-data2
 192.168.40.211 ndp1-data2
+192.168.40.212 ndp2-data2
+192.168.40.213 ndp3-data2
+192.168.40.214 ndp4-data2
 192.168.40.41 dr1
 192.168.40.242 dr2
 192.168.40.43 dr3
 192.168.40.244 dr4
-192.168.40.46 orville
+192.168.40.47 orville
 
 # Multicast data network
 239.168.40.10   mcg40s0-data1 mcg40-data1
 239.168.40.11   mcg40s1-data1
+239.168.40.12   mcg40s2-data1
+239.168.40.13   mcg40s3-data1
+239.168.40.14   mcg40s4-data1
 239.168.40.210  mcg40s0-data2 mcg40-data2
 239.168.40.211  mcg40s1-data2
+239.168.40.212  mcg40s2-data2
+239.168.40.213  mcg40s3-data2
+239.168.40.214  mcg40s4-data2
 239.168.40.41   mcg40s41-data mcg40-dr1
 239.168.40.42   mcg40s42-data mcg40-dr2
 239.168.40.43   mcg40s43-data mcg40-dr3
 239.168.40.44   mcg40s44-data mcg40-dr4
-239.168.40.46   mcg40s46-data mcg40-orville
+239.168.40.47   mcg40s47-data mcg40-orville
 
 # The following lines are desirable for IPv6 capable hosts
 ::1     ip6-localhost ip6-loopback

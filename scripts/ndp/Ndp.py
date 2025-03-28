@@ -594,18 +594,18 @@ class NdpServerMonitorClient(object):
             return False
 
 
-class Snap2MonitorClient(object):
+class ZCU102MonitorClient(object):
     def __init__(self, config, log, num):
         # Note: num is 1-based index of the snap
         self.config = config
         self.log    = log
         self.num    = num
-        self.host   = f"snap{self.num:02d}"
-        self.snap   = snap2_fengine.Snap2Fengine(self.host)
+        self.host   = f"zcu{self.num:02d}"
+        self.zcu   = snap2_fengine.Snap2Fengine(self.host)
         
         self.equalizer_coeffs = None
         try:
-            self.equalizer_coeffs = np.loadtxt(self.config['snap']['equalizer_coeffs'])
+            self.equalizer_coeffs = np.loadtxt(self.config['zcu']['equalizer_coeffs'])
         except Exception as e:
             self.log.warning("Failed to load equalizer coefficients: %s", str(e))
             
@@ -613,8 +613,8 @@ class Snap2MonitorClient(object):
         
     def unprogram(self, reboot=False):
         with self.access_lock:
-            if self.snap.is_connected():
-                self.snap.deprogram()
+            if self.zcu.is_connected():
+                self.zcu.deprogram()
                 
     def get_samples(self, slot, stand, pol, nsamps=None):
         with self.access_lock:
@@ -623,11 +623,11 @@ class Snap2MonitorClient(object):
     @lru_cache(maxsize=4)
     def get_samples_all(self, slot, nsamps=None):
         """Returns an NDArray of shape (stand,pol,sample)"""
-        samps = np.zeros((32,2,STAT_SAMP_SIZE))
+        samps = np.zeros((16,2,STAT_SAMP_SIZE))
         with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
-                samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                samps0 = self.zcu.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
+                samps1 = self.zcu.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
                 samps = np.vstack([samps0, samps1])
                 
         return samps.reshape(32,2,-1)
@@ -637,9 +637,9 @@ class Snap2MonitorClient(object):
         # Return a dictionary of temperatures on the Snap2 board
         temp = {'error': float('nan')}
         with self.access_lock:
-            if self.snap.is_connected():
+            if self.zcu.is_connected():
                 try:
-                    summary, flags = self.snap.fpga.get_status()
+                    summary, flags = self.zcu.fpga.get_status()
                     temp = {'fpga': summary['temp']}
                 except Exception as e:
                     pass
@@ -650,9 +650,9 @@ class Snap2MonitorClient(object):
         # Estimate the FPGA clock rate in MHz
         rate = float('nan')
         with self.access_lock:
-            if self.snap.is_connected():
+            if self.zcu.is_connected():
                 try:
-                    rate = self.snap.fpga.get_fpga_clock()
+                    rate = self.zcu.fpga.get_fpga_clock()
                 except Exception as e:
                     pass
         return rate
@@ -661,8 +661,8 @@ class Snap2MonitorClient(object):
         # Return the timetag corresponding to a sync pulse.
         tt = None
         with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                tt = self.snap.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                tt = self.zcu.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
                 tt = tt[0]
         return tt
         
@@ -670,15 +670,15 @@ class Snap2MonitorClient(object):
         # Program with NDP firmware
         
         ## Firmware
-        firmware = self.config['snap']['firmware']
+        firmware = self.config['zcu']['firmware']
         
         # Go!
         success = False
         with self.access_lock:
-            if self.snap.is_connected():
-                for i in range(self.config['snap']['max_program_attempts']):
+            if self.zcu.is_connected():
+                for i in range(self.config['zcu']['max_program_attempts']):
                     try:
-                        self.snap.program(firmware)
+                        self.zcu.program(firmware)
                         sucesss = True
                         break
                     except Exception as e:
@@ -691,9 +691,9 @@ class Snap2MonitorClient(object):
         
         status = False
         with self.access_lock:
-            if self.snap.is_connected():
+            if self.zcu.is_connected():
                 try:
-                    status = self.snap.fpga.is_programmed()
+                    status = self.zcu.fpga.is_programmed()
                 except Exception as e:
                     pass
         return status
@@ -703,9 +703,9 @@ class Snap2MonitorClient(object):
         
         status = True
         with self.access_lock:
-            if self.snap.is_connected():
+            if self.zcu.is_connected():
                 try:
-                    summary, flags = self.snap.fpga.get_status()
+                    summary, flags = self.zcu.fpga.get_status()
                     for key in flags.keys():
                         if flags[key] == FENG_ERROR_CODE:
                             status = False
@@ -718,9 +718,9 @@ class Snap2MonitorClient(object):
         
         status = True
         with self.access_lock:
-            if self.snap.is_connected():
+            if self.zcu.is_connected():
                 try:
-                    summary, flags = self.snap.eth.get_status()
+                    summary, flags = self.zcu.eth.get_status()
                     if summary['gpbs'] == 0:
                         status = False
                     for key in flags.keys():
@@ -735,9 +735,9 @@ class Snap2MonitorClient(object):
         
         ## Configuration
         ### Overall structure + base F-engine config.
-        sconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
-                              'fft_shift': self.config['snap']['fft_shift'],
-                              'chans_per_packet': self.config['snap']['nchan_packet'],
+        sconf = {'fengines': {'enable_pfb': not self.config['zcu']['bypass_pfb'],
+                              'fft_shift': self.config['zcu']['fft_shift'],
+                              'chans_per_packet': self.config['zcu']['nchan_packet'],
                               'adc_clocksource': 0},
                  'xengines': {'arp': {},
                               'chans': {}}}
@@ -751,11 +751,11 @@ class Snap2MonitorClient(object):
             sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
             
         ### Antenna and IP source
-        for i,snap in enumerate(self.config['host']['snaps']):
-            sconf['fengines'][snap] = {}
-            sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
-            sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
-            sconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
+        for i,zcu in enumerate(self.config['host']['zcus']):
+            sconf['fengines'][zcu] = {}
+            sconf['fengines'][zcu]['ants'] = f"[{i*32}, {(i+1)*32}]"
+            sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['zcu']['data_ip_base']) + i)
+            sconf['fengines'][zcu]['source_port'] = self.config['zcu']['data_port_base']
             
         ### X-engine MAC addresses
         macs = load_ethers()
@@ -777,17 +777,17 @@ class Snap2MonitorClient(object):
             
         ### Save
         sconf = yaml.dump(sconf)
-        configname = '/tmp/snap_config.yaml'
+        configname = '/tmp/zcu_config.yaml'
         with open(configname, 'w') as fh:
             fh.write(sconf.replace("'", ''))
             
         # Go!
         success = False
         with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                for i in range(self.config['snap']['max_program_attempts']):
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                for i in range(self.config['zcu']['max_program_attempts']):
                     try:
-                        self.snap.cold_start_from_config(configname) 
+                        self.zcu.cold_start_from_config(configname) 
                         sucesss = True
                         break
                     except Exception as e:
@@ -802,12 +802,12 @@ class Snap2MonitorClient(object):
         
         spectra = []
         with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                self.snap.autocorr.set_acc_len(acc_len)
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                self.zcu.autocorr.set_acc_len(acc_len)
                 time.sleep(t_int+0.1)
                 
                 for i in range(4):
-                    spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
+                    spectra.append( self.zcu.autocorr.get_new_spectra(signal_block=i) )
         spectra = np.array(spectra)
         spectra = spectra.reshape(-1, spectra.shape[-1])
         return spectra
@@ -816,10 +816,10 @@ class Snap2MonitorClient(object):
         status = {'fft_overflows': -1, 'clip_count': -1,
                   'tx_overflow': -1, 'tx_full': -1}
         with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                status['fft_overflows'] = self.snap.pfb.get_overflow_count()
-                status['clip_count'] = self.snap.eq.clip_count()
-                estat = self.snap.eth.get_status()[0]
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                status['fft_overflows'] = self.zcu.pfb.get_overflow_count()
+                status['clip_count'] = self.zcu.eq.clip_count()
+                estat = self.zcu.eth.get_status()[0]
                 status['tx_overflow'] = estat['tx_of']
                 status['tx_full'] = estat['tx_full']
         if return_json:
@@ -832,12 +832,12 @@ class Snap2MonitorClient(object):
                 'fw_version': 'unknown', 'sw_version': 'unknown',
                 'fw_supported': False, 'flash_md5': 'unknown'}
         with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                info['fft_shift'] = self.snap.pfb.get_fft_shift()
-                info['pfb_enabled'] = self.snap.pfb.fir_is_enabled()
-                info['inputs'] = self.snap.input.get_switch_positions()
-                info['eq_tvg_enabled'] = self.snap.eqtvg.get_status()[0]['tvg_enabled']
-                fstat = self.snap.fpga.get_status()[0]
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                info['fft_shift'] = self.zcu.pfb.get_fft_shift()
+                info['pfb_enabled'] = self.zcu.pfb.fir_is_enabled()
+                info['inputs'] = self.zcu.input.get_switch_positions()
+                info['eq_tvg_enabled'] = self.zcu.eqtvg.get_status()[0]['tvg_enabled']
+                fstat = self.zcu.fpga.get_status()[0]
                 info['fw_version'] = fstat['fw_version']
                 info['sw_version'] = fstat['sw_version']
                 info['fw_supported'] = fstat['fw_supported']
@@ -855,7 +855,7 @@ class Snap2MonitorClient(object):
         return info
 
     # TODO: Configure channel selection (based on FST)
-    # TODO: start/stop data flow (remember to call snap.reset() before start)
+    # TODO: start/stop data flow (remember to call zcu.reset() before start)
 
 
 def exception_in(vals, error_type=Exception):
@@ -897,9 +897,9 @@ class MsgProcessor(ConsumerThread):
         self.headnode = ObjectPool([NdpServerMonitorClient(config, log, 'ndp'),])
         self.servers = ObjectPool([NdpServerMonitorClient(config, log, host)
                                 for host in self.config['host']['servers']])
-        nsnap = NBOARD
-        self.snaps = ObjectPool([Snap2MonitorClient(config, log, num+1)
-                                for num in range(nsnap)])
+        nzcu = NBOARD
+        self.zcus = ObjectPool([ZCU102MonitorClient(config, log, num+1)
+                                for num in range(nzcu)])
         
         #self.fst = Fst(config, log)
         self.drx = Drx(config, log, self.messageServer, self.servers)
@@ -1113,28 +1113,28 @@ class MsgProcessor(ConsumerThread):
                         
         # Bring up the FPGAs
         if 'NOREPROGRAM' not in arg: # Note: This is for debugging, not in spec
-            self.log.info("Programming FPGAs with '%s'", self.config['snap']['firmware'])
-            if not self.check_success(lambda: self.snaps.program(),
+            self.log.info("Programming FPGAs with '%s'", self.config['zcu']['firmware'])
+            if not self.check_success(lambda: self.zcus.program(),
                                       'Programming FPGAs',
-                                      self.snaps.host):
+                                      self.zcus.host):
                 if 'FORCE' not in arg: # Note: Also not in spec
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i == 0],
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i == 0],
                                   'Configuring master FPGA',
-                                  [s.host for i,s in enumerate(self.snaps) if i == 0]):
+                                  [s.host for i,s in enumerate(self.zcus) if i == 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i != 0],
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i != 0],
                                   'Configuring remaining FPGAs',
-                                  [s.host for i,s in enumerate(self.snaps) if i != 0]):
+                                  [s.host for i,s in enumerate(self.zcus) if i != 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
         self.log.info("  Finished configuring FPGAs")
         
-        self.utc_start     = self.snaps[0].get_tt_of_sync()
+        self.utc_start     = self.zcus[0].get_tt_of_sync()
         self.utc_start_str = str(self.utc_start)
         self.state['lastlog'] = "Starting correlator processing at timetag "+self.utc_start_str
         self.log.info("Starting correlator processing at timetag "+self.utc_start_str)
@@ -1189,14 +1189,14 @@ class MsgProcessor(ConsumerThread):
                 if exception_in(self.servers.do_power('reset')):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                if exception_in(self.snaps.unprogram(do_reboot)):
+                if exception_in(self.zcus.unprogram(do_reboot)):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
             else:
                 if exception_in(self.servers.do_power('off')):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                if exception_in(self.snaps.unprogram(do_reboot)):
+                if exception_in(self.zcus.unprogram(do_reboot)):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
             self.log.info("SHT SCRAM finished in %.3f s", time.time() - start_time)
@@ -1211,8 +1211,8 @@ class MsgProcessor(ConsumerThread):
                     if exception_in(self.servers.do_power('soft')):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming snaps')
-                    if exception_in(self.snaps.unprogram(do_reboot)):
+                    self.log.info('Unprogramming zcus')
+                    if exception_in(self.zcus.unprogram(do_reboot)):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
                     self.log.info('Waiting for servers to power off')
@@ -1243,8 +1243,8 @@ class MsgProcessor(ConsumerThread):
                     if exception_in(self.servers.do_power('soft')):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming snaps')
-                    if exception_in(self.snaps.unprogram(do_reboot)):
+                    self.log.info('Unprogramming zcus')
+                    if exception_in(self.zcus.unprogram(do_reboot)):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
                     self.log.info('Waiting for servers to power off')
@@ -1496,35 +1496,35 @@ class MsgProcessor(ConsumerThread):
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.warning(msg)
                     
-                ## Check the snap boards
+                ## Check the zcu boards
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
                     force_recheck = True
                     
                     self.log.info("Monitor BAIL")
                     continue
-                snaps_programmed = self.snaps.is_programmed()
-                if not all(snaps_programmed):
+                zcus_programmed = self.zcus.is_programmed()
+                if not all(zcus_programmed):
                     problems_found = True
-                    msg = "Found %s SNAP2 board(s) not programmed" % (len(snaps_programmed) - sum(snaps_programmed),)
+                    msg = "Found %s ZCU102 board(s) not programmed" % (len(zcus_programmed) - sum(zcus_programmed),)
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
                 else:
-                    snaps_ok = self.snaps.is_ok()
-                    if not all(snaps_ok):
+                    zcus_ok = self.zcus.is_ok()
+                    if not all(zcus_ok):
                         problems_found = True
-                        msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
+                        msg = "Found %s ZCU102 board(s) with internal error conditions" % (len(zcus_ok) - sum(zcus_ok),)
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                     else:
-                        snaps_sending = self.snaps.is_sending()
-                        if not all(snaps_sending):
+                        zcus_sending = self.zcus.is_sending()
+                        if not all(zcus_sending):
                             problems_found = True
-                            msg = "Found %s SNAP2 board(s) not sending data" % (len(snaps_sending) - sum(snaps_sending),)
+                            msg = "Found %s ZCU102 board(s) not sending data" % (len(zcus_sending) - sum(zcus_sending),)
                             new_status = 'ERROR'
                             new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                             status, info = self._combine_status(status, info, new_status, new_info)
@@ -1610,24 +1610,24 @@ class MsgProcessor(ConsumerThread):
                 status, info = self._combine_status(status, info, new_status, new_info)
                     
             # Note: Actually just flattening lists, not summing
-            snap_temps  = sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
+            zcu_temps  = sum([list(v) for v in self.zcus.get_temperatures(slot).values()], [])
             # Remove error values before reducing
-            snap_temps  = [val for val in snap_temps  if not math.isnan(val)]
-            if len(snap_temps) == 0: # If all values were nan (exceptional!)
-                snap_temps = [float('nan')]
-            snap_temps_max  = np.max(snap_temps)
-            if snap_temps_max > self.config['snap']['temperature_shutdown']:
-                msg = 'Temperature shutdown -- snap'
+            zcu_temps  = [val for val in zcu_temps  if not math.isnan(val)]
+            if len(zcu_temps) == 0: # If all values were nan (exceptional!)
+                zcu_temps = [float('nan')]
+            zcu_temps_max  = np.max(zcu_temps)
+            if zcu_temps_max > self.config['zcu']['temperature_shutdown']:
+                msg = 'Temperature shutdown -- zcu'
                 new_status = 'ERROR'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
                                                  'Board temperature shutdown')
                 status, info = self._combine_status(status, info, new_status, new_info)
-                if snap_temps_max > self.config['snap']['temperature_scram']:
+                if zcu_temps_max > self.config['zcu']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
-            elif snap_temps_max > self.config['snap']['temperature_warning']:
-                msg = 'Temperature warning -- snap'
+            elif zcu_temps_max > self.config['zcu']['temperature_warning']:
+                msg = 'Temperature warning -- zcu'
                 new_status = 'WARNING'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
                                                  'Board temperature warning')
@@ -1709,10 +1709,10 @@ class MsgProcessor(ConsumerThread):
         self.fir_idx %= NINPUT
         return idx
         
-    def _get_snap_config(self):
+    def _get_zcu_config(self):
         sub_config = {}
         for key in ('firmware', 'fft_shift', 'equalizer_coeffs', 'bypass_pfb'):
-            sub_config[key] = self.config['snap'][key]
+            sub_config[key] = self.config['zcu'][key]
         sub_config['equalizer_coeffs_md5'] = ''
         
         try:
@@ -1747,7 +1747,7 @@ class MsgProcessor(ConsumerThread):
         if key == 'SUBSYSTEM':         return SUBSYSTEM
         if key == 'SERIALNO':          return self.serial_number
         if key == 'VERSION':           return self.version
-        if key == 'SNAP_CONFIG':       return self._get_snap_config()
+        if key == 'SNAP_CONFIG':       return self._get_zcu_config()
         if key == 'TENGINE_CONFIG':    return self._get_tengine_config()
         # TODO: TBF_STATUS
         #       TBF_TUNING_MASK
@@ -1781,7 +1781,7 @@ class MsgProcessor(ConsumerThread):
             if not (0 <= inp < NINPUT):
                 raise ValueError("Unknown input number %i"%(inp+1))
             board,stand,pol = input2boardstandpol(inp)
-            samples = self.snaps[board].get_samples(slot, stand, pol,
+            samples = self.zcus[board].get_samples(slot, stand, pol,
                                                     STAT_SAMP_SIZE)
             # Convert from int8 --> float32 before reducing
             samples = samples.astype(np.float32)
@@ -1793,13 +1793,13 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_TUNING # Note: (NDP only)
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
             t_now = datetime.datetime.utcnow()
-            spectra = self.snaps.get_spectra()
+            spectra = self.zcus.get_spectra()
             spectra = np.array(list(spectra))
             spectra = spectra.reshape(-1, spectra.shape[-1])
             spectra = spectra.astype(np.float32)
             
             checkname = t_now.strftime("%y%m%d_%H%M%S")
-            checkname = "/tmp/"+checkname+"_snapspecs.dat"
+            checkname = "/tmp/"+checkname+"_zcuspecs.dat"
             with open(checkname, 'wb') as fh:
                 fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
                 spectra.tofile(fh)
@@ -1808,14 +1808,14 @@ class MsgProcessor(ConsumerThread):
             board = args[1]-1
             if not (0 <= board < NBOARD):
                 raise ValueError("Unknown board number %i"%(board+1))
-            if args[2] == 'STAT': return self.snaps[board].get_board_status(return_json=True)
-            if args[2] == 'INFO': return self.snaps[board].get_board_info(return_json=True)
+            if args[2] == 'STAT': return self.zcus[board].get_board_status(return_json=True)
+            if args[2] == 'INFO': return self.zcus[board].get_board_info(return_json=True)
             if args[2] == 'TEMP':
-                temps = list(self.snaps[board].get_temperatures(slot).values())
+                temps = list(self.zcus[board].get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
-            if args[2] == 'FIRMWARE': return self.config['snap']['firmware']
-            if args[2] == 'HOSTNAME': return self.snaps[board].host
+            if args[2] == 'FIRMWARE': return self.config['zcu']['firmware']
+            if args[2] == 'HOSTNAME': return self.zcus[board].host
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
@@ -1842,7 +1842,7 @@ class MsgProcessor(ConsumerThread):
                 # Note: Actually just flattening lists, not summing
                 temps += sum([list(v) for v in self.headnode.get_temperatures(slot).values()], [])
                 temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
-                temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.zcus.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
                 temps = [val for val in temps if not math.isnan(val)]
                 if len(temps) == 0: # If all values were nan (exceptional!)
