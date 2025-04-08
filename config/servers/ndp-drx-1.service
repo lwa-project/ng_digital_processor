@@ -1,5 +1,5 @@
 [Unit]
-Description=NDP DRX Pipeline - Tuning 1
+Description=NDP DRX Pipeline - Second Tuning
 After=network-online.target
 Wants=network-online.target
 
@@ -35,9 +35,11 @@ Environment=PYTHONUNBUFFERED=1
 WorkingDirectory=/usr/local/bin
 
 ExecStart=/bin/bash -ec '\
+tuning=$(hostname | sed -e "s/ndp//") && \
+tuning=$(( (${tuning}-1)*2 + 1 )) && \
 numactl --cpunodebind=4-7 --membind=4-7 -- \
 python3 /usr/local/bin/ndp_drx.py \
-	 --tuning     1 \
+	 --tuning     ${tuning} \
 	 --configfile /usr/local/share/ndp/ndp_config.json \
 	 --logfile    /home/ndp/log/ndp-drx-1.%H.log'
 

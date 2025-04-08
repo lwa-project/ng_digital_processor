@@ -1374,7 +1374,7 @@ def get_numeric_suffix(s):
 def main(argv):
     parser = argparse.ArgumentParser(description='LWA-SV NDP DRX Service')
     parser.add_argument('-f', '--fork',       action='store_true',       help='Fork and run in the background')
-    parser.add_argument('-t', '--tuning',     default=0, type=int,       help='DRX tuning (0 or 1)')
+    parser.add_argument('-t', '--tuning',     default=0, type=int,       help='DRX tuning (0, 1, 2, etc.)')
     parser.add_argument('-c', '--configfile', default='ndp_config.json', help='Specify config file')
     parser.add_argument('-l', '--logfile',    default=None,              help='Specify log file')
     parser.add_argument('-d', '--dryrun',     action='store_true',       help='Test without acting')
@@ -1452,10 +1452,10 @@ def main(argv):
     
     ## Network - input
     pipeline_idx = drxConfig['pipeline_idx']
-    if config['host']['servers-data'][server_idx].startswith('ndp'):
+    if config['host']['servers-data'][tuning].startswith('ndp'):
         iaddr    = config['server']['data_ifaces'][pipeline_idx]
     else:
-        iaddr    = config['host']['servers-data'][server_idx]
+        iaddr    = config['host']['servers-data'][tuning]
     iport        = config['server']['data_ports' ][pipeline_idx]
     ## Network - TBF - data recorder
     recorder_idx = drxConfig['tbf_recorder_idx']

@@ -7,9 +7,9 @@ hardware port-group 1 select Et1-4
 !
 errdisable recovery cause link-flap
 !
-ip igmp snooping vlan 1 mrouter interface Ethernet1
 ip igmp snooping vlan 1 querier
-ip igmp snooping querier
+ip igmp snooping vlan 1 querier address 192.168.40.1
+ip igmp snooping vlan 1 querier version 3
 !
 transceiver qsfp default-mode 4x10G
 !
