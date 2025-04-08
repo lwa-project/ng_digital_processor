@@ -18,7 +18,7 @@
     "host": {
         "servers": ["ndp1"],
         "snaps": ["snap01", "snap02"],
-        "servers-data": ["ndp1-data1", "ndp1-data2"],
+        "servers-data": ["mcg40s1-data1", "mcg40s1-data2"],
         "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
     },
     "ipmi": {
