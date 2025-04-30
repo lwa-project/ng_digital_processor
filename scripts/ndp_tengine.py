@@ -739,6 +739,22 @@ class TEngineOp(object):
                                         axis_names=('i','j'),
                                         shape=(self.ntime_gulp,self.nchan_out))
                                     
+                                ## Attenuate the band edges to deal with aliasing from the phase rotation
+                                BFMap(f"""
+                                      #pragma unroll
+                                      for(int k=0; k<{nbeam}; k++) {{
+                                        #pragma unroll
+                                        for(int l=0; l<{npol}; l++) {{
+                                          a(i,0,k,0,l) *= 0.1;
+                                          a(i,0,k,1,l) *= 0.1;
+                                          a(i,{self.nchan_out}-1,k,0,l) *= 0.1;
+                                          a(i,{self.nchan_out}-1,k,1,l) *= 0.1;
+                                        }}
+                                      }}
+                                      """,
+                                      {'a': bdata}, axis_names=('i',),
+                                      shape=(self.ntime_gulp,))
+                                
                                 ## IFFT
                                 try:
                                     gdata = gdata.reshape(*bdata.shape)
@@ -750,14 +766,6 @@ class TEngineOp(object):
                                     bfft.init(bdata, gdata, axes=1, apply_fftshift=True)
                                     bfft.execute(bdata, gdata, inverse=True)
                                     
-                                ## Attenuate the band edges to deal with aliasing from the phase rotation
-                                BFMap("""
-                                      a(i,0,j,k,l) *= 0.1;
-                                      a(i,%i,j,k,l) *= 0.1;
-                                      """ % (self.nchan_out-1),
-                                      {'a': gdata}, axis_names=('i','j','k','l'),
-                                      shape=(self.ntime_gulp,nbeam,ntune,npol))
-                                
                                 ## Phase rotation and output "desired gain imbalance" correction
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap(f"""
