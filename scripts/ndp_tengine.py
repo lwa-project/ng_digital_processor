@@ -750,6 +750,14 @@ class TEngineOp(object):
                                     bfft.init(bdata, gdata, axes=1, apply_fftshift=True)
                                     bfft.execute(bdata, gdata, inverse=True)
                                     
+                                ## Attenuate the band edges to deal with aliasing from the phase rotation
+                                BFMap("""
+                                      a(i,0,j,k,l) *= 0.1;
+                                      a(i,%i,j,k,l) *= 0.1;
+                                      """ % (self.nchan_out-1),
+                                      {'a': gdata}, axis_names=('i','j','k','l'),
+                                      shape=(self.ntime_gulp,nbeam,ntune,npol))
+                                
                                 ## Phase rotation and output "desired gain imbalance" correction
                                 gdata = gdata.reshape((-1,nbeam*ntune*npol))
                                 BFMap(f"""
@@ -772,14 +780,15 @@ class TEngineOp(object):
                                 gdata = gdata.reshape((-1,nbeam,ntune,npol))
                                 
                                 ## FIR filter
-                                try:
-                                    bfir.execute(gdata, fdata)
-                                except NameError:
-                                    fdata = BFArray(shape=gdata.shape, dtype=gdata.dtype, space='cuda')
-                                    
-                                    bfir = Fir()
-                                    bfir.init(self.coeffs, 1)
-                                    bfir.execute(gdata, fdata)
+                                fdata = gdata
+                                #try:
+                                #    bfir.execute(gdata, fdata)
+                                #except NameError:
+                                #    fdata = BFArray(shape=gdata.shape, dtype=gdata.dtype, space='cuda')
+                                #    
+                                #    bfir = Fir()
+                                #    bfir.init(self.coeffs, 1)
+                                #    bfir.execute(gdata, fdata)
                                     
                                 ## Quantization
                                 try:
