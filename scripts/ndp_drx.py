@@ -1781,7 +1781,7 @@ def main(argv):
     cores = drxConfig['cpus']
     gpus  = drxConfig['gpus']
     enable_plf = False
-    if 'powerline_flagged' in drxConfig:
+    if 'powerline_flagger' in drxConfig:
         enable_plf = drxConfig['powerline_flagger']
         
     log.info("Src address:  %s:%i", iaddr, iport)
