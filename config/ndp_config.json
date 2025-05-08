@@ -35,7 +35,8 @@
                 "tbf_recorder_idx":  0,
                 "cor_recorder_idx":  4,
                 "cpus":              [0, 2, 3, 4, 5],
-                "gpus":              [0]
+                "gpus":              [0],
+                "powerline_flagger": true
             }, 
             {
                 "first_channel":     2176,
@@ -46,7 +47,8 @@
                 "tbf_recorder_idx":  0,
                 "cor_recorder_idx":  4,
                 "cpus":              [16, 18, 19, 20, 21],
-                "gpus":              [1]
+                "gpus":              [1],
+                "powerline_flagger": true
             }
     ],
     "tbf": {
