@@ -1803,7 +1803,7 @@ def main(argv):
     capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host', core=cores[0])
     tbf_ring     = Ring(name="buffer-%i" % tuning)
     gpu_ring     = Ring(name="gpu-%i" % tuning, space='cuda')
-    plf_ring     = gpu_ring:
+    plf_ring     = gpu_ring
     if enable_plf:
         plf_ring     = Ring(name="plf-%i" % tuning, space='cuda')
     tengine_ring = Ring(name="tengine-%i" % tuning, space='cuda_host', core=cores[-2])
