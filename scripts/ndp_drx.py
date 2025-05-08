@@ -359,6 +359,9 @@ class PowerLineFlaggerOp(object):
         self.pool = self.rng.standard_normal(2**self.POOL_SIZE_LOG2, dtype=np.float32)
         self.pool = BFArray(self.pool, space='cuda')
         
+        self.flag_frac_now = 0.0
+        self.flag_frac_move = 0.0
+        
     def main(self):
         cpu_affinity.set_core(self.core)
         if self.gpu != -1:
