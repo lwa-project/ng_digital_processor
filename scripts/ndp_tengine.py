@@ -739,21 +739,21 @@ class TEngineOp(object):
                                         axis_names=('i','j'),
                                         shape=(self.ntime_gulp,self.nchan_out))
                                     
-                                ## Attenuate the band edges to deal with aliasing from the phase rotation
-                                BFMap(f"""
-                                      #pragma unroll
-                                      for(int k=0; k<{nbeam}; k++) {{
-                                        #pragma unroll
-                                        for(int l=0; l<{npol}; l++) {{
-                                          a(i,0,k,0,l) *= 0.1;
-                                          a(i,0,k,1,l) *= 0.1;
-                                          a(i,{self.nchan_out}-1,k,0,l) *= 0.1;
-                                          a(i,{self.nchan_out}-1,k,1,l) *= 0.1;
-                                        }}
-                                      }}
-                                      """,
-                                      {'a': bdata}, axis_names=('i',),
-                                      shape=(self.ntime_gulp,))
+                                ### Attenuate the band edges to deal with aliasing from the phase rotation
+                                #BFMap(f"""
+                                #      #pragma unroll
+                                #      for(int k=0; k<{nbeam}; k++) {{
+                                #        #pragma unroll
+                                #        for(int l=0; l<{npol}; l++) {{
+                                #          a(i,0,k,0,l) *= 0.1;
+                                #          a(i,0,k,1,l) *= 0.1;
+                                #          a(i,{self.nchan_out}-1,k,0,l) *= 0.1;
+                                #          a(i,{self.nchan_out}-1,k,1,l) *= 0.1;
+                                #        }}
+                                #      }}
+                                #      """,
+                                #      {'a': bdata}, axis_names=('i',),
+                                #      shape=(self.ntime_gulp,))
                                 
                                 ## IFFT
                                 try:
@@ -788,15 +788,15 @@ class TEngineOp(object):
                                 gdata = gdata.reshape((-1,nbeam,ntune,npol))
                                 
                                 ## FIR filter
-                                fdata = gdata
-                                #try:
-                                #    bfir.execute(gdata, fdata)
-                                #except NameError:
-                                #    fdata = BFArray(shape=gdata.shape, dtype=gdata.dtype, space='cuda')
-                                #    
-                                #    bfir = Fir()
-                                #    bfir.init(self.coeffs, 1)
-                                #    bfir.execute(gdata, fdata)
+                                #fdata = gdata
+                                try:
+                                    bfir.execute(gdata, fdata)
+                                except NameError:
+                                    fdata = BFArray(shape=gdata.shape, dtype=gdata.dtype, space='cuda')
+                                    
+                                    bfir = Fir()
+                                    bfir.init(self.coeffs, 1)
+                                    bfir.execute(gdata, fdata)
                                     
                                 ## Quantization
                                 try:
@@ -841,7 +841,7 @@ class TEngineOp(object):
                                     del gdata
                                     del bfft
                                     del fdata
-                                    #del bfir
+                                    del bfir
                                     del qdata
                                     del tdata
                                 except NameError:
@@ -864,7 +864,7 @@ class TEngineOp(object):
                             del gdata
                             del bfft
                             del fdata
-                            #del bfir
+                            del bfir
                             del qdata
                             del tdata
                         except NameError:
