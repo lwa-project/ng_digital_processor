@@ -770,7 +770,7 @@ class ZCU102MonitorClient(object):
             ip = host2ip(host)
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = self.config['server']['data_ports'][i % 2])]
+            port = self.config['server']['data_ports'][i % NPIPE_PER_SERVER])]
         
             sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
             i += 1
@@ -1040,7 +1040,7 @@ class MsgProcessor(ConsumerThread):
                     
         ## Stop the pipelines
         self.log.info('Stopping pipelines')
-        for tuning in range(len(self.config['drx'])):
+        for tuning in range(NPIPE_PER_SERVER):
             self.servers.stop_drx(tuning=tuning)
         for beam in range(self.config['drx'][0]['beam_count']):
             self.headnode.stop_tengine(beam=beam)
@@ -1056,7 +1056,7 @@ class MsgProcessor(ConsumerThread):
                     for pid in filter(lambda x: x > 0, pids):
                         self.log.warning('  Killing %s TEngine-%i, PID %i', server.host, beam, pid)
                         server.kill_pid(pid)
-            for tuning in range(len(self.config['drx'])):
+            for tuning in range(NPIPE_PER_SERVER):
                 for server in self.servers:
                     pids = server.pid_drx(tuning=tuning)
                     for pid in filter(lambda x: x > 0, pids):
@@ -1104,7 +1104,7 @@ class MsgProcessor(ConsumerThread):
                                           self.headnode.host):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('INI', 'SERVER_STARTUP_FAILED')
-            for tuning in range(len(self.config['drx'])):
+            for tuning in range(NPIPE_PER_SERVER):
                 if not self.check_success(lambda: self.servers.restart_drx(tuning=tuning),
                                           'Restarting pipelines - DRX',
                                           self.servers.host):
@@ -1144,7 +1144,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Checking pipeline processing")
         ## DRX
         pipeline_pids = []
-        for tuning in range(len(self.config['drx'])):
+        for tuning in range(NPIPE_PER_SERVER):
             pipeline_pids = [p for s in self.servers.pid_drx(tuning=tuning) for p in s]
             pipeline_pids = list(filter(lambda x: x>0, pipeline_pids))
             print('DRX-%i:' % tuning, len(pipeline_pids), pipeline_pids)
