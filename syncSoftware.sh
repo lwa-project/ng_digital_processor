@@ -5,7 +5,7 @@
 #
 
 sname=$(hostname)
-sname=${hname:(-3)}
+sname=${sname:(-3)}
 if [ "${sname}" != "ndp" ]; then
 	echo "This script must be run on the head node"
 	exit 1
