@@ -36,10 +36,10 @@ WorkingDirectory=/usr/local/bin
 
 ExecStart=/bin/bash -ec '\
 tuning=$(hostname | sed -e "s/ndp//") && \
-tuning=$(( (${tuning}-1)*2 + 0 )) && \
+tuning=$(( ($tuning-1)*2 + 0 )) && \
 numactl --cpunodebind=0-3 --membind=0-3 -- \
 python3 /usr/local/bin/ndp_drx.py \
-	 --tuning     ${tuning} \
+	 --tuning     $tuning \
 	 --configfile /usr/local/share/ndp/ndp_config.json \
 	 --logfile    /home/ndp/log/ndp-drx-0.%H.log'
 
