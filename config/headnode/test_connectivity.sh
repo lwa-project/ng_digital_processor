@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# Script to make sure that all ndp hosts can be SSH'd into
+# Script to make sure that all ndp hosts can be SSH'd into and test 
+# various other things that will make deployment easier.
 # 
 # Usage: ./test_connectivity.sh <hostfile> <configfile>
 
