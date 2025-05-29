@@ -32,6 +32,31 @@ if [[ ${nfailed} == 0 ]]; then
         echo "  OK"
 fi
 
+inames=$(grep data_ifaces ${configname} | sed -e "s/.*\[//g;s/\].*//g;s/\",*//g;")
+
+echo "Testing interface naming"
+nfailed=0
+for sname in ${snames}; do
+        ifaces=$(timeout 10 ssh ndp@${sname} "ip link | awk '{print \$2}'")
+        declare -a tested_inames
+        i=0
+        for iname in ${inames}; do
+                if [[ ! "${tested_inames[*]}" =~ "${iname}" ]]; then
+                        found=$(echo ${ifaces} | grep ${iname})
+                        if [[ "${found}" == "" ]]; then
+                                nfailed=$((nfailed + 1))
+                                echo "  Failed on ${sname} with iface ${iname}"
+                        fi
+                        tested_inames[$i]=${iname};
+                        i=$((i + 1))
+                fi
+        done
+        unset tested_inames
+done
+if [[ ${nfailed} == 0 ]]; then
+        echo "  OK"
+fi
+
 echo "Testing headnode MACs"
 nfailed=0
 for sname in ${snames}; do
@@ -99,7 +124,31 @@ if [[ ${nfailed} == 0 ]]; then
         echo "  OK"
 fi
 
-
+echo "Testing internet access"
+nfailed=0
+for sname in ${snames}; do
+        timeout 10 ssh ndp@${sname} "ping -c1 8.8.8.8" > /dev/null 2> /dev/null
+        if [[ $? != 0 ]]; then
+                nfailed=$((nfailed + 1))
+                echo "  Failed on ${sname} with ping"
+        else
+                dns=$(timeout 10 ssh ndp@${sname} "dig fornax.phys.unm.edu")
+                if [[ $? != 0 ]]; then
+                        nfailed=$((nfailed + 1))
+                        echo "  Failed to poll on ${sname}"
+                else
+                        found=$(echo ${dns} | grep -e "ANSWER SECTION")
+                        if [[ "${found}" == "" ]]; then
+                                nfailed=$((nfailed + 1))
+                                echo "  Failed on ${sname} with dns"
+                        fi
+                fi
+        fi
+done
+if [[ ${nfailed} == 0 ]]; then
+        echo "  OK"
+fi
+        
 # Part 2 - The IPMI interfaces
 
 snames=$(grep ndp ${filename} | grep ipmi | awk '{print $2}' | sort)
