@@ -4,10 +4,24 @@
 # Host validation
 #
 
-if [ `hostname` != "ndp" ]; then
+sname=$(hostname)
+sname=${hname:(-3)}
+if [ "${sname}" != "ndp" ]; then
 	echo "This script must be run on the head node"
 	exit 1
 fi
+
+#
+# Server counting
+# 
+nserver=0
+for i in `seq 1 6`; do
+    ping -c1 ndp${i} > /dev/null 2> /dev/null
+    if [[ $? != 0 ]]; then
+        nserver=$((i - 1));
+        break
+    fi
+done
 
 #
 # Argument parsing
@@ -118,7 +132,7 @@ if [ "${DO_CONFIG}" == "1" ]; then
 	SRC_PATH=/home/ndp/ng_digital_processor/config
 	DST_PATH=/usr/local/share/ndp
 	
-	for node in `seq 0 1`; do
+	for node in `seq 0 ${nserver}`; do
 		rsync -e ssh -avHL ${SRC_PATH}/ndp_config.json ndp${node}:${DST_PATH}/
 		rsync -e ssh -avH ${SRC_PATH}/equalizer*.txt ndp${node}:${DST_PATH}/
 	done
@@ -136,7 +150,7 @@ if [ "${DO_SOFTWARE}" == "1" ]; then
 	
 	build_tcc
 	
-	for node in `seq 0 1`; do
+	for node in `seq 0 ${nserver}`; do
 		if [ "${node}" == "0" ]; then
 			rsync -e ssh -avH ${SRC_PATH}/ndp ${SRC_PATH}/ndp_control.py ${SRC_PATH}/ndp_tengine.py ${SRC_PATH}/ndp_enable_triggering.py ndp${node}:${DST_PATH}/
 			rsync -e ssh -avH ${SRC_PATH}/ndp ${SRC_PATH}/ndp_server_monitor.py ndp${node}:${DST_PATH}/
@@ -157,7 +171,7 @@ if [ "${DO_UPSTART}" == "1" ]; then
 	SRC_PATH=/home/ndp/ng_digital_processor/config
 	DST_PATH=/etc/systemd/system/
 	
-	for node in `seq 0 1`; do
+	for node in `seq 0 ${nserver}`; do
 		if [ "${node}" == "0" ]; then
 			rsync -e ssh -avH ${SRC_PATH}/headnode/ndp-*.service ndp${node}:${DST_PATH}/
 			rsync -e ssh -avH ${SRC_PATH}/headnode/ndp-server-monitor.service ndp${node}:${DST_PATH}/
@@ -174,7 +188,7 @@ fi
 #
 
 if [ "${DO_RESTART}" == "1" ]; then
-	for node in `seq 0 1`; do
+	for node in `seq 0 ${nserver}`; do
 		if [ "${node}" == "0" ]; then
 			ssh ndp${node} "restart ndp-control && restart ndp-tengine-0 && restart ndp-tengine-1 && restart ndp-tengine-2 && restart ndp-tengine-3 && restart ndp-server-monitor"
 		else
@@ -188,7 +202,7 @@ fi
 #
 
 if [ "${DO_QUERY}" == "1" ]; then
-	for node in `seq 0 2`; do
+	for node in `seq 0 ${nserver}`; do
 		if [ "${node}" == "0" ]; then
 			ssh ndp${node} "status ndp-control && status ndp-tengine-0 && status ndp-tengine-1 && status ndp-tengine-2 && status ndp-tengine-3 && status ndp-server-monitor"
 		else
