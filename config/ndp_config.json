@@ -16,7 +16,7 @@
         }
     },
     "host": {
-        "servers": ["ndp1"],
+        "servers": ["ndp1", "ndp2", "ndp3", "ndp4"],
         "zcus": ["zcu01", "zcu02", "zcu03", "zcu04",
                  "zcu05", "zcu06", "zcu07", "zcu08",
                  "zcu09", "zcu10", "zcu11", "zcu12",
