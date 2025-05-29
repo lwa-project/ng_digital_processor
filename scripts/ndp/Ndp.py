@@ -13,7 +13,7 @@ from .iptools    import *
 
 from . import ISC
 
-from lwa_f import snap2_fengine
+from lwa_f import zcu102_fengine
 from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
 from .FileLock import FileLock
 
@@ -601,7 +601,7 @@ class ZCU102MonitorClient(object):
         self.log    = log
         self.num    = num
         self.host   = f"zcu{self.num:02d}"
-        self.zcu   = snap2_fengine.Snap2Fengine(self.host)
+        self.zcu   = zcu102_fengine.ZCU102Fengine(self.host)
         
         self.equalizer_coeffs = None
         try:
