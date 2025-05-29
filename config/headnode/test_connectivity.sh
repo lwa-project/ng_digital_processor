@@ -186,7 +186,7 @@ snames=$(grep -e zcu -e snap ${filename} | awk '{print $2}' | sort)
 echo "Testing ZCU102 ping-ability"
 nfailed=0
 for sname in ${snames}; do
-        ping -c0 ${sname} > /dev/null 2> /dev/null
+        ping -c1 ${sname} > /dev/null 2> /dev/null
         if [[ $? != 0 ]]; then
                 nfailed=$((nfailed + 1))
                 echo "  Failed on ${sname}"
