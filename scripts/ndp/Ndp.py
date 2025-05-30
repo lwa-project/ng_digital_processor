@@ -770,7 +770,7 @@ class ZCU102MonitorClient(object):
             ip = host2ip(host)
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = self.config['server']['data_ports'][i % NPIPE_PER_SERVER])]
+            port = self.config['server']['data_ports'][i % NPIPE_PER_SERVER]
         
             sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
             i += 1
