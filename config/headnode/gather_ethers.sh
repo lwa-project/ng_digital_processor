@@ -7,19 +7,23 @@
 
 filename="../hosts"
 if [[ "$1" != "" ]]; then
-        filename=$1
+  filename=$1
+fi
+
+if [[ ! -f ${filename} ]]; then
+	echo "Host file '${filename}' does not exist"
+	exit
 fi
 
 ips=$(grep ndp ${filename} | grep data | awk '{print $1}')
 for ip in ${ips}; do
-        ping -c1 ${ip} > /dev/null 2> /dev/null
+  ping -c1 ${ip} > /dev/null 2> /dev/null
 done
 
 macs=$(arp -v | grep ndp | grep data | sort)
 old_IFS=${IFS}
 IFS=$'\n'
 for mac in ${macs}; do
-        echo ${mac} | awk '{print $3,$1}'
+  echo ${mac} | awk '{print $3,$1}'
 done
 IFS=${old_IFS}
-
