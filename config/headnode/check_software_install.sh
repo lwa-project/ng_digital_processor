@@ -19,7 +19,7 @@ snames=$(grep ndp ${filename} | grep -v data | grep -v ipmi | awk '{print $2}' |
 
 # Part 1 - Standard distribution packages
 
-pkgs=("numactl" "libnuma-dev" "hwloc-nox" "libhwloc-dev" "iptables" "sshpass" "*-ctags" "git" "make" "cmake" "rsync" "nfs-kernel-server" "nfs-common")
+pkgs=("numactl" "libnuma-dev" "hwloc-nox" "libhwloc-dev" "iptables" "sshpass" "*-ctags" "git" "make" "cmake" "rsync" "nfs-kernel-server" "nfs-common" "ipmitool")
 
 echo "Testing for standard packages"
 nfailed=0
