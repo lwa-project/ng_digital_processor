@@ -14,6 +14,15 @@ if [[ "$2" != "" ]]; then
         configname=$2
 fi
 
+if [[ ! -f ${filename} ]]; then
+	echo "Host file '${filename}' does not exist"
+	exit
+fi
+if [[ ! -f ${configname} ]]; then
+	echo "NDP configuration file '${configname}' does not exist"
+	exit
+fi
+
 
 # Part 1 - The servers
 
