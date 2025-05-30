@@ -139,7 +139,6 @@ fi
 mods=("numpy" "scipy" "simplejson" "ctypesgen" "zmq" "lwa_f" "yaml" "progressbar" "termcolor" "bifrost" "serial")
 
 echo "Testing for Python modules"
-
 nfailed=0
 for sname in ${snames}; do
 	for mod in ${mods[@]}; do
@@ -152,4 +151,20 @@ for sname in ${snames}; do
 done
 if [[ $nfailed == 0 ]]; then
 	echo "  OK"
+fi
+
+
+# Part 5 - systemd logind changes
+
+echo "Testing systemd's logind options"
+nfailed=0
+for sname in ${snames}; do
+  found=$(timeout 10 ssh ndp@${sname} "grep -e '^RemoveIPC=no\$' /etc/systemd/logind.conf")
+  if [[ $? != 0 ]]; then
+    nfailed=$((nfailed + 1))
+    echo "  RemoveIPC is not set to 'no' on ${sname}"
+  fi
+done
+if [[ $nfailed == 0 ]]; then
+  echo "  OK"
 fi
