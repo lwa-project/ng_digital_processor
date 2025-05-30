@@ -89,7 +89,7 @@ class CaptureOp(object):
         return 0
     def main(self):
         seq_callback = PacketCaptureCallback()
-        seq_callback.set_zcu102(self.seq_callback)
+        seq_callback.set_snap2(self.seq_callback)
         with UDPCapture(*self.args,
                         sequence_callback=seq_callback,
                         **self.kwargs) as capture:
@@ -1534,7 +1534,7 @@ def main(argv):
     obuf_size  = int(np.ceil(tbf_buffer_secs*CHAN_BW/GSIZE)) * ogulp_size
     tbf_ring.resize(ogulp_size, obuf_size)
     
-    ops.append(CaptureOp(log, fmt="zcu102", sock=isock, ring=capture_ring,
+    ops.append(CaptureOp(log, fmt="snap2", sock=isock, ring=capture_ring,
                          nsrc=nsrc, nzcu=nzcu, src0=zcu0, max_payload_size=6500,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
     ops.append(BufferCopyOp(log, capture_ring, tbf_ring,
