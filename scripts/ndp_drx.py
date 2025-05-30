@@ -1221,7 +1221,7 @@ class PacketizeOp(object):
         self.server = int(socket.gethostname().replace('ndp', '0'), 10)
         self.nchan_max = nchan_max
         if max_bytes_per_sec is None:
-            max_bytes_per_sec = 209715200        # default to 200 MB/s
+            max_bytes_per_sec = 262144000        # default to 250 MB/s
         self.max_bytes_per_sec = max_bytes_per_sec
         
         # Setup the packetizer
