@@ -1511,6 +1511,12 @@ class MsgProcessor(ConsumerThread):
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
+                    ext_msg = []
+                    for z,p in zip(self.zcus, zcus_programmed):
+                        if not p:
+                            ext_msg.append(z.host)
+                    ext_msg = ' '.join(ext_msg)
+                    self.log.error('Board(s) are: %s', ext_msg)
                 else:
                     zcus_ok = self.zcus.is_ok()
                     if not all(zcus_ok):
@@ -1520,6 +1526,12 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
+                        ext_msg = []
+                        for z,o in zip(self.zcus, zcus_ok):
+                            if not o:
+                                ext_msg.append(z.host)
+                        ext_msg = ' '.join(ext_msg)
+                        self.log.error('Board(s) are: %s', ext_msg)
                     else:
                         zcus_sending = self.zcus.is_sending()
                         if not all(zcus_sending):
@@ -1529,6 +1541,12 @@ class MsgProcessor(ConsumerThread):
                             new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                             status, info = self._combine_status(status, info, new_status, new_info)
                             self.log.error(msg)
+                            ext_msg = []
+                            for z,s in zip(self.zcus, zcus_sending):
+                                if not s:
+                                    ext_msg.append(z.host)
+                            ext_msg = ' '.join(ext_msg)
+                            self.log.error('Board(s) are: %s', ext_msg)
                             
                 ## De-assert anything that we can de-assert
                 if not self.ready:
