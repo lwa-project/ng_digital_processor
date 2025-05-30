@@ -753,7 +753,7 @@ class ZCU102MonitorClient(object):
         ### Antenna and IP source
         for i,zcu in enumerate(self.config['host']['zcus']):
             sconf['fengines'][zcu] = {}
-            sconf['fengines'][zcu]['ants'] = f"[{i*32}, {(i+1)*32}]"
+            sconf['fengines'][zcu]['ants'] = f"[{i*16}, {(i+1)*16}]"
             sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['zcu']['data_ip_base']) + i)
             sconf['fengines'][zcu]['source_port'] = self.config['zcu']['data_port_base']
             
