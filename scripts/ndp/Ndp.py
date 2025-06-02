@@ -680,6 +680,10 @@ class ZCU102MonitorClient(object):
                     try:
                         self.zcu.program(firmware)
                         sucesss = True
+                        
+                        ## This seems to be necessary
+                        self.zcu = zcu102_fengine.ZCU102Fengine(self.host)
+                        
                         break
                     except Exception as e:
                         pass
