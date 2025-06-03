@@ -630,7 +630,7 @@ class ZCU102MonitorClient(object):
                 samps1 = self.zcu.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
                 samps = np.vstack([samps0, samps1])
                 
-        return samps.reshape(32,2,-1)
+        return samps.reshape(16,2,-1)
         
     @lru_cache(maxsize=4)
     def get_temperatures(self, slot):
