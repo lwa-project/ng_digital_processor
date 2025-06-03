@@ -841,11 +841,14 @@ class ZCU102MonitorClient(object):
                 info['pfb_enabled'] = self.zcu.pfb.fir_is_enabled()
                 info['inputs'] = self.zcu.input.get_switch_positions()
                 info['eq_tvg_enabled'] = self.zcu.eqtvg.get_status()[0]['tvg_enabled']
-                fstat = self.zcu.fpga.get_status()[0]
-                info['fw_version'] = fstat['fw_version']
-                info['sw_version'] = fstat['sw_version']
-                info['fw_supported'] = fstat['fw_supported']
-                info['flash_md5'] = fstat['flash_firmware_md5']
+                try:
+                    fstat = self.zcu.fpga.get_status()[0]
+                    info['fw_version'] = fstat['fw_version']
+                    info['sw_version'] = fstat['sw_version']
+                    info['fw_supported'] = fstat['fw_supported']
+                    info['flash_md5'] = fstat['flash_firmware_md5']
+                except Exception as e:
+                    self.log.warning("Cannot poll FPGA status: %s", str(e))
         if info['inputs'] != 'unknown':
             spos = {}
             for i in info['inputs']:
