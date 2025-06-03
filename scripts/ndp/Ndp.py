@@ -810,7 +810,7 @@ class ZCU102MonitorClient(object):
                 self.zcu.autocorr.set_acc_len(acc_len)
                 time.sleep(t_int+0.1)
                 
-                for i in range(4):
+                for i in range(2):
                     spectra.append( self.zcu.autocorr.get_new_spectra(signal_block=i) )
         spectra = np.array(spectra)
         spectra = spectra.reshape(-1, spectra.shape[-1])
