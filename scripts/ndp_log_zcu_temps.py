@@ -21,7 +21,9 @@ if __name__ == "__main__":
     
     out = [time.time(),]
     for s in config['host']['zcus']:
-        zcu = zcu102_fengine.ZCU102Fengine(s)
+        zcu = zcu102_fengine.ZCU102Fengine(s,
+                                           username=config['zcu']['username'],
+                                           password=config['zcu']['password'])
         lock = FileLock(f"/dev/shm/{s}_access")
         
         try:
