@@ -601,7 +601,10 @@ class ZCU102MonitorClient(object):
         self.log    = log
         self.num    = num
         self.host   = f"zcu{self.num:02d}"
-        self.zcu   = zcu102_fengine.ZCU102Fengine(self.host)
+        username = self.config['zcu']['username']
+        password = self.config['zcu']['password']
+        self.zcu   = zcu102_fengine.ZCU102Fengine(self.host,
+                                                  username=username, password=password)
         
         self.equalizer_coeffs = None
         try:
@@ -682,7 +685,11 @@ class ZCU102MonitorClient(object):
                         sucesss = True
                         
                         ## This seems to be necessary
-                        self.zcu = zcu102_fengine.ZCU102Fengine(self.host)
+                        username = self.config['zcu']['username']
+                        password = self.config['zcu']['password']
+                        self.zcu = zcu102_fengine.ZCU102Fengine(self.host,
+                                                                username=username,
+                                                                password=password)
                         
                         break
                     except Exception as e:
