@@ -204,3 +204,19 @@ done
 if [[ ${nfailed} == 0 ]]; then
         echo "  OK"
 fi
+
+usernm=$(grep -A5 -e 'zcu": {' ${configname} | grep username | sed -e "s/\",*//g;" | awk '{print $2}')
+passwd=$(grep -A5 -e 'zcu": {' ${configname} | grep password | sed -e "s/\",*//g;" | awk '{print $2}')
+
+echo "Testing password-less SSH access"
+nfailed=0
+for sname in ${snames}; do
+        timeout 10 sshpass -p ${passwd} ssh -o StrictHostKeyChecking=no ${usernm}@${sname} date >/dev/null
+        if [[ $? != 0 ]]; then
+                nfailed=$((nfailed + 1))
+                echo "  Failed on ${sname}"
+        fi
+done
+if [[ ${nfailed} == 0 ]]; then
+        echo "  OK"
+fi
