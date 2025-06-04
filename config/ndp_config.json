@@ -154,6 +154,8 @@
         "temperature_scram":    90.0
     },
     "zcu": {
+        "username":             "casper",
+        "password":             "casper",
         "data_ip_base":         "192.168.40.101",
         "data_port_base":       10000,
         "firmware":             "/home/ndp/ng_digital_processor/caltech-lwa/snap2_f_200msps_64i_4096c/outputs/snap2_f_200msps_64i_4096c_2023-04-26_1706.fpg", 
