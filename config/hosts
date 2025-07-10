@@ -32,6 +32,7 @@
 172.16.128.126 zcu16
 
 # Switch management
+172.16.128.149 fujitsu
 172.16.128.150 arista
 
 # Data network
