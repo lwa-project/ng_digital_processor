@@ -31,8 +31,8 @@
     },
     "drx": [
             {
-                "first_channel":     640,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     160,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -42,8 +42,8 @@
                 "gpus":              [0]
             },
             {
-                "first_channel":     1024,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     608,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -53,8 +53,8 @@
                 "gpus":              [1]
             },
             {
-                "first_channel":     1408,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     1056,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -64,8 +64,8 @@
                 "gpus":              [0]
             },
             {
-                "first_channel":     1792,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     1504,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -75,8 +75,8 @@
                 "gpus":              [1]
             },
             {
-                "first_channel":     2176,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     1952,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -86,8 +86,8 @@
                 "gpus":              [0]
             },
             {
-                "first_channel":     2560,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     2400,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -97,8 +97,8 @@
                 "gpus":              [1]
             },
             {
-                "first_channel":     2944,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     2848,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -108,8 +108,8 @@
                 "gpus":              [0]
             },
             {
-                "first_channel":     3328,
-                "capture_bandwidth": 9.1875e6,
+                "first_channel":     3296,
+                "capture_bandwidth": 10.71875e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -144,7 +144,7 @@
         "gpu_ids":         [0, 1],
         "disk_ids":        ["/"],
         "data_ports":      [10000, 10000, 10000, 10000],
-        "data_ifaces":     ["p2p1", "p8p1", "p2p1", "p8p1"],
+        "data_ifaces":     ["enp1s0f0np0", "enp129s0f0np0", "enp1s0f0np0", "enp129s0f0np0"],
         "startup_timeout": 240,
         "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
                          "SYS_Air_Inlet",  "SYS_Air_Outlet",
@@ -163,7 +163,7 @@
         "fft_shift":            8191,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
         "bypass_pfb":           false,
-        "nchan_packet":         96,
+        "nchan_packet":         112,
         "temperatures":         ["ambient", "ppc", "fpga", "inlet", "outlet"],
         "temperature_warning":  80.0,
         "temperature_shutdown": 85.0,

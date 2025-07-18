@@ -1105,6 +1105,12 @@ class RetransmitOp(object):
         self.udts = []
         self.nchan_send = min([self.nchan_max, 384])
         self.nblock_send = self.nchan_max // self.nchan_send
+        while self.nblock_send*self.nchan_send < self.nchan_max and self.nchan_send > 0:
+            self.nchan_send -= 1
+            self.nblock_send = self.nchan_max // self.nchan_send
+        if self.nchan_send <= 0:
+            raise RuntimeError("Cannot subdivide bandwidth for packetization")
+            
         for sock in self.socks:
             udt = UDPVerbsTransmit('ibeam%i_%i' % (1, self.nchan_send), sock=sock, core=self.core)
             udt.set_rate_limit(430000)

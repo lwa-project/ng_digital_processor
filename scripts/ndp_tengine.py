@@ -1101,9 +1101,15 @@ def main(argv):
     GSIZE = 1960
     nchan_max = int(round(sum([c['capture_bandwidth'] for c in drxConfigs])/CHAN_BW))    # Subtly different from what is in ndp_drx.py
     
-    nblock = int(round(drxConfig['capture_bandwidth']/CHAN_BW)) // 384
-    nblock = max([nblock, 1])
-    
+    nchan_max = int(round(drxConfig['capture_bandwidth']/CHAN_BW))
+    nchan_send = min(nchan_max, 384)
+    nblock = nchan_max // nchan_send
+    while nblock*nchan_send < nchan_max and nchan_send > 0:
+        nchan_send -= 1
+        nblock = nchan_max // nchan_send
+    if nchan_send == 0:
+        raise RuntimeError("Cannot subdivide bandwidth")
+        
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
                          nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
                          nbeam_max=nbeam, buffer_ntime=GSIZE, slot_ntime=19600,
