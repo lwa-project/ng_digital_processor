@@ -1102,7 +1102,7 @@ def main(argv):
     nchan_max = int(round(sum([c['capture_bandwidth'] for c in drxConfigs])/CHAN_BW))    # Subtly different from what is in ndp_drx.py
     
     nchan_max = int(round(drxConfig['capture_bandwidth']/CHAN_BW))
-    nchan_send = min(nchan_max, 384)
+    nchan_send = min(nchan_max, 512)
     nblock = nchan_max // nchan_send
     while nblock*nchan_send < nchan_max and nchan_send > 0:
         nchan_send -= 1
