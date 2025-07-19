@@ -1236,9 +1236,9 @@ class PacketizeOp(object):
         ## Metadata
         self.nchan_send = min([self.nchan_max, 256])
         self.nblock_send = self.nchan_max // self.nchan_send
-        while self.nblock*self.nchan_send < self.nchan_max and self.nchan_send > 0:
+        while self.nblock_send*self.nchan_send < self.nchan_max and self.nchan_send > 0:
             self.nchan_send -= 1
-            self.nblock = self.nchan_max // self.nchan_send
+            self.nblock_send = self.nchan_max // self.nchan_send
         if self.nchan_send == 0:
             raise RuntimeError("Cannot subdivide bandwidth")
         nstand, npol = nzcu*16, 2
