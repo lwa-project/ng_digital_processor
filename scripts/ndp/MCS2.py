@@ -126,24 +126,27 @@ class Msg(object):
         hdr = pkt[:38]
         hdr = hdr.decode()
         
-        self.slot = get_current_slot()
-        self.dst  = hdr[:3]
-        self.src  = hdr[3:6]
-        self.cmd  = hdr[6:9]
-        self.ref  = int(hdr[9:18])
-        datalen   = int(hdr[18:22])
-        self.mjd  = int(hdr[22:28])
-        self.mpm  = int(hdr[28:37])
-        space     = hdr[37]
-        self.data = pkt[38:38+datalen]
         try:
-            self.data = self.data.decode()
-        except UnicodeDecodeError:
+            self.slot = get_current_slot()
+            self.dst  = hdr[:3]
+            self.src  = hdr[3:6]
+            self.cmd  = hdr[6:9]
+            self.ref  = int(hdr[9:18])
+            datalen   = int(hdr[18:22])
+            self.mjd  = int(hdr[22:28])
+            self.mpm  = int(hdr[28:37])
+            space     = hdr[37]
+            self.data = pkt[38:38+datalen]
+            try:
+                self.data = self.data.decode()
+            except UnicodeDecodeError:
+                pass
+            # WAR for DATALEN parameter being wrong for BAM commands (FST too?)
+            broken_commands = ['BAM']#, 'FST']
+            if self.cmd in broken_commands:
+                self.data = pkt[38:]
+        except Exception as e:
             pass
-        # WAR for DATALEN parameter being wrong for BAM commands (FST too?)
-        broken_commands = ['BAM']#, 'FST']
-        if self.cmd in broken_commands:
-            self.data = pkt[38:]
             
     def create_reply(self, accept, status, data=''):
         msg = Msg(#src=self.dst,
