@@ -719,6 +719,7 @@ class ZCU102MonitorClient(object):
                     summary, flags = self.zcu.fpga.get_status()
                     for key in flags.keys():
                         if flags[key] == FENG_ERROR_CODE:
+                            self.log.error("%s reports '%s' in error, value is %s", self.host, key, summary[key])
                             status = False
                 except Exception as e:
                     pass
