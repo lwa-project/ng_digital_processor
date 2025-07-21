@@ -1111,7 +1111,7 @@ def main(argv):
         raise RuntimeError("Cannot subdivide bandwidth")
         
     ops.append(CaptureOp(log, fmt="ibeam1", sock=isock, ring=capture_ring,
-                         nsrc=nblock*ntuning, src0=server0, max_payload_size=6500,
+                         nsrc=nblock*ntuning, src0=server0, max_payload_size=8500,
                          nbeam_max=nbeam, buffer_ntime=GSIZE, slot_ntime=19600,
                          core=cores.pop(0)))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring, ntime_gulp=GSIZE,
