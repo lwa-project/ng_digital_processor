@@ -161,7 +161,7 @@ class GPUCopyOp(object):
         
         with self.oring.begin_writing() as oring:
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
@@ -281,7 +281,7 @@ class ReChannelizerOp(object):
         
         with self.oring.begin_writing() as oring:
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
@@ -620,7 +620,7 @@ class TEngineOp(object):
         
         with self.oring.begin_writing() as oring:
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
@@ -894,7 +894,7 @@ class PacketizeOp(object):
             
             was_active = False
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 

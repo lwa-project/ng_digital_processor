@@ -133,7 +133,7 @@ class BufferCopyOp(object):
         
         with self.oring.begin_writing() as oring:
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
@@ -270,7 +270,7 @@ class GPUCopyOp(object):
         
         with self.oring.begin_writing() as oring:
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
@@ -424,7 +424,7 @@ class TriggeredDumpOp(object):
             self.tbfLock.set()
         with self.iring.open_sequence_at(dump_time_tag, guarantee=True) as iseq:
             time_tag0 = iseq.time_tag
-            ihdr = json.loads(iseq.header.tostring())
+            ihdr = json.loads(iseq.header.tobytes())
             nchan  = ihdr['nchan']
             chan0  = ihdr['chan0']
             nstand = ihdr['nstand']
@@ -722,7 +722,7 @@ class BeamformerOp(object):
         
         with self.oring.begin_writing() as oring:
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
@@ -940,7 +940,7 @@ class CorrelatorOp(object):
         
         with self.oring.begin_writing() as oring:
             for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
@@ -1135,7 +1135,7 @@ class RetransmitOp(object):
                 src_id.append(self.nblock_send*self.tuning + j)
                 
         for iseq in self.iring.read():
-            ihdr = json.loads(iseq.header.tostring())
+            ihdr = json.loads(iseq.header.tobytes())
             
             self.sequence_proclog.update(ihdr)
             
@@ -1269,7 +1269,7 @@ class PacketizeOp(object):
                 desc[-1].set_tuning((4 << 16) | (4 << 8) | (self.nblock_send*self.tuning + i + 1))
             
             for iseq in self.iring.read():
-                ihdr = json.loads(iseq.header.tostring())
+                ihdr = json.loads(iseq.header.tobytes())
                 
                 self.sequence_proclog.update(ihdr)
                 
