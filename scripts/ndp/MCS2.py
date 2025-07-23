@@ -146,7 +146,7 @@ class Msg(object):
             if self.cmd in broken_commands:
                 self.data = pkt[38:]
         except Exception as e:
-            pass
+            print("Failed to decode packet: %s" % str(e))
             
     def create_reply(self, accept, status, data=''):
         msg = Msg(#src=self.dst,
