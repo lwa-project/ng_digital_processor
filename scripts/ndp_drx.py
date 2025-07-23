@@ -1546,7 +1546,7 @@ def main(argv):
     tbf_ring.resize(ogulp_size, obuf_size)
     
     ops.append(CaptureOp(log, fmt="zcu102", sock=isock, ring=capture_ring,
-                         nsrc=nsrc, nzcu=nzcu, src0=zcu0, max_payload_size=6500,
+                         nsrc=nsrc, nzcu=nzcu, src0=zcu0, max_payload_size=4500,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
     ops.append(BufferCopyOp(log, capture_ring, tbf_ring,
                             tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
