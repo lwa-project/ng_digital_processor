@@ -21,8 +21,8 @@
                  "zcu05", "zcu06", "zcu07", "zcu08",
                  "zcu09", "zcu10", "zcu11", "zcu12",
                  "zcu13", "zcu14", "zcu15", "zcu16"],
-        "servers-data": ["mcg40s1-data1", "mcg40s1-data2", "mcg40s2-data1", "mcg40s2-data2",
-                         "mcg40s3-data1", "mcg40s3-data2", "mcg40s4-data1", "mcg40s4-data2"],
+        "servers-data": ["ndp1-data1", "ndp1-data2", "ndp2-data1", "ndp2-data2",
+                         "ndp3-data1", "ndp3-data2", "ndp4-data1", "ndp4-data2"],
         "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
     },
     "ipmi": {
