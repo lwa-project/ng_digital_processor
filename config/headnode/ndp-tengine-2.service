@@ -26,9 +26,9 @@ SyslogIdentifier=ndp-tengine-2
 ExecStartPre=/bin/bash -c '[ -d /home/ndp/log ] || mkdir -p /home/ndp/log'
 
 # Setup the environment
-Environment=BIFROST_INCLUDE_PATH=/home/ndp/bifrost8_verbs_py3/src/bifrost
-Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/ndp/bifrost8_verbs_py3/lib:$LD_LIBRARY_PATH
-Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_verbs_py3/python:$PYTHONPATH
+Environment=BIFROST_INCLUDE_PATH=/home/ndp/bifrost8_zcu102/src/bifrost
+Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/ndp/bifrost8_zcu102/lib:$LD_LIBRARY_PATH
+Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_zcu102/python:$PYTHONPATH
 
 Environment=PYTHONUNBUFFERED=1
 
