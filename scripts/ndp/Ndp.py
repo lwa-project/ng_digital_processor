@@ -481,8 +481,8 @@ class NdpServerMonitorClient(object):
         #try:
         ret = subprocess.check_output(['ipmitool', '-H', self.host_ipmi,
                                        '-U', username, '-P', password] +
-                                       cmd.split())
-        return ret.decode()
+                                       cmd.split(), text=True)
+        return ret
         
     def stop_tengine(self, beam=0):
         try:
@@ -573,12 +573,7 @@ class NdpServerMonitorClient(object):
         ret = subprocess.check_output(['sshpass', '-p', password,
                                        'ssh', '-o', 'StrictHostKeyChecking=no',
                                        'root@'+self.host,
-                                       cmd])
-        try:
-            ret = ret.decode()
-        except AttributeError:
-            # Python2 catch
-            pass
+                                       cmd], text=True)
         #self.log.info("SSHPASS DONE: " + ret)
         #self.log.info("Command executed: "+ret)
         return ret

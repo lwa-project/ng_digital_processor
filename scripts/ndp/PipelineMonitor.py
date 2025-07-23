@@ -125,12 +125,7 @@ def _get_command_line(pid, host="localhost"):
     else:
         try:
             cmd = subprocess.check_output(['ssh', host, "cat /proc/%i/cmdline" % pid], 
-                                          stderr=subprocess.STDOUT)
-            try:
-                cmd = cmd.decode()
-            except AttributeError:
-                # Python2 catch
-                pass
+                                          stderr=subprocess.STDOUT, text=True)
             cmd = cmd.replace('\0', ' ')
             cmd = "%s:%s" % (host, cmd)
         except subprocess.CalledProcessError:
@@ -152,12 +147,7 @@ class BifrostPipelines(object):
         else:
             try:
                 pidDirs = subprocess.check_output(['ssh', self.host, "ls -1 %s" % BIFROST_STATS_BASE_DIR], 
-                                                  stderr=subprocess.STDOUT)
-                try:
-                    pidDirs = pidDirs.decode()
-                except AttributeError:
-                    # Python2 catch
-                    pass
+                                                  stderr=subprocess.STDOUT, text=True)
             except subprocess.CalledProcessError:
                 pidDirs = '\n'
             pidDirs = pidDirs.split('\n')[:-1]                           
@@ -384,7 +374,7 @@ class BifrostRemotePipeline(BifrostPipeline):
             log = subprocess.check_output(['rsync', '-e ssh', '-avH', '--min-size=1', '--delete-during', '--delete-missing-args', 
                                            "%s:%s" % (self.host, os.path.join(BIFROST_STATS_BASE_DIR, str(self.pid))), 
                                            self._dir_name], 
-                                          stderr=subprocess.STDOUT)
+                                          stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError:
             pass
            

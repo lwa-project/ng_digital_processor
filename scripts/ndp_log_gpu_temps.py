@@ -16,8 +16,7 @@ if __name__ == "__main__":
         
         try:
             subdata = []
-            output = subprocess.check_output(cmd)
-            output = output.decode()
+            output = subprocess.check_output(cmd, text=True)
             for line in output.split('\n')[:-1]:
                 value = float(line)
                 subdata.append(value)
