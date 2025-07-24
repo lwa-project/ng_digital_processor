@@ -164,7 +164,7 @@ class TbsCommand(object):
 
 class Tbs(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'TBS', TbtCommand)
+        SlotCommandProcessor.__init__(self, 'TBS', TbsCommand)
         self.config  = config
         self.log     = log
         self.messenger = messenger
