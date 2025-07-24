@@ -537,7 +537,7 @@ class StreamingOp(object):
         self.active_chan0 = 0
         self.active_nchan = 0
         
-    def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
+    def updateConfig(self, config, hdr, time_tag):
         if config:
             frequency, bandwidth = config
             chan = int(round(frequency / CHAN_BW))
@@ -553,6 +553,10 @@ class StreamingOp(object):
             else:
                 self.log.info("StreamingOp: Deactivation configuration")
                 
+            return True
+        else:
+            return False
+            
     def main(self):
         cpu_affinity.set_core(self.core)
         self.bind_proclog.update({'ncore': 1, 
@@ -563,7 +567,7 @@ class StreamingOp(object):
             
             self.sequence_proclog.update(ihdr)
             
-            status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
+            status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag )
             
             self.log.info("StreamingOp: Start of new sequence: %s", str(ihdr))
             
@@ -608,18 +612,18 @@ class StreamingOp(object):
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
                             
-            ## Update the base time tag
-            base_time_tag += self.ntime_gulp*ticksPerTime
-            
-            ## Check for an update to the configuration
-            self.updateConfig( self.configMessage(), ihdr, base_time_tag )
-            
-            curr_time = time.time()
-            process_time = curr_time - prev_time
-            prev_time = curr_time
-            self.perf_proclog.update({'acquire_time': acquire_time, 
-                                      'reserve_time': -1, 
-                                      'process_time': process_time,})
+                ## Update the base time tag
+                base_time_tag += self.ntime_gulp*ticksPerTime
+                
+                ## Check for an update to the configuration
+                self.updateConfig( self.configMessage(), ihdr, base_time_tag )
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
         
         
 class BeamformerOp(object):
