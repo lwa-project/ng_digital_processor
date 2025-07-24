@@ -542,12 +542,16 @@ class StreamingOp(object):
             frequency, bandwidth = config
             chan = int(round(frequency / CHAN_BW))
             nchan = max(TBS_MIN_NCHAN_PER_PKT, int(round(bandwidth / CHAN_BW)))
+            self.log.info("StreamingOp: New configuration received for %.3f MHz with %.3f kHz of bandwidth", frequency/1e6, bandwidth/1e3)
             
             self.active_config = []
             self.active_chan0 = 0
             if chan-nchan//2 >= hdr['chan0'] and chan+nchan//2 <= hdr['chan0'] + hdr['nchan']:
                 self.active_config = list(range(chan-hdr['chan0']-nchan//2, chan-hdr['chan0']+nchan//2))
                 self.active_chan0 = chan - nchan//2
+                self.log.info("StreamingOp: Active configuration set")
+            else:
+                self.log.info("StreamingOp: Deactivation configuration")
                 
     def main(self):
         cpu_affinity.set_core(self.core)
@@ -598,9 +602,9 @@ class StreamingOp(object):
                     sdata = sdata.copy()
                     if not self.tbxLock.is_set():
                         try:
-                            self.udt.send(self.desc,
-                                          base_time_tag, int(FS)//int(CHAN_BW), 
-                                          self.active_chan0, sdata)
+                            udt.send(self.desc,
+                                     base_time_tag, int(FS)//int(CHAN_BW), 
+                                     self.active_chan0, sdata)
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
                             
