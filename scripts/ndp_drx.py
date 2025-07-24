@@ -520,8 +520,7 @@ class StreamingOp(object):
         self.ntime_gulp = ntime_gulp
         self.guarantee = guarantee
         self.core = core
-        self.gpu = gpu
-
+        
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
         self.size_proclog = ProcLog(type(self).__name__+"/size")
@@ -1671,7 +1670,7 @@ def main(argv):
                                core=cores.pop(0),
                                max_bytes_per_sec=tbf_bw_max))
     ops.append(StreamingOp(log, osock, capture_ring, tuning=tuning, ntime_gulp=GSIZE, nchan_max=nchan_max,
-                           cores=cores.pop(0)))
+                           core=cores.pop(0)))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring,
                          ntime_gulp=GSIZE, core=cores[0], gpu=gpus[0]))
     ops.append(BeamformerOp(log=log, iring=gpu_ring, oring=tengine_ring,
