@@ -43,7 +43,7 @@ if __name__ == '__main__':
         bandwidth = float(bandwidth)
         data = struct.pack('>ff', frequency, bandwidth)
         
-    elif mcd == 'TBT':
+    elif cmd == 'TBT':
         bits, trigger, samples, mask = data.split(None, 3)
         bits = int(bits, 10)
         trigger = int(trigger, 10)
