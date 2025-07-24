@@ -268,7 +268,7 @@ class StreamingClient(PipelineMessageClient):
         super(StreamingClient, self).__init__('STREAM', addr=addr, context=context)
         
     def __call__(self, block=False):
-        msg = super(TriggerClient, self).__call__(block=block)
+        msg = super(StreamingClient, self).__call__(block=block)
         if not msg:
             # Nothing to report
             return False
