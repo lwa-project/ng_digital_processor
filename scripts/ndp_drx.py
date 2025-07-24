@@ -444,7 +444,7 @@ class TriggeredDumpOp(object):
             if local:
                 filename = '/data/test_%s_%i_%020i.tbt' % (socket.gethostname(), self.tuning, dump_time_tag)#time_tag0
                 ofile = open(filename, 'wb')
-                ldw = DiskWriter(f"tbx{ninput}_{TBT_NCHAN_PER_PKT}", ofile, core=self.core)
+                ldw = DiskWriter(f"tbx{nstand}_{TBT_NCHAN_PER_PKT}", ofile, core=self.core)
             ntime_dumped = 0
             nchan_rounded = nchan // TBT_NCHAN_PER_PKT * TBT_NCHAN_PER_PKT
             bytesSent, bytesStart = 0.0, time.time()
@@ -477,13 +477,13 @@ class TriggeredDumpOp(object):
                         ldw.send(self.desc,
                                  time_tag, int(FS)//int(CHAN_BW), 
                                  chan0, TBT_NCHAN_PER_PKT, sdata)
-                        bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
+                        bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*32   # data size -> packet size
                     else:
                         try:
                             self.udt.send(self.desc,
                                           time_tag, int(FS)//int(CHAN_BW), 
                                           chan0, TBT_NCHAN_PER_PKT, sdata)
-                            bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
+                            bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*32   # data size -> packet size
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
                             
@@ -554,69 +554,68 @@ class StreamingOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
-        with self.oring.begin_writing() as oring:
-            for iseq in self.iring.read(guarantee=self.guarantee):
-                ihdr = json.loads(iseq.header.tobytes())
-                
-                self.sequence_proclog.update(ihdr)
-                
-                status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
-                
-                self.log.info("StreamingOp: Start of new sequence: %s", str(ihdr))
-                
-                nchan  = ihdr['nchan']
-                nstand = ihdr['nstand']
-                npol   = ihdr['npol']
-                igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
-                ishape = (self.ntime_gulp,nchan,nstand*npol)
-                
-                ticksPerTime = int(FS) // int(CHAN_BW)
-                base_time_tag = iseq.time_tag
-                
-                prev_time = time.time()
-                for ispan in iseq.read(igulp_size):
-                    if ispan.size < igulp_size:
-                        continue # Ignore final gulp
-                    curr_time = time.time()
-                    acquire_time = curr_time - prev_time
-                    prev_time = curr_time
-                    
-                    ## Setup and load
-                    idata = ispan.data_view('ci4').reshape(ishape)
-                    
-                    if self.active_config:
-                        try:
-                            if len(self.active_config) != self.active_nchan:
-                                del udt
-                                del desc
-                        except NameError:
-                            self.active_nchan = len(self.active_config)
-                            udt = UDPTransmit(f"tbx{nstand}_{self.active_nchan}", sock=self.sock, core=self.core)
-                            desc = HeaderInfo()
-                            desc.set_nchan(self.active_nchan)
-                            
-                        sdata = idata[:,self.active_config,:]
-                        sdata = sdata.copy()
-                        if not self.tbxLock.is_set():
-                            try:
-                                self.udt.send(self.desc,
-                                              base_time_tag, int(FS)//int(CHAN_BW), 
-                                              self.active_chan0, sdata)
-                            except Exception as e:
-                                print(type(self).__name__, 'Sending Error', str(e))
-                                
-                ## Update the base time tag
-                base_time_tag += self.ntime_gulp*ticksPerTime
-                
-                ## Check for an update to the configuration
-                self.updateConfig( self.configMessage(), ihdr, base_time_tag )
-                
+        for iseq in self.iring.read(guarantee=self.guarantee):
+            ihdr = json.loads(iseq.header.tobytes())
+            
+            self.sequence_proclog.update(ihdr)
+            
+            status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
+            
+            self.log.info("StreamingOp: Start of new sequence: %s", str(ihdr))
+            
+            nchan  = ihdr['nchan']
+            nstand = ihdr['nstand']
+            npol   = ihdr['npol']
+            igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
+            ishape = (self.ntime_gulp,nchan,nstand*npol)
+            
+            ticksPerTime = int(FS) // int(CHAN_BW)
+            base_time_tag = iseq.time_tag
+            
+            prev_time = time.time()
+            for ispan in iseq.read(igulp_size):
+                if ispan.size < igulp_size:
+                    continue # Ignore final gulp
                 curr_time = time.time()
-                process_time = curr_time - prev_time
+                acquire_time = curr_time - prev_time
                 prev_time = curr_time
-                self.perf_proclog.update({'acquire_time': acquire_time, 
-                                          'reserve_time': -1, 
-                                          'process_time': process_time,})
+                
+                ## Setup and load
+                idata = ispan.data_view('ci4').reshape(ishape)
+                
+                if self.active_config:
+                    try:
+                        if len(self.active_config) != self.active_nchan:
+                            del udt
+                            del desc
+                    except NameError:
+                        self.active_nchan = len(self.active_config)
+                        udt = UDPTransmit(f"tbx{nstand}_{self.active_nchan}", sock=self.sock, core=self.core)
+                        desc = HeaderInfo()
+                        desc.set_nchan(self.active_nchan)
+                        
+                    sdata = idata[:,self.active_config,:]
+                    sdata = sdata.copy()
+                    if not self.tbxLock.is_set():
+                        try:
+                            self.udt.send(self.desc,
+                                          base_time_tag, int(FS)//int(CHAN_BW), 
+                                          self.active_chan0, sdata)
+                        except Exception as e:
+                            print(type(self).__name__, 'Sending Error', str(e))
+                            
+            ## Update the base time tag
+            base_time_tag += self.ntime_gulp*ticksPerTime
+            
+            ## Check for an update to the configuration
+            self.updateConfig( self.configMessage(), ihdr, base_time_tag )
+            
+            curr_time = time.time()
+            process_time = curr_time - prev_time
+            prev_time = curr_time
+            self.perf_proclog.update({'acquire_time': acquire_time, 
+                                      'reserve_time': -1, 
+                                      'process_time': process_time,})
         
         
 class BeamformerOp(object):
