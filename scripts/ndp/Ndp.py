@@ -154,7 +154,46 @@ class Drx(SlotCommandProcessor):
         return 0
 
 
-class TbfCommand(object):
+class TbsCommand(object):
+    def __init__(self, msg):
+        if isinstance(msg.data, str):
+            msg.data = msg.data.encode()
+        self.frequency, self.bandwidth \
+            = struct.unpack('>ff', msg.data)
+
+
+class Tbs(SlotCommandProcessor):
+    def __init__(self, config, log, messenger, servers):
+        SlotCommandProcessor.__init__(self, 'TBS', TbtCommand)
+        self.config  = config
+        self.log     = log
+        self.messenger = messenger
+        self.servers = servers
+        self.cur_freq = self.cur_bw = 0.0
+        
+    def _reset_state(self):
+        self.cur_freq = self.cur_bw = 0.0
+        
+    def start(self, frequency, bandwidth):
+        self.log.info('Starting TBS: frequency=%.3f, bandwidth=%.3f' % (frequency, bandwidth))
+        
+        self.messenger.stream(frequency, bandwidth)
+        
+        return True
+        
+    def execute(self, cmds):
+        for cmd in cmds:
+            self.start(cmd.frequency, cmd.bandwidth)
+            
+    def stop(self):
+        self.log.info("Stopping TBS data")
+        self.start(0.0, 0.0)
+        self.cur_freq = self.cur_bw = 0.0
+        self.log.info("TBS stopped")
+        return 0
+
+
+class TbtCommand(object):
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
@@ -162,9 +201,9 @@ class TbfCommand(object):
             = struct.unpack('>Biiq', msg.data)
 
 
-class Tbf(SlotCommandProcessor):
+class Tbt(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'TBF', TbfCommand)
+        SlotCommandProcessor.__init__(self, 'TBT', TbtCommand)
         self.config  = config
         self.log     = log
         self.messenger = messenger
@@ -175,7 +214,7 @@ class Tbf(SlotCommandProcessor):
         self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
     def start(self, bits, trigger, samples, mask):
-        self.log.info('Starting TBF: bits=%i, trigger=%i, samples=%i, mask=%i' % (bits, trigger, samples, mask))
+        self.log.info('Starting TBT: bits=%i, trigger=%i, samples=%i, mask=%i' % (bits, trigger, samples, mask))
         
         self.messenger.trigger(trigger, samples, mask)
         
@@ -913,7 +952,8 @@ class MsgProcessor(ConsumerThread):
         
         #self.fst = Fst(config, log)
         self.drx = Drx(config, log, self.messageServer, self.servers)
-        self.tbf = Tbf(config, log, self.messageServer, self.servers)
+        self.tbs = Tbs(config, log, self.messageServer, self.servers)
+        self.tbt = Tbt(config, log, self.messageServer, self.servers)
         self.bam = Bam(config, log, self.messageServer, self.servers)
         self.cor = Cor(config, log, self.messageServer, self.servers)
 
@@ -1099,7 +1139,8 @@ class MsgProcessor(ConsumerThread):
         
         # Reset the internal state for the various modes/commands 
         self.drx._reset_state()
-        self.tbf._reset_state()
+        self.tbs._reset_state()
+        self.tbt._reset_state()
         self.bam._reset_state()
         self.cor._reset_state()
         
@@ -1312,7 +1353,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Starting slot execution thread")
         slot = MCS2.get_current_slot()
         while not self.shutdown_event.is_set():
-            for cmd_processor in [self.drx, self.tbf, self.bam, self.cor]:#, self.fst]
+            for cmd_processor in [self.drx, self.tbs, self.tbt, self.bam, self.cor]:#, self.fst]
                 self.thread_pool.add_task(cmd_processor.execute_commands,
                                         slot)
             while MCS2.get_current_slot() == slot:
@@ -1777,8 +1818,8 @@ class MsgProcessor(ConsumerThread):
         if key == 'VERSION':           return self.version
         if key == 'SNAP_CONFIG':       return self._get_zcu_config()
         if key == 'TENGINE_CONFIG':    return self._get_tengine_config()
-        # TODO: TBF_STATUS
-        #       TBF_TUNING_MASK
+        # TODO: TBT_STATUS
+        #       TBT_TUNING_MASK
         if key == 'NUM_STANDS':        return NSTAND
         if key == 'NUM_SERVERS':       return NSERVER
         if key == 'NUM_BOARDS':        return NBOARD
@@ -1891,8 +1932,8 @@ class MsgProcessor(ConsumerThread):
             'VERSION':            lambda x: truncate_message(x, 256),
             'SNAP_CONFIG':        lambda x: truncate_message(x, 1024),
             'TENGINE_CONFIG':     lambda x: truncate_message(x, 1024),
-            #'TBF_STATUS':
-            #'TBF_TUNING_MASK':
+            #'TBT_STATUS':
+            #'TBT_TUNING_MASK':
             'NUM_DRX_TUNINGS':    lambda x: struct.pack('>B', x),
             'NUM_FREQ_CHANS':     lambda x: struct.pack('>H', x),
             'NUM_BEAMS':          lambda x: struct.pack('>B', x),
@@ -1978,7 +2019,7 @@ class MsgProcessor(ConsumerThread):
             else:
                 self.thread_pool.add_task(self.sht, msg.data)
         elif msg.cmd == 'STP':
-            mode = msg.data # TBN/TBF/BEAMn/COR
+            mode = msg.data # TBS/TBT/BEAMn/COR
             if mode == 'DRX':
                 # TODO: This is not actually part of the spec (useful for debugging?)
                 if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
@@ -1986,7 +2027,13 @@ class MsgProcessor(ConsumerThread):
                 else:
                     self.state['lastlog'] = "STP: Subsystem is not ready"
                     exit_status = 99
-            elif mode == 'TBF':
+            elif mode == 'TBS':
+                if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
+                    exit_status = self.tbs.stop()
+                else:
+                    self.state['lastlog'] = "STP: Subsystem is not ready"
+                    exit_status = 99
+            elif mode == 'TBT':
                 if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
                     self.state['lastlog'] = "UNIMPLEMENTED STP request"
                     exit_status = -1 # TODO: Implement this
@@ -2024,11 +2071,17 @@ class MsgProcessor(ConsumerThread):
             else:
                 self.state['lastlog'] = "DRX: Subsystem is not ready"
                 exit_status = 99
-        elif msg.cmd == 'TBF':
+        elif msg.cmd == 'TBS':
             if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
-                exit_status = self.tbf.process_command(msg)
+                exit_status = self.tbs.process_command(msg)
             else:
-                self.state['lastlog'] = "TBF: Subsystem is not ready"
+                self.state['lastlog'] = "TBS: Subsystem is not ready"
+                exit_status = 99
+        elif msg.cmd == 'TBT':
+            if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
+                exit_status = self.tbt.process_command(msg)
+            else:
+                self.state['lastlog'] = "TBT: Subsystem is not ready"
                 exit_status = 99
         elif msg.cmd == 'BAM':
             if self.state['status'] not in ('SHUTDWN', 'BOOTING'):

@@ -331,12 +331,13 @@ def time_tag_to_seq_float(time_tag):
     return time_tag*CHAN_BW/FS
 
 class TriggeredDumpOp(object):
-    def __init__(self, log, osock, iring, ntime_gulp, ntime_buf, tuning=0, nchan_max=768, core=-1, max_bytes_per_sec=None):
+    def __init__(self, log, osock, iring, ntime_gulp, ntime_buf, tuning=0, nchan_max=768, nzcu=16, core=-1, max_bytes_per_sec=None):
         self.log = log
         self.sock = osock
         self.iring = iring
         self.tuning = tuning
         self.nchan_max = nchan_max
+        self.ninput_max = nzcu*16
         self.core  = core
         self.ntime_gulp = ntime_gulp
         self.ntime_buf = ntime_buf
@@ -347,7 +348,7 @@ class TriggeredDumpOp(object):
         self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
         
         self.configMessage = ISC.TriggerClient(addr=('ndp',5832))
-        self.tbfLock       = ISC.PipelineEventClient(addr=('ndp',5834))
+        self.tbxLock       = ISC.PipelineEventClient(addr=('ndp',5834))
         
         if max_bytes_per_sec is None:
             max_bytes_per_sec = 104857600        # default to 100 MB/s
@@ -358,13 +359,14 @@ class TriggeredDumpOp(object):
         self.bind_proclog.update({'ncore': 1, 
                                   'core0': cpu_affinity.get_core(),})
         
-        ninput_max = 128
-        frame_nbyte_max = self.nchan_max*ninput_max
+        frame_nbyte_max = self.nchan_max*self.ninput_max
         #self.iring.resize(self.ntime_gulp*frame_nbyte_max,
         #                  self.ntime_buf *frame_nbyte_max)
                           
-        self.udt = UDPTransmit('tbf', sock=self.sock, core=self.core)
+        self.udt = UDPTransmit(f"tbx{self.ninput_max}_{TBT_NCHAN_PER_PKT}", sock=self.sock, core=self.core)
         self.desc = HeaderInfo()
+        self.desc.set_nchan(TBT_NCHAN_PER_PKT)
+        self.npipe_max = NPIPE_PER_SERVER*NSERVER
         while not self.iring.writing_ended():
             config = self.configMessage(block=False)
             if not config:
@@ -375,21 +377,21 @@ class TriggeredDumpOp(object):
             try:
                 self.dump(time_tag=config[0], samples=config[1], mask=config[2], local=config[3])
             except Exception as e:
-                print("Error on TBF dump: %s" % str(e))
+                print("Error on TBT dump: %s" % str(e))
                 
         del self.udt
         
-        print("Writing ended, TBFOp exiting")
+        print("Writing ended, TBTOp exiting")
         
     def dump(self, samples, time_tag=0, mask=None, local=False):
         if mask is None:
-            mask = 0b11
+            mask = 2**(self.npipe_max)-1
         if (mask >> self.tuning) & 1 == 0:
             self.log.info('Not for us: %i -> %i @ %i', mask, (mask >> self.tuning) & 1, self.tuning)
             return False
-        speed_factor = 2 // sum([mask>>i&1 for i in range(2)])        # TODO: Slightly hacky
+        speed_factor = self.npipe_max // sum([mask>>i&1 for i in range(self.npipe_max)])        # TODO: Slightly hacky
         
-        ntime_pkt = 1 # TODO: Should be TBF_NTIME_PER_PKT?
+        ntime_pkt = 1 # TODO: Should be TBT_NTIME_PER_PKT?
         
         # Always write to disk
         local = True
@@ -419,9 +421,9 @@ class TriggeredDumpOp(object):
                 max_bytes_per_sec = 104857600 # Limit to 100 MB/s
                 speed_factor = 1
                 
-        print("TBF DUMPING %f secs at time_tag = %i (%s)%s" % (samples/FS, dump_time_tag, datetime.datetime.utcfromtimestamp(dump_time_tag/FS), (' locally' if local else '')))
+        print("TBT DUMPING %f secs at time_tag = %i (%s)%s" % (samples/FS, dump_time_tag, datetime.datetime.utcfromtimestamp(dump_time_tag/FS), (' locally' if local else '')))
         if not local:
-            self.tbfLock.set()
+            self.tbxLock.set()
         with self.iring.open_sequence_at(dump_time_tag, guarantee=True) as iseq:
             time_tag0 = iseq.time_tag
             ihdr = json.loads(iseq.header.tobytes())
@@ -440,11 +442,11 @@ class TriggeredDumpOp(object):
             
             # HACK TESTING write to file instead of socket
             if local:
-                filename = '/data/test_%s_%i_%020i.tbf' % (socket.gethostname(), self.tuning, dump_time_tag)#time_tag0
+                filename = '/data/test_%s_%i_%020i.tbt' % (socket.gethostname(), self.tuning, dump_time_tag)#time_tag0
                 ofile = open(filename, 'wb')
-                ldw = DiskWriter('tbf', ofile, core=self.core)
+                ldw = DiskWriter(f"tbx{ninput}_{TBT_NCHAN_PER_PKT}", ofile, core=self.core)
             ntime_dumped = 0
-            nchan_rounded = nchan // TBF_NCHAN_PER_PKT * TBF_NCHAN_PER_PKT
+            nchan_rounded = nchan // TBT_NCHAN_PER_PKT * TBT_NCHAN_PER_PKT
             bytesSent, bytesStart = 0.0, time.time()
             
             print("Opening read space of %i bytes at offset = %i" % (igulp_size, dump_byte_offset))
@@ -470,17 +472,17 @@ class TriggeredDumpOp(object):
                         print("**** first timestamp is", time_tag)
                         
                     sdata = data[t:t+ntime_pkt,...]
-                    sdata = sdata.reshape(1,nchan//TBF_NCHAN_PER_PKT,-1)
+                    sdata = sdata.reshape(1,nchan//TBT_NCHAN_PER_PKT,-1)
                     if local:
                         ldw.send(self.desc,
                                  time_tag, int(FS)//int(CHAN_BW), 
-                                 chan0, TBF_NCHAN_PER_PKT, sdata)
+                                 chan0, TBT_NCHAN_PER_PKT, sdata)
                         bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
                     else:
                         try:
                             self.udt.send(self.desc,
                                           time_tag, int(FS)//int(CHAN_BW), 
-                                          chan0, TBF_NCHAN_PER_PKT, sdata)
+                                          chan0, TBT_NCHAN_PER_PKT, sdata)
                             bytesSent += sdata.shape[1]*sdata.shape[2] + sdata.shape[1]*24   # data size -> packet size
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
@@ -502,10 +504,122 @@ class TriggeredDumpOp(object):
                         time.sleep(0.001)
                         
         if not local:
-            self.tbfLock.clear()
+            self.tbxLock.clear()
             
-        print("TBF DUMP COMPLETE at %.3f - average rate was %.3f MB/s" % (time.time(), bytesSent/(time.time()-bytesStart)/1024**2))
+        print("TBT DUMP COMPLETE at %.3f - average rate was %.3f MB/s" % (time.time(), bytesSent/(time.time()-bytesStart)/1024**2))
 
+
+class StreamingOp(object):
+    def __init__(self, log, iring, tuning=0, nchan_max=256, nzcu=16, ntime_gulp=2500, guarantee=True, core=-1):
+        self.log   = log
+        self.iring = iring
+        self.oring = oring
+        self.tuning = tuning
+        self.nchan_max = nchan_max
+        ninput_max = nzcu*16#*2
+        self.ntime_gulp = ntime_gulp
+        self.guarantee = guarantee
+        self.core = core
+        self.gpu = gpu
+
+        self.bind_proclog = ProcLog(type(self).__name__+"/bind")
+        self.in_proclog   = ProcLog(type(self).__name__+"/in")
+        self.size_proclog = ProcLog(type(self).__name__+"/size")
+        self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
+        self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        
+        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.size_proclog.update({'nseq_per_gulp': self.ntime_gulp})
+        
+        self.configMessage = ISC.StreamingClient(addr=('ndp',5832))
+        self.tbxLock       = ISC.PipelineEventClient(addr=('ndp',5834))
+        
+        self.active_config = []
+        self.active_chan0 = 0
+        self.active_nchan = 0
+        
+    def updateConfig(self, config, hdr, time_tag, forceUpdate=False):
+        if config:
+            frequency, bandwidth = config
+            chan = int(round(frequency / CHAN_BW))
+            nchan = max(TBS_MIN_NCHAN_PER_PKT, int(round(bandwidth / CHAN_BW)))
+            
+            self.active_config = []
+            self.active_chan0 = 0
+            if chan-nchan//2 >= hdr['chan0'] and chan+nchan//2 <= hdr['chan0'] + hdr['nchan']:
+                self.active_config = list(range(chan-hdr['chan0']-nchan//2, chan-hdr['chan0']+nchan//2))
+                self.active_chan0 = chan - nchan//2
+                
+    def main(self):
+        cpu_affinity.set_core(self.core)
+        self.bind_proclog.update({'ncore': 1, 
+                                  'core0': cpu_affinity.get_core(),})
+        
+        with self.oring.begin_writing() as oring:
+            for iseq in self.iring.read(guarantee=self.guarantee):
+                ihdr = json.loads(iseq.header.tobytes())
+                
+                self.sequence_proclog.update(ihdr)
+                
+                status = self.updateConfig( self.configMessage(), ihdr, iseq.time_tag, forceUpdate=True )
+                
+                self.log.info("StreamingOp: Start of new sequence: %s", str(ihdr))
+                
+                nchan  = ihdr['nchan']
+                nstand = ihdr['nstand']
+                npol   = ihdr['npol']
+                igulp_size = self.ntime_gulp*nchan*nstand*npol              # 4+4 complex
+                ishape = (self.ntime_gulp,nchan,nstand*npol)
+                
+                ticksPerTime = int(FS) // int(CHAN_BW)
+                base_time_tag = iseq.time_tag
+                
+                prev_time = time.time()
+                for ispan in iseq.read(igulp_size):
+                    if ispan.size < igulp_size:
+                        continue # Ignore final gulp
+                    curr_time = time.time()
+                    acquire_time = curr_time - prev_time
+                    prev_time = curr_time
+                    
+                    ## Setup and load
+                    idata = ispan.data_view('ci4').reshape(ishape)
+                    
+                    if self.active_config:
+                        try:
+                            if len(self.active_config) != self.active_nchan:
+                                del udt
+                                del desc
+                        except NameError:
+                            self.active_nchan = len(self.active_config)
+                            udt = UDPTransmit(f"tbx{nstand}_{self.active_nchan}", sock=self.sock, core=self.core)
+                            desc = HeaderInfo()
+                            desc.set_nchan(self.active_nchan)
+                            
+                        sdata = idata[:,self.active_config,:]
+                        sdata = sdata.copy()
+                        if not self.tbxLock.is_set():
+                            try:
+                                self.udt.send(self.desc,
+                                              base_time_tag, int(FS)//int(CHAN_BW), 
+                                              self.active_chan0, sdata)
+                            except Exception as e:
+                                print(type(self).__name__, 'Sending Error', str(e))
+                                
+                ## Update the base time tag
+                base_time_tag += self.ntime_gulp*ticksPerTime
+                
+                ## Check for an update to the configuration
+                self.updateConfig( self.configMessage(), ihdr, base_time_tag )
+                
+                curr_time = time.time()
+                process_time = curr_time - prev_time
+                prev_time = curr_time
+                self.perf_proclog.update({'acquire_time': acquire_time, 
+                                          'reserve_time': -1, 
+                                          'process_time': process_time,})
+        
+        
 class BeamformerOp(object):
     # Note: Input data are: [time,chan,ant,pol,cpx,8bit]
     def __init__(self, log, iring, oring, tuning=0, nchan_max=256, nbeam_max=1, nzcu=16, ntime_gulp=2500, guarantee=True, core=-1, gpu=-1):
@@ -1468,7 +1582,7 @@ def main(argv):
     else:
         iaddr    = config['host']['servers-data'][tuning]
     iport        = config['server']['data_ports' ][pipeline_idx]
-    ## Network - TBF - data recorder
+    ## Network - TBT - data recorder
     recorder_idx = drxConfig['tbf_recorder_idx']
     recConfig    = config['recorder'][recorder_idx]
     oaddr        = recConfig['host']
@@ -1497,7 +1611,7 @@ def main(argv):
     gpus  = drxConfig['gpus']
     
     log.info("Src address:  %s:%i", iaddr, iport)
-    log.info("TBF address:  %s:%i", oaddr, oport)
+    log.info("TBT address:  %s:%i", oaddr, oport)
     log.info("COR address:  %s:%i", vaddr, vport)
     for taddr,tport in zip(taddrs, tports):
         log.info("TNG address:  %s:%i", taddr, tport)
@@ -1553,7 +1667,7 @@ def main(argv):
                             guarantee=False, core=cores.pop(0)))
     ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbf_ring,
                                ntime_gulp=GSIZE, ntime_buf=int(25000*tbf_buffer_secs/2500)*2500,
-                               tuning=tuning, nchan_max=nchan_max,
+                               tuning=tuning, nzcu=nzcu, nchan_max=nchan_max,
                                core=cores.pop(0),
                                max_bytes_per_sec=tbf_bw_max))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring,
