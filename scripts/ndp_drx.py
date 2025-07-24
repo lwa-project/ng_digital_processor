@@ -510,10 +510,10 @@ class TriggeredDumpOp(object):
 
 
 class StreamingOp(object):
-    def __init__(self, log, iring, tuning=0, nchan_max=256, nzcu=16, ntime_gulp=2500, guarantee=True, core=-1):
+    def __init__(self, log, osock, iring, tuning=0, nchan_max=256, nzcu=16, ntime_gulp=2500, guarantee=True, core=-1):
         self.log   = log
+        self.sock  = osock
         self.iring = iring
-        self.oring = oring
         self.tuning = tuning
         self.nchan_max = nchan_max
         ninput_max = nzcu*16#*2
@@ -1670,6 +1670,8 @@ def main(argv):
                                tuning=tuning, nzcu=nzcu, nchan_max=nchan_max,
                                core=cores.pop(0),
                                max_bytes_per_sec=tbf_bw_max))
+    ops.append(StreamingOp(log, osock, capture_ring, tuning=tuning, ntime_gulp=GSIZE, nchan_max=nchan_max,
+                           cores=cores.pop(0)))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring,
                          ntime_gulp=GSIZE, core=cores[0], gpu=gpus[0]))
     ops.append(BeamformerOp(log=log, iring=gpu_ring, oring=tengine_ring,
