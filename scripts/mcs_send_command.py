@@ -35,7 +35,21 @@ if __name__ == '__main__':
         gain = int(gain, 10)
         high_dr = int(high_dr, 10)
         subslot = int(subslot, 10)
-        data = struct.pack('>BfBh', beam, tune, freq, bw, gain, high_dr, subslot)
+        data = struct.pack('>BBfBhBB', beam, tune, freq, bw, gain, high_dr, subslot)
+        
+    elif cmd == 'TBS':
+        frequency, bandwidth = data.split(None, 1)
+        frequency = float(frequency)
+        bandwidth = float(bandwidth)
+        data = struct.pack('>ff', frequency, bandwidth)
+        
+    elif mcd == 'TBT':
+        bits, trigger, samples, mask = data.split(None, 3)
+        bits = int(bits, 10)
+        trigger = int(trigger, 10)
+        samples = int(samples, 10)
+        mask = int(mask, 10)
+        data = struct.pack('>Biiq', bits, trigger, samples, mask)
         
     msg = MCS2.Msg(dst='NDP', cmd=cmd, data=data)
     print(f"Sending {msg}")
