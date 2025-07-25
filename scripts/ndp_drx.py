@@ -423,9 +423,6 @@ class TriggeredDumpOp(object):
                 
         print("TBT DUMPING %f secs at time_tag = %i (%s)%s" % (samples/FS, dump_time_tag, datetime.datetime.utcfromtimestamp(dump_time_tag/FS), (' locally' if local else '')))
         if not local:
-            if self.tbxLock.is_set():
-                raise RuntimeError("TBX lock already set, is TBS running?")
-                
             self.tbxLock.set()
         with self.iring.open_sequence_at(dump_time_tag, guarantee=True) as iseq:
             time_tag0 = iseq.time_tag
