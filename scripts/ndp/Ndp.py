@@ -810,17 +810,10 @@ class ZCU102MonitorClient(object):
             
         ### X-engine channel mapping
         i = 0
-<<<<<<< HEAD
         for host in self.config['host']['servers-data']:
             if i >= len(self.config['drx']):
                 break
             ip = host2ip(host)
-=======
-        for hostname in self.config['host']['servers-data']:
-            if i >= len(self.config['drx']):
-                break
-            ip = host2ip(hostname)
->>>>>>> ci8_beam
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = self.config['server']['data_ports'][i % NPIPE_PER_SERVER]
