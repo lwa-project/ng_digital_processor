@@ -1592,8 +1592,8 @@ def main(argv):
     else:
         iaddr    = config['host']['servers-data'][tuning]
     iport        = config['server']['data_ports' ][pipeline_idx]
-    ## Network - TBT - data recorder
-    recorder_idx = drxConfig['tbf_recorder_idx']
+    ## Network - TBT/TBS - data recorder
+    recorder_idx = drxConfig['tbx_recorder_idx']
     recConfig    = config['recorder'][recorder_idx]
     oaddr        = recConfig['host']
     oport        = recConfig['port']
@@ -1621,7 +1621,7 @@ def main(argv):
     gpus  = drxConfig['gpus']
     
     log.info("Src address:  %s:%i", iaddr, iport)
-    log.info("TBT address:  %s:%i", oaddr, oport)
+    log.info("TBX address:  %s:%i", oaddr, oport)
     log.info("COR address:  %s:%i", vaddr, vport)
     for taddr,tport in zip(taddrs, tports):
         log.info("TNG address:  %s:%i", taddr, tport)
@@ -1637,12 +1637,12 @@ def main(argv):
     
     BFSetGPU(gpus[0])
     capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host', core=cores[0])
-    tbf_ring     = Ring(name="buffer-%i" % tuning)
+    tbt_ring     = Ring(name="buffer-%i" % tuning)
     gpu_ring     = Ring(name="gpu-%i" % tuning, space='cuda')
     tengine_ring = Ring(name="tengine-%i" % tuning, space='cuda_host', core=cores[-2])
     vis_ring     = Ring(name="vis-%i" % tuning, space='cuda_host', core=cores[-1])
     
-    tbf_buffer_secs = int(round(config['tbf']['buffer_time_sec']))
+    tbt_buffer_secs = int(round(config['tbt']['buffer_time_sec']))
     
     oaddr = Address(oaddr, oport)
     osock = UDPSocket()
@@ -1660,26 +1660,26 @@ def main(argv):
         
     nchan_max  = int(round(drxConfig['capture_bandwidth']/CHAN_BW))
     nsrc       = nchan_max // zcuConfig['nchan_packet'] * nzcu
-    tbf_bw_max = obw/ntuning
+    tbt_bw_max = obw/ntuning
     cor_bw_max = vbw//ntuning
     
     # TODO:  Figure out what to do with this resize
     GSIZE = 512
     ogulp_size = GSIZE * nchan_max*nstand*2
-    obuf_size  = int(np.ceil(tbf_buffer_secs*CHAN_BW/GSIZE)) * ogulp_size
-    tbf_ring.resize(ogulp_size, obuf_size)
+    obuf_size  = int(np.ceil(tbt_buffer_secs*CHAN_BW/GSIZE)) * ogulp_size
+    tbt_ring.resize(ogulp_size, obuf_size)
     
     ops.append(CaptureOp(log, fmt="zcu102", sock=isock, ring=capture_ring,
                          nsrc=nsrc, nzcu=nzcu, src0=zcu0, max_payload_size=4500,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
-    ops.append(BufferCopyOp(log, capture_ring, tbf_ring,
-                            tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbf_buffer_secs,
+    ops.append(BufferCopyOp(log, capture_ring, tbt_ring,
+                            tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbt_buffer_secs,
                             guarantee=False, core=cores.pop(0)))
-    ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbf_ring,
-                               ntime_gulp=GSIZE, ntime_buf=int(25000*tbf_buffer_secs/2500)*2500,
+    ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbt_ring,
+                               ntime_gulp=GSIZE, ntime_buf=int(25000*tbt_buffer_secs/2500)*2500,
                                tuning=tuning, nzcu=nzcu, nchan_max=nchan_max,
                                core=cores.pop(0),
-                               max_bytes_per_sec=tbf_bw_max))
+                               max_bytes_per_sec=tbt_bw_max))
     ops.append(StreamingOp(log, osock, capture_ring, tuning=tuning, ntime_gulp=GSIZE, nchan_max=nchan_max,
                            core=cores.pop(0)))
     ops.append(GPUCopyOp(log, capture_ring, gpu_ring,
