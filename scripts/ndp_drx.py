@@ -155,7 +155,7 @@ class BufferCopyOp(object):
                 
                 clear_to_trigger = False
                 if chan0*CHAN_BW > 60e6 and self.tuning == 1:
-                    clear_to_trigger = True
+                    clear_to_trigger = False
                 to_keep = [18,19, 62,63, 122,123]
                 tchan = min([72, nchan])
                 udata = BFArray(shape=(self.ntime_gulp, tchan, len(to_keep)), dtype=np.complex64)
@@ -423,6 +423,9 @@ class TriggeredDumpOp(object):
                 
         print("TBT DUMPING %f secs at time_tag = %i (%s)%s" % (samples/FS, dump_time_tag, datetime.datetime.utcfromtimestamp(dump_time_tag/FS), (' locally' if local else '')))
         if not local:
+            if self.tbxLock.is_set():
+                raise RuntimeError("TBX lock already set, is TBS running?")
+                
             self.tbxLock.set()
         with self.iring.open_sequence_at(dump_time_tag, guarantee=True) as iseq:
             time_tag0 = iseq.time_tag
