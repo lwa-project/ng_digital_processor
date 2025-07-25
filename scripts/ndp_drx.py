@@ -604,11 +604,12 @@ class StreamingOp(object):
                         
                     sdata = idata[:,self.active_config,:]
                     sdata = sdata.copy()
+                    sdata = sdata.reshape(self.ntime_gulp,1,-1)
                     if not self.tbxLock.is_set():
                         try:
-                            udt.send(self.desc,
+                            udt.send(desc,
                                      base_time_tag, int(FS)//int(CHAN_BW), 
-                                     self.active_chan0, sdata)
+                                     self.active_chan0, self.active_nchan, sdata)
                         except Exception as e:
                             print(type(self).__name__, 'Sending Error', str(e))
                             
