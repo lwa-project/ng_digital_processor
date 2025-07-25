@@ -39,7 +39,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [0, 2, 3, 4, 5, 6],
-                "gpus":              [0]
+                "gpus":              [0],
+                "powerline_flagger": true
             },
             {
                 "first_channel":     608,
@@ -50,7 +51,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [16, 18, 19, 20, 21, 22],
-                "gpus":              [1]
+                "gpus":              [1],
+                "powerline_flagger": true
             },
             {
                 "first_channel":     1056,
@@ -61,7 +63,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [0, 2, 3, 4, 5, 6],
-                "gpus":              [0]
+                "gpus":              [0],
+                "powerline_flagger": true
             },
             {
                 "first_channel":     1504,
@@ -72,7 +75,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [16, 18, 19, 20, 21, 22],
-                "gpus":              [1]
+                "gpus":              [1],
+                "powerline_flagger": true
             },
             {
                 "first_channel":     1952,
@@ -83,7 +87,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [0, 2, 3, 4, 5, 6],
-                "gpus":              [0]
+                "gpus":              [0],
+                "powerline_flagger": true
             },
             {
                 "first_channel":     2400,
@@ -94,7 +99,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [16, 18, 19, 20, 21, 22],
-                "gpus":              [1]
+                "gpus":              [1],
+                "powerline_flagger": true
             },
             {
                 "first_channel":     2848,
@@ -105,7 +111,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [0, 2, 3, 4, 5, 6],
-                "gpus":              [0]
+                "gpus":              [0],
+                "powerline_flagger": true
             },
             {
                 "first_channel":     3296,
@@ -116,7 +123,8 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [16, 18, 19, 20, 21, 22],
-                "gpus":              [1]
+                "gpus":              [1],
+                "powerline_flagger": true
             }
     ],
     "tbt": {
