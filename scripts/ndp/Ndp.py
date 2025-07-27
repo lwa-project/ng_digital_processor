@@ -197,8 +197,8 @@ class TbtCommand(object):
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
-        self.bits, self.trigger, self.samples, self.mask \
-            = struct.unpack('>Biiq', msg.data)
+        self.trigger, self.samples, self.mask \
+            = struct.unpack('>iiq', msg.data)
 
 
 class Tbt(SlotCommandProcessor):
@@ -208,13 +208,13 @@ class Tbt(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
+        self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
     def _reset_state(self):
-        self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
+        self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
-    def start(self, bits, trigger, samples, mask):
-        self.log.info('Starting TBT: bits=%i, trigger=%i, samples=%i, mask=%i' % (bits, trigger, samples, mask))
+    def start(self, trigger, samples, mask):
+        self.log.info('Starting TBT: trigger=%i, samples=%i, mask=%i' % (trigger, samples, mask))
         
         self.messenger.trigger(trigger, samples, mask)
         
@@ -222,7 +222,7 @@ class Tbt(SlotCommandProcessor):
         
     def execute(self, cmds):
         for cmd in cmds:
-            self.start(cmd.bits, cmd.trigger, cmd.samples, cmd.mask)
+            self.start(cmd.trigger, cmd.samples, cmd.mask)
             
     def stop(self):
         return False

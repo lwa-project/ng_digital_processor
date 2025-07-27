@@ -44,12 +44,11 @@ if __name__ == '__main__':
         data = struct.pack('>ff', frequency, bandwidth)
         
     elif cmd == 'TBT':
-        bits, trigger, samples, mask = data.split(None, 3)
-        bits = int(bits, 10)
+        trigger, samples, mask = data.split(None, 2)
         trigger = int(trigger, 10)
         samples = int(samples, 10)
         mask = int(mask, 10)
-        data = struct.pack('>Biiq', bits, trigger, samples, mask)
+        data = struct.pack('>iiq', trigger, samples, mask)
         
     msg = MCS2.Msg(dst='NDP', cmd=cmd, data=data)
     print(f"Sending {msg}")
