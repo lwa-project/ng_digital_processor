@@ -745,7 +745,6 @@ class TriggeredDumpOp(object):
                 ofile = open(filename, 'wb')
                 ldw = DiskWriter(f"tbx{nstand}_{TBT_NCHAN_PER_PKT}", ofile, core=self.core)
             ntime_dumped = 0
-            nchan_rounded = nchan // TBT_NCHAN_PER_PKT * TBT_NCHAN_PER_PKT
             bytesSent, bytesStart = 0.0, time.time()
             
             print("Opening read space of %i bytes at offset = %i" % (igulp_size, dump_byte_offset))
@@ -758,7 +757,6 @@ class TriggeredDumpOp(object):
                 #print(ispan.offset, seq_offset)
                 seq_offset = ispan.offset // frame_nbyte
                 data = ispan.data_view('ci4').reshape(ishape)
-                data = data[:,:nchan_rounded,:].copy()
                 
                 for t in range(0, self.ntime_gulp, ntime_pkt):
                     if ntime_dumped >= ntime_dump:
