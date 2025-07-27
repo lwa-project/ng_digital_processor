@@ -85,6 +85,8 @@ class FileLock(object):
         
     def release(self):
         if self._our_lock:
+            with open(self._lockname, 'r') as fh:
+                fcntl.flock(fh, fcntl.LOCK_UN)
             os.unlink(self._lockname)
             self._our_lock = False
         self._locked = False
