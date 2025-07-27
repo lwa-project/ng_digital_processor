@@ -1749,10 +1749,10 @@ class MsgProcessor(ConsumerThread):
         if not self.thread_pool.wait(self.shutdown_timeout):
             self.log.warning("Active tasks still exist and will be killed")
         self.run_execute_thread.join(self.shutdown_timeout)
-        if self.run_execute_thread.isAlive():
+        if self.run_execute_thread.is_alive():
             self.log.warning("run_execute thread still exists and will be killed")
         self.run_monitor_thread.join(self.shutdown_timeout)
-        if self.run_monitor_thread.isAlive():
+        if self.run_monitor_thread.is_alive():
             self.log.warning("run_monitor thread still exists and will be killed")
         print(self.name, "shutdown")
         
