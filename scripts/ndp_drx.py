@@ -1935,7 +1935,7 @@ def main(argv):
     
     BFSetGPU(gpus[0])
     capture_ring = Ring(name="capture-%i" % tuning, space='cuda_host', core=cores[0])
-    tbt_ring     = Ring(name="buffer-%i" % tuning)
+    tbt_ring     = Ring(name="buffer-%i" % tuning, space='cuda_host')
     gpu_ring     = Ring(name="gpu-%i" % tuning, space='cuda')
     plf_ring     = gpu_ring
     if enable_plf:
