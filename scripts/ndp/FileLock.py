@@ -66,8 +66,6 @@ class FileLock(object):
                         fh.truncate(0)
                         fh.write("%i" % ident)
                         fh.flush()
-                    with open(self._lockname, 'r') as fh:
-                        fcntl.flock(fh, fcntl.LOCK_UN)
                     self._our_lock = True
                 else:
                     self._our_lock = False
@@ -87,6 +85,8 @@ class FileLock(object):
         
     def release(self):
         if self._our_lock:
+            with open(self._lockname, 'r') as fh:
+                fcntl.flock(fh, fcntl.LOCK_UN)
             os.unlink(self._lockname)
             self._our_lock = False
         self._locked = False
