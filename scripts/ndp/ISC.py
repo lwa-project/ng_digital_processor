@@ -151,14 +151,14 @@ class PipelineMessageServer(object):
         
         self.socket.send_string('TRIGGER %i %i %i %i' % (trigger, samples, mask, local))
         
-    def stream(self, frequency, bandwidth):
+    def stream(self, frequency, filter):
         """
         Send a trigger to start streaming TBS data.  This includes:
           * the central frequency in Hz
-          * the bandwidth in Hz
+          * the filter code
         """
         
-        self.socket.send_string('STREAM %.6f %.6f' % (frequency, bandwidth))
+        self.socket.send_string('STREAM %.6f %i' % (frequency, filter))
         
     def close(self):
         self.socket.close()
@@ -276,8 +276,8 @@ class StreamingClient(PipelineMessageClient):
             # Unpack
             fields  = msg.split(None, 2)
             frequency = float(fields[1])
-            bandwidth = float(fields[2])
-            return frequency, bandwidth
+            filter = int(fields[2], 10)
+            return frequency, filter
 
 
 class DRXConfigurationClient(PipelineMessageClient):

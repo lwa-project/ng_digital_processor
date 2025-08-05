@@ -42,6 +42,10 @@ import calendar
 import datetime
 from collections import deque
 
+FILTER2CHAN = {7:  4,
+               8:  8,
+               9: 12}
+
 __version__    = "0.1"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
 __copyright__  = "Copyright 2023, The Long Wavelenght Array Project"
@@ -836,10 +840,11 @@ class StreamingOp(object):
         
     def updateConfig(self, config, hdr, time_tag):
         if config:
-            frequency, bandwidth = config
+            frequency, filt = config
             chan = int(round(frequency / CHAN_BW))
-            nchan = max(TBS_MIN_NCHAN_PER_PKT, int(round(bandwidth / CHAN_BW)))
-            self.log.info("StreamingOp: New configuration received for %.3f MHz with %.3f kHz of bandwidth", frequency/1e6, bandwidth/1e3)
+            nchan = max(TBS_MIN_NCHAN_PER_PKT, FILTER2CHAN(filt))
+            bw = nchan*CHAN_BW
+            self.log.info("StreamingOp: New configuration received for %.3f MHz with %.3f kHz of bandwidth", frequency/1e6, bw/1e3)
             
             self.active_config = []
             self.active_chan0 = 0

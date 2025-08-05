@@ -35,13 +35,13 @@ if __name__ == '__main__':
         gain = int(gain, 10)
         high_dr = int(high_dr, 10)
         subslot = int(subslot, 10)
-        data = struct.pack('>BBfBhBB', beam, tune, freq, bw, gain, high_dr, subslot)
+        data = struct.pack('>BBdBhBB', beam, tune, freq, bw, gain, high_dr, subslot)
         
     elif cmd == 'TBS':
-        frequency, bandwidth = data.split(None, 1)
+        frequency, bw = data.split(None, 1)
         frequency = float(frequency)
-        bandwidth = float(bandwidth)
-        data = struct.pack('>ff', frequency, bandwidth)
+        bw = int(bw, 10)
+        data = struct.pack('>dB', frequency, bw)
         
     elif cmd == 'TBT':
         trigger, samples, mask = data.split(None, 2)

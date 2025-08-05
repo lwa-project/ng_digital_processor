@@ -82,7 +82,7 @@ class DrxCommand(object):
             msg.data = msg.data.encode()
         self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.high_dr, self.subslot \
-            = struct.unpack('>BBfBhBB', msg.data)
+            = struct.unpack('>BBdBhBB', msg.data)
         assert( 1 <= self.beam <= 4 )
         assert( 1 <= self.tuning <= 2 )
         # TODO: Check allowed range of freq
@@ -158,8 +158,8 @@ class TbsCommand(object):
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
-        self.frequency, self.bandwidth \
-            = struct.unpack('>ff', msg.data)
+        self.frequency, self.filt \
+            = struct.unpack('>dB', msg.data)
 
 
 class Tbs(SlotCommandProcessor):
@@ -169,26 +169,29 @@ class Tbs(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.cur_freq = self.cur_bw = 0.0
+        self.cur_freq = 0.0
+        self.cur_filt = 0
         
     def _reset_state(self):
-        self.cur_freq = self.cur_bw = 0.0
+        self.cur_freq = 0.0
+        self.curr_filt = 0
         
-    def start(self, frequency, bandwidth):
-        self.log.info('Starting TBS: frequency=%.3f, bandwidth=%.3f' % (frequency, bandwidth))
+    def start(self, frequency, filt=8):
+        self.log.info('Starting TBS: frequency=%.3f, filter=%i' % (frequency, filt))
         
-        self.messenger.stream(frequency, bandwidth)
+        self.messenger.stream(frequency, filt)
         
         return True
         
     def execute(self, cmds):
         for cmd in cmds:
-            self.start(cmd.frequency, cmd.bandwidth)
+            self.start(cmd.frequency, cmd.filt)
             
     def stop(self):
         self.log.info("Stopping TBS data")
         self.start(0.0, 0.0)
-        self.cur_freq = self.cur_bw = 0.0
+        self.cur_freq = 0.0
+        self.cur_filt = 0
         self.log.info("TBS stopped")
         return 0
 
@@ -715,8 +718,7 @@ class ZCU102MonitorClient(object):
             if self.zcu.is_connected():
                 for i in range(self.config['zcu']['max_program_attempts']):
                     try:
-                        self.zcu.program(firmware)
-                        sucesss = True
+                        success = self.zcu.program(firmware)
                         
                         ## This seems to be necessary
                         username = self.config['zcu']['username']
@@ -1845,6 +1847,11 @@ class MsgProcessor(ConsumerThread):
                 return self.drx.cur_gain[beam_tuning]
             if args[4] == 'HIGH_DR':
                 return self.drx.cur_hdr[beam_tuning]
+        if args[0] == 'TBS' and args[1] == 'CONFIG':
+            if args[2] == 'FREQ':
+                return self.tbs.cur_freq
+            if args[2] == 'FILTER':
+                return self.tbs.cur_filt
         if key == 'NUM_FREQ_CHANS':    return NCHAN
         if key == 'FIR_CHAN_INDEX':    return self._get_next_fir_index()
         if key == 'FIR':
@@ -1987,9 +1994,11 @@ class MsgProcessor(ConsumerThread):
             'GLOBAL_TEMP_MIN':    lambda x: struct.pack('>f', x),
             'GLOBAL_TEMP_AVG':    lambda x: struct.pack('>f', x),
             'CMD_STAT':           lambda x: pack_reply_CMD_STAT(*x),
-            'DRX_CONFIG_FREQ':    lambda x: struct.pack('>f', x),
+            'DRX_CONFIG_FREQ':    lambda x: struct.pack('>d', x),
             'DRX_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
             'DRX_CONFIG_GAIN':    lambda x: struct.pack('>H', x)
+            'TBS_CONFIG_FREQ':    lambda x: struct.pack('>d', x),
+            'TBS_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
         }[key](value)
         
     def _format_report_result(self, key, value):
