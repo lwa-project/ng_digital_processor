@@ -1996,7 +1996,7 @@ class MsgProcessor(ConsumerThread):
             'CMD_STAT':           lambda x: pack_reply_CMD_STAT(*x),
             'DRX_CONFIG_FREQ':    lambda x: struct.pack('>d', x),
             'DRX_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
-            'DRX_CONFIG_GAIN':    lambda x: struct.pack('>H', x)
+            'DRX_CONFIG_GAIN':    lambda x: struct.pack('>H', x),
             'TBS_CONFIG_FREQ':    lambda x: struct.pack('>d', x),
             'TBS_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
         }[key](value)
