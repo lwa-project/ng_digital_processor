@@ -1,0 +1,242 @@
+{
+    "shutdown_timeout":  5.0,
+    "monitor_interval":  120.0,
+    "failsafe_interval": 180.0,
+    "mcs": {
+        "headnode": {
+            "local_host":       "0.0.0.0",
+            "local_port":       1742,
+            "remote_host":      "10.1.1.2",
+            "remote_host_TEST": "localhost",
+            "remote_port":      1743
+        },
+        "server": {
+            "local_host": "0.0.0.0",
+            "local_port": 1752
+        }
+    },
+    "host": {
+        "servers": ["ndp1", "ndp2", "ndp3", "ndp4"],
+        "zcus": ["zcu01", "zcu02", "zcu03", "zcu04",
+                 "zcu05", "zcu06", "zcu07", "zcu08",
+                 "zcu09", "zcu10", "zcu11", "zcu12",
+                 "zcu13", "zcu14", "zcu15", "zcu16"],
+        "servers-data": ["ndp1-data1", "ndp1-data2", "ndp2-data1", "ndp2-data2",
+                         "ndp3-data1", "ndp3-data2", "ndp4-data1", "ndp4-data2"],
+        "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
+    },
+    "ipmi": {
+        "username": "root",
+        "password": "admin@123"
+    },
+    "drx": [
+            {
+                "first_channel":     160,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      0,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 2, 3, 4, 5, 6],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     608,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      1,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [16, 18, 19, 20, 21, 22],
+                "gpus":              [1],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     1056,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      0,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 2, 3, 4, 5, 6],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     1504,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      1,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [16, 18, 19, 20, 21, 22],
+                "gpus":              [1],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     1952,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      0,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 2, 3, 4, 5, 6],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2400,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      1,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [16, 18, 19, 20, 21, 22],
+                "gpus":              [1],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2848,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      0,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 2, 3, 4, 5, 6],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3296,
+                "capture_bandwidth": 10.71875e6,
+                "beam_count":        4,
+                "pipeline_idx":      1,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [16, 18, 19, 20, 21, 22],
+                "gpus":              [1],
+                "powerline_flagger": true
+            }
+    ],
+    "tbt": {
+        "buffer_time_sec":  5.0
+    },
+    "fst": {
+        "control_ports":  [23720, 23721],
+        "default_coeffs": "default_coeffs.cf"
+    },
+    "log": {
+        "days_per_file":  30,
+        "max_file_count":  6,
+        "msg_format":     "%(asctime)s [%(levelname)-8s] %(message)s",
+        "stats_format":   "[%(asctime)s] %(message)s",
+        "date_format":    "%Y-%m-%d %H:%M:%S",
+        "files": {
+            "server_temps": "/home/ndp/log/server_temps.log",
+            "roach_temps":  "/home/ndp/log/snap_temps.log"
+        }
+    },
+    "server": {
+        "username":        "root",
+        "password":        "130Jy/K",
+        "cpu_ids":         [0, 1],
+        "gpu_ids":         [0, 1],
+        "disk_ids":        ["/"],
+        "data_ports":      [10000, 10000, 10000, 10000],
+        "data_ifaces":     ["enp1s0f0np0", "enp129s0f0np0", "enp1s0f0np0", "enp129s0f0np0"],
+        "startup_timeout": 240,
+        "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
+                         "SYS_Air_Inlet",  "SYS_Air_Outlet",
+                         "PSU0_Temp", "PSU1_Temp"],
+        "temperature_warning":  80.0,
+        "temperature_shutdown": 85.0,
+        "temperature_scram":    90.0
+    },
+    "zcu": {
+        "username":             "casper",
+        "password":             "casper",
+        "data_ip_base":         "192.168.40.101",
+        "data_port_base":       10000,
+        "firmware":             "/home/ndp/zcu102_f_200msps_64i_4096c_2025-09-24_1837.fpg", 
+        "max_program_attempts": 5,
+        "fft_shift":            8191,
+        "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
+        "bypass_pfb":           false,
+        "nchan_packet":         112,
+        "temperatures":         ["ambient", "ppc", "fpga", "inlet", "outlet"],
+        "temperature_warning":  80.0,
+        "temperature_shutdown": 85.0,
+        "temperature_scram":    90.0
+    },
+    "tengine": [
+                {
+                    "pipeline_idx":      0,
+                    "recorder_idx":      0,
+                    "cpus":              [0, 2, 3, 4, 5],
+                    "gpus":              [0],
+                    "pfb_inverter":      true
+                },
+                {
+                    "pipeline_idx":      1,
+                    "recorder_idx":      1,
+                    "cpus":              [16, 18, 19, 20, 21],
+                    "gpus":              [1],
+                    "pfb_inverter":      true
+                },
+                {
+                    "pipeline_idx":      2,
+                    "recorder_idx":      2,
+                    "cpus":              [8, 10, 11, 12, 13],
+                    "gpus":              [0],
+                    "pfb_inverter":      true
+                },
+                {
+                    "pipeline_idx":      3,
+                    "recorder_idx":      3,
+                    "cpus":              [24, 26, 27, 28, 29],
+                    "gpus":              [1],
+                    "pfb_inverter":      true
+                }
+    ],
+    "recorder": [
+                {
+                    "host":              "dr1",
+                    "port":              10000,
+                    "max_bytes_per_sec": 104851000
+                },
+                {
+                    "host":              "dr2",
+                    "port":              10000,
+                    "max_bytes_per_sec": 104851000
+                },
+                {
+                    "host":              "dr3",
+                    "port":              10000,
+                    "max_bytes_per_sec": 104851000
+                },
+                {
+                    "host":              "dr4",
+                    "port":              10000,
+                    "max_bytes_per_sec": 104851000
+                },
+                {
+                    "host":              "dr5",
+                    "port":              10000,
+                    "max_bytes_per_sec": 104851000
+                },
+                {
+                    "host":              "orville",
+                    "port":              11000,
+                    "max_bytes_per_sec": 262144000
+                }
+    ]
+}
