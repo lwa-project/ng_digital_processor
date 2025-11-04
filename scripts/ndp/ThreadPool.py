@@ -169,6 +169,14 @@ class ObjectPool(list):
         for ret in rets:
             if isinstance(ret, Exception):
                 raise ret
+    def __getitem__(self, value):
+        if isinstance(value, slice):
+            # For a slice, pull out the right objects and return a new ObjectPool
+            # that shares the same future_pool
+            objs = list.__getitem__(self, value)
+            return ObjectPool(objs, future_pool=self.future_pool)
+        else:
+            return list.__getitem__(self, value)
 
 if __name__ == "__main__":
     import time
@@ -178,6 +186,8 @@ if __name__ == "__main__":
     a = ObjectPool(['a', 'bb', 'ccc'])
     print(a.upper())
     #a.join()
+    
+    print(a[1:].upper())
     
     def delayed_print(i):
         time.sleep(random.random()*3)
