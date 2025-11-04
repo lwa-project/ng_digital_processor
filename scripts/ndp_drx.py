@@ -1630,11 +1630,12 @@ class RetransmitOp(object):
 
 class PacketizeOp(object):
     # Note: Input data are: [time,beam,pol,iq]
-    def __init__(self, log, iring, osock, tuning=0, nchan_max=256, nzcu=16, npkt_gulp=128, core=-1, gpu=-1, max_bytes_per_sec=None):
+    def __init__(self, log, iring, osock, tuning=0, nchan_max=256, nzcu=16, ntuning=8, npkt_gulp=128, core=-1, gpu=-1, max_bytes_per_sec=None):
         self.log   = log
         self.iring = iring
         self.sock  = osock
         self.tuning = tuning
+        self.ntuning = ntuning
         self.npkt_gulp = npkt_gulp
         self.core = core
         self.gpu = gpu
@@ -1689,7 +1690,9 @@ class PacketizeOp(object):
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
-                desc[-1].set_tuning((4 << 16) | (8 << 8) | (self.nblock_send*self.tuning + i + 1))
+                desc[-1].set_tuning((4 << 16) \ # channel decimation factor
+                                    | ((self.ntuning*self.nblock_send) << 8) \  # total number of packets per baseline
+                                    | (self.nblock_send*self.tuning + i + 1))   # source ID for for this packet
             
             for iseq in self.iring.read():
                 ihdr = json.loads(iseq.header.tobytes())
@@ -2015,7 +2018,8 @@ def main(argv):
                                 core=ccore, gpu=tuning % 2))
         ops.append(PacketizeOp(log=log, iring=vis_ring, osock=vsock,
                                tuning=tuning, nzcu=nzcu, nchan_max=nchan_max//4,
-                               npkt_gulp=1, core=pcore, gpu=tuning % 2,
+                               ntuning=ntuning, npkt_gulp=1,
+                               core=pcore, gpu=tuning % 2,
                                max_bytes_per_sec=cor_bw_max))
         ops[-2].updatePacketizerPreferences(ops[-1])
         
