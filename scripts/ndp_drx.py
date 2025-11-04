@@ -1690,9 +1690,13 @@ class PacketizeOp(object):
             desc = []
             for i in range(self.nblock_send):
                 desc.append(HeaderInfo())
-                desc[-1].set_tuning((4 << 16) \ # channel decimation factor
-                                    | ((self.ntuning*self.nblock_send) << 8) \  # total number of packets per baseline
-                                    | (self.nblock_send*self.tuning + i + 1))   # source ID for this packet
+                # Tuning structure:
+                #   Bits 31-16 - channel decimation factor
+                #   Bits 15-8 - total number of packets per baseline
+                #   Bits 7-0 - source ID for this packet
+                desc[-1].set_tuning((4 << 16) \
+                                    | ((self.ntuning*self.nblock_send) << 8) \
+                                    | (self.nblock_send*self.tuning + i + 1))
             
             for iseq in self.iring.read():
                 ihdr = json.loads(iseq.header.tobytes())
