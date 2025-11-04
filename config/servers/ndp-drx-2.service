@@ -1,5 +1,5 @@
 [Unit]
-Description=NDP DRX Pipeline - Second Tuning
+Description=NDP DRX Pipeline - Third Tuning
 After=network-online.target
 Wants=network-online.target
 
@@ -20,7 +20,7 @@ TimeoutStopSec=20
 # Logging
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=ndp-drx-1
+SyslogIdentifier=ndp-drx-2
 
 # Run before process
 ExecStartPre=/bin/bash -c '[ -d /home/ndp/log ] || mkdir -p /home/ndp/log'
@@ -36,12 +36,12 @@ WorkingDirectory=/usr/local/bin
 
 ExecStart=/bin/bash -ec '\
 tuning=$(hostname | sed -e "s/ndp//") && \
-tuning=$(( ($tuning-1)*4 + 1 )) && \
-numactl --cpunodebind=4-7 --membind=4-7 -- \
+tuning=$(( ($tuning-1)*4 + 2 )) && \
+numactl --cpunodebind=0-3 --membind=0-3 -- \
 python3 /usr/local/bin/ndp_drx.py \
 	 --tuning     $tuning \
 	 --configfile /usr/local/share/ndp/ndp_config.json \
-	 --logfile    /home/ndp/log/ndp-drx-1.%H.log'
+	 --logfile    /home/ndp/log/ndp-drx-2.%H.log'
 
 [Install]
 WantedBy=multi-user.target
