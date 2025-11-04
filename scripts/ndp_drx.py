@@ -1757,6 +1757,7 @@ class PacketizeOp(object):
                                 udt.send(desc[j], time_tag_cur, ticksPerFrame, i, 1, odata[j,[0],i:i+nsend,:])
                             i += nsend
                             npkt -= nsend
+                            time.sleep(0.007)
                             
                         time_tag += ticksPerFrame
                         
