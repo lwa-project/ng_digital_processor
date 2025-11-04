@@ -85,7 +85,7 @@
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
-                "cor_recorder_idx":  6,
+                "cor_recorder_idx":  5,
                 "cpus":              [0, 2, 3, 4, 5, 6],
                 "gpus":              [0],
                 "powerline_flagger": true
@@ -97,7 +97,7 @@
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
-                "cor_recorder_idx":  6,
+                "cor_recorder_idx":  5,
                 "cpus":              [16, 18, 19, 20, 21, 22],
                 "gpus":              [1],
                 "powerline_flagger": true
@@ -109,7 +109,7 @@
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
-                "cor_recorder_idx":  6,
+                "cor_recorder_idx":  5,
                 "cpus":              [0, 2, 3, 4, 5, 6],
                 "gpus":              [0],
                 "powerline_flagger": true
@@ -236,12 +236,7 @@
                 {
                     "host":              "orville",
                     "port":              11000,
-                    "max_bytes_per_sec": 104851000
-                },
-                {
-                    "host":              "orville",
-                    "port":              12000,
-                    "max_bytes_per_sec": 104851000
+                    "max_bytes_per_sec": 262144000
                 }
     ]
 }
