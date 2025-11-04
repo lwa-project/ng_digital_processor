@@ -123,7 +123,7 @@
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
-                "cor_recorder_idx":  6,
+                "cor_recorder_idx":  5,
                 "cpus":              [16, 18, 19, 20, 21, 22],
                 "gpus":              [1],
                 "powerline_flagger": true
