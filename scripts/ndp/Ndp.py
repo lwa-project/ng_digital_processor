@@ -589,7 +589,7 @@ class NdpServerMonitorClient(object):
             
     def pid_drx(self, tuning=0):
         try:
-            pids = self._shell_command("ps aux | grep ndp_drx | grep -- --tuning[=\ ]%i | grep -v grep | awk '{print $2}'"  % tuning)
+            pids = self._shell_command("ps aux | grep ndp_drx | grep -- \"--tuning[=\ ]%i \" | grep -v grep | awk '{print $2}'"  % tuning)
             pids = pids.split('\n')[:-1]
             pids = [int(pid, 10) for pid in pids]
             if len(pids) == 0:
@@ -1108,7 +1108,7 @@ class MsgProcessor(ConsumerThread):
                     for pid in filter(lambda x: x > 0, pids):
                         self.log.warning('  Killing %s TEngine-%i, PID %i', server.host, beam, pid)
                         server.kill_pid(pid)
-            for tuning in range(NPIPE_PER_SERVER):
+            for tuning in range(NPIPE_PER_SERVER*NSERVER):
                 for server in self.servers:
                     pids = server.pid_drx(tuning=tuning)
                     for pid in filter(lambda x: x > 0, pids):
@@ -1197,7 +1197,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Checking pipeline processing")
         ## DRX
         pipeline_pids = []
-        for tuning in range(NPIPE_PER_SERVER):
+        for tuning in range(NPIPE_PER_SERVER*NSERVER):
             pipeline_pids = [p for s in self.servers.pid_drx(tuning=tuning) for p in s]
             pipeline_pids = list(filter(lambda x: x>0, pipeline_pids))
             print('DRX-%i:' % tuning, len(pipeline_pids), pipeline_pids)
@@ -1338,7 +1338,7 @@ class MsgProcessor(ConsumerThread):
         t0, t1 = time.time(), time.time()
         while nRunning > 0:
             pids = []
-            for tuning in range(4):
+            for tuning in range(NPIPE_PER_SERVER*NSERVER):
                 for server in self.servers:
                     pids.extend( server.pid_drx(tuning=tuning) )
             for beam in range(4):
