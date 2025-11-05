@@ -226,7 +226,7 @@
             }
     ],
     "tbt": {
-        "buffer_time_sec":  5.0
+        "buffer_time_sec":  3.0
     },
     "fst": {
         "control_ports":  [23720, 23721],
