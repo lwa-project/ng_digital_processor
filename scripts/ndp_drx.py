@@ -42,7 +42,8 @@ import calendar
 import datetime
 from collections import deque
 
-FILTER2CHAN = {7:  4,
+FILTER2CHAN = {0:  0,
+               7:  4,
                8:  8,
                9: 12}
 
