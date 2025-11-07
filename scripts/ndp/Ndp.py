@@ -1427,7 +1427,7 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
-                    if self.drx.cur_freq[side] > 0 and not cact:
+                    if not cact:
                         problems_found = True
                         msg = "%s, DRX-%i -- Correlator not running" % (host, side)
                         new_status = 'ERROR'
@@ -1442,7 +1442,7 @@ class MsgProcessor(ConsumerThread):
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
                 for side in range(NPIPE_PER_SERVER*NSERVER):
-                    if self.drx.cur_freq[side] > 0 and total_drx_inactive[side] > 0:
+                    if total_drx_inactive[side] > 0:
                         problems_found = True
                         msg = "DRX-%i -- TX rate of %.1f MB/s" % (side, total_drx_bw[side]/1024.0**2)
                         new_status = 'ERROR'
