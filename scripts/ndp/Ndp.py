@@ -951,6 +951,8 @@ class MsgProcessor(ConsumerThread):
         nzcu = NBOARD
         self.zcus = ObjectPool([ZCU102MonitorClient(config, log, num+1)
                                 for num in range(nzcu)])
+        self._head_zcus = self.zcus[:1]
+        self._rest_zcus = self.zcus[1:]
         
         #self.fst = Fst(config, log)
         self.drx = Drx(config, log, self.messageServer, self.servers)
@@ -1174,14 +1176,14 @@ class MsgProcessor(ConsumerThread):
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: self.zcus[:1].configure(),
+        if not self.check_success(lambda: self._head_zcus.configure(),
                                   'Configuring master FPGA',
-                                  self.zcus[:1].host):
+                                  self._head_zcus.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: self.zcus[1:].configure(),
+        if not self.check_success(lambda: self._rest_zcus.configure(),
                                   'Configuring remaining FPGAs',
-                                  self.zcus[1:].host):
+                                  self._rest_zcus.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
@@ -1442,12 +1444,36 @@ class MsgProcessor(ConsumerThread):
                     for pipeline in pipelines[host]:
                         name = pipeline.command
                         side = 0
-                        if name.find('--tuning 1') != -1 or name.find('--beam 1') != -1:
+                        if name.find('--tuning 1 ') != -1 or name.find('--beam 1') != -1:
                             side = 1
                         elif name.find('--tuning 2') != -1 or name.find('--beam 2') != -1:
                             side = 2
                         elif name.find('--tuning 3') != -1 or name.find('--beam 3') != -1:
                             side = 3
+                        elif name.find('--tuning 4') != -1:
+                            side = 4
+                        elif name.find('--tuning 5') != -1:
+                            side = 5
+                        elif name.find('--tuning 6') != -1:
+                            side = 6
+                        elif name.find('--tuning 7') != -1:
+                            side = 7
+                        elif name.find('--tuning 8') != -1:
+                            side = 8
+                        elif name.find('--tuning 9') != -1:
+                            side = 9
+                        elif name.find('--tuning 10') != -1:
+                            side = 10
+                        elif name.find('--tuning 11') != -1:
+                            side = 11
+                        elif name.find('--tuning 12') != -1:
+                            side = 12
+                        elif name.find('--tuning 13') != -1:
+                            side = 13
+                        elif name.find('--tuning 14') != -1:
+                            side = 14
+                        elif name.find('--tuning 15') != -1:
+                            side = 15
                         loss = pipeline.rx_loss()
                         txbw = pipeline.tx_rate()
                         cact = pipeline.is_corr_active()
@@ -1508,8 +1534,8 @@ class MsgProcessor(ConsumerThread):
                     
                     self.log.info("Monitor BAIL")
                     continue
-                total_drx_bw = {0:0, 1:0, 2:0, 3:0}
-                total_drx_inactive = {0:0, 1:0, 2:0, 3:0}
+                total_drx_bw = {i:0 for i in range(NPIPE_PER_SERVER*NSERVER)}
+                total_drx_inactive = {i:0 for i in range(NPIPE_PER_SERVER*NSERVER)}
                 for host,name,side,loss,txbw,cact,flg in found['drx']:
                     total_drx_bw[side] += txbw
                     total_drx_inactive[side] += (1 if txbw == 0 else 0)
