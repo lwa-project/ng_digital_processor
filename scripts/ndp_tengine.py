@@ -940,7 +940,7 @@ class PacketizeOp(object):
                 igulp_size *= 2
                 
             # Figure out where we need to be in the buffer to be at a frame boundary
-            NPACKET_SET = 4
+            NPACKET_SET = 8
             ticksPerSample = int(FS) // int(bw)
             toffset = int(time_tag0) // ticksPerSample
             soffset = toffset % (NPACKET_SET*int(ntime_pkt))
