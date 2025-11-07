@@ -702,7 +702,7 @@ class TriggeredDumpOp(object):
         # HACK TESTING
         dump_time_tag = time_tag
         if (dump_time_tag == 0 and local) or not local:
-            time_offset    = -4.0
+            time_offset    = -2.0
             time_offset_s  = int(time_offset)
             time_offset_us = int(round((time_offset-time_offset_s)*1e6))
             time_offset    = datetime.timedelta(seconds=time_offset_s, microseconds=time_offset_us)
