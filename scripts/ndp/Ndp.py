@@ -83,7 +83,7 @@ class DrxCommand(object):
         self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.high_dr, self.subslot \
             = struct.unpack('>BBdBhBB', msg.data)
-        assert( 1 <= self.beam <= 4 )
+        assert( 1 <= self.beam <= NBEAM )
         assert( 1 <= self.tuning <= 2 )
         # TODO: Check allowed range of freq
         assert( 0 <= self.filt    <= 8 )
@@ -99,7 +99,7 @@ class Drx(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.nbeam = 4
+        self.nbeam = NBEAM
         self.ntuning = 2
         self.cur_freq = [0]*self.nbeam*self.ntuning
         self.cur_filt = [0]*self.nbeam*self.ntuning
@@ -247,7 +247,7 @@ class Bam(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.nbeam = 4
+        self.nbeam = NBEAM
         self.cur_beam = [0]*self.nbeam
         self.cur_delays = [[0 for i in range(512)]]*self.nbeam
         self.cur_gains = [[0 for i in range(1024)]]*self.nbeam
@@ -288,7 +288,7 @@ class Cor(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.ntuning = 4
+        self.ntuning = NPIPE_PER_SERVER*NSERVER
         self.cur_navg = [0]*self.ntuning
         self.cur_gain = [0]*self.ntuning
         
@@ -311,106 +311,6 @@ class Cor(SlotCommandProcessor):
             
     def stop(self):
         return False
-
-
-"""
-class FstCommand(object):
-    def __init__(self, msg):
-        self.index = int(struct.unpack('>h', (msg.data[0:2]))[0])
-        self.coefs = np.ndarray((16,32), dtype='>h', buffer=msg.data[2:])
-class Fst(object):
-    def __init__(self, config, log,
-                nupdate_save=5):
-        self.config = config
-        self.log    = log
-        hosts = config['server_hosts']
-        ports = config['fst']['control_ports']
-        self.addrs = ['tcp://%s:%i'%(hosts[i//2],ports[i%2]) \
-                    for i in range(len(hosts)*len(ports))]
-        self.socks = ObjectPool([_g_zmqctx.socket(zmq.REQ) \
-                                for _ in self.addrs])
-        for sock,addr in zip(self.socks,self.addrs):
-            try: sock.connect(addr)
-            except zmq.error.ZMQError:
-                self.log.error("Invalid or non-existent address: %s" %
-                                addr)
-                # TODO: How to bail out?
-        self.exec_delay = 2
-        self.cmd_sequence = defaultdict(list)
-        self.fir_coefs = SequenceDict(lambda : np.ones((NSTAND,NPOL,
-                                                        FIR_NFINE,FIR_NCOEF),
-                                                    dtype=np.int16),
-                                    maxlen=nupdate_save)
-        self.fir_coefs[0][...] = self._load_default_fir_coefs()
-        #self.future_pool = FuturePool(len(self.socks))
-    def _load_default_fir_coefs(self):
-        nfine = self.fir_coefs[-1].shape[-2]
-        ncoef = self.fir_coefs[-1].shape[-1]
-        fir_coefs = np.fromfile(self.config['fst']['default_coeffs'],
-                                dtype='>h').reshape(nfine,ncoef)
-        return fir_coefs[None,None,:,:]
-    def process_command(self, msg):
-        assert( msg.cmd == 'FST' )
-        exec_slot = msg.slot + self.exec_delay
-        self.cmd_sequence[exec_slot].append(FstCommand(msg))
-    def execute_commands(self, slot):
-        try:
-            cmds = self.cmd_sequence.pop(slot)
-        except KeyError:
-            return
-        # Start with current coefs
-        self.fir_coefs[slot][...] = self.fir_coefs.at(slot-1)
-        # Merge updates into the set of coefficients
-        for cmd in cmds:
-            if cmd.index == -1:
-                self.fir_coefs[slot][...] = self._load_default_fir_coefs()
-            elif cmd.index == 0:
-                # Apply same coefs to all inputs
-                self.fir_coefs[slot][...] = cmd.coefs[None,None,:,:]
-            else:
-                stand = (cmd.index-1) // 2
-                pol   = (cmd.index-1) % 2
-                self.fir_coefs[slot][stand,pol] = cmd.coefs
-        self._send_update(slot)
-    def get_fir_coefs(self, slot):
-        # Access history of updates
-        return self.fir_coefs.at(slot)
-    def _send_update(self, slot):
-        weights = get_freq_domain_filter(self.fir_coefs[slot])
-        # weights: [stand,pol,chan] complex64
-        weights = weights.transpose(2,0,1)
-        # weights: [chan,stand,pol] complex64
-        weights /= weights.max() # Normalise to max DC gain of 1.0
-        # Send update to pipelines
-        # Note: We send all weights to all servers and let them extract
-        #         the channels they need, rather than trying to keep
-        #         track of which servers have which channels from here.
-        # TODO: If msg traffic ever becomes a problem, could probably
-        #         use fp16 instead of fp32 for these.
-        #hdr  = struct.pack('@iihc', slot, NCHAN, NSTAND, NPOL)
-        hdr = json.dumps({'slot':   slot,
-                        'nchan':  NCHAN,
-                        'nstand': NSTAND,
-                        'npol':   NPOL})
-        data = weights.astype(np.complex64).tobytes()
-        msg  = hdr+data
-
-        self.socks.send_multipart([hdr, data])
-        replies = self.socks.recv_json()
-        #def send_msg(sock):
-        #	sock.send_multipart([hdr, data])
-        #	# TODO: Add receive timeout
-        #	return sock.recv_json()
-        #for sock in self.socks:
-        #	self.future_pool.add_task(send_msg, sock)
-        #replies = self.future_pool.wait()
-
-        for reply,addr in zip(replies,self.addrs):
-            if reply['status'] < 0:
-                self.log.error("Gain update failed "
-                            "for address %s: (%i) %s" %
-                            addr, reply['status'], reply['info'])
-"""
 
 
 # Special response packing functions
@@ -954,7 +854,6 @@ class MsgProcessor(ConsumerThread):
         self._head_zcus = self.zcus[:1]
         self._rest_zcus = self.zcus[1:]
         
-        #self.fst = Fst(config, log)
         self.drx = Drx(config, log, self.messageServer, self.servers)
         self.tbs = Tbs(config, log, self.messageServer, self.servers)
         self.tbt = Tbt(config, log, self.messageServer, self.servers)
@@ -1343,7 +1242,7 @@ class MsgProcessor(ConsumerThread):
             for tuning in range(NPIPE_PER_SERVER*NSERVER):
                 for server in self.servers:
                     pids.extend( server.pid_drx(tuning=tuning) )
-            for beam in range(4):
+            for beam in range(NBEAM):
                 for server in self.headnode:
                     pids.extend( server.pid_tengine(beam=beam) )
             nRunning = len( list(filter(lambda x: x > 0, pids)) )
@@ -1357,7 +1256,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Starting slot execution thread")
         slot = MCS2.get_current_slot()
         while not self.shutdown_event.is_set():
-            for cmd_processor in [self.drx, self.tbs, self.tbt, self.bam, self.cor]:#, self.fst]
+            for cmd_processor in [self.drx, self.tbs, self.tbt, self.bam, self.cor]:
                 self.thread_pool.add_task(cmd_processor.execute_commands,
                                         slot)
             while MCS2.get_current_slot() == slot:
@@ -1410,6 +1309,9 @@ class MsgProcessor(ConsumerThread):
         # A little state to see if we need to re-check hosts
         force_recheck = False if self.ready else True
         
+        # Regular expresion for parsing command lines to find tuning/beam info
+        tb_re = re.compile(r'--(?P<type>(tuning)|(beam))[= \t](?P<side>\d+)')
+        
         # Go!
         n_beams = self.config['drx'][0]['beam_count']
         n_tunings = len(self.config['drx'])
@@ -1443,37 +1345,12 @@ class MsgProcessor(ConsumerThread):
                     ### Loop over the pipelines
                     for pipeline in pipelines[host]:
                         name = pipeline.command
-                        side = 0
-                        if name.find('--tuning 1 ') != -1 or name.find('--beam 1') != -1:
-                            side = 1
-                        elif name.find('--tuning 2') != -1 or name.find('--beam 2') != -1:
-                            side = 2
-                        elif name.find('--tuning 3') != -1 or name.find('--beam 3') != -1:
-                            side = 3
-                        elif name.find('--tuning 4') != -1:
-                            side = 4
-                        elif name.find('--tuning 5') != -1:
-                            side = 5
-                        elif name.find('--tuning 6') != -1:
-                            side = 6
-                        elif name.find('--tuning 7') != -1:
-                            side = 7
-                        elif name.find('--tuning 8') != -1:
-                            side = 8
-                        elif name.find('--tuning 9') != -1:
-                            side = 9
-                        elif name.find('--tuning 10') != -1:
-                            side = 10
-                        elif name.find('--tuning 11') != -1:
-                            side = 11
-                        elif name.find('--tuning 12') != -1:
-                            side = 12
-                        elif name.find('--tuning 13') != -1:
-                            side = 13
-                        elif name.find('--tuning 14') != -1:
-                            side = 14
-                        elif name.find('--tuning 15') != -1:
-                            side = 15
+                        mtch = tb_re.search(name)
+                        if mtch is not None:
+                            side = int(mtch.group('side'), 10)
+                        else:
+                            self.log.warning("Cannot determine tuning/beam for '%s'", name)
+                            continue
                         loss = pipeline.rx_loss()
                         txbw = pipeline.tx_rate()
                         cact = pipeline.is_corr_active()
@@ -1494,7 +1371,7 @@ class MsgProcessor(ConsumerThread):
                     
                     self.log.info("Monitor BAIL")
                     continue
-                total_tengine_bw = {0:0, 1:0, 2:0, 3:0}
+                total_tengine_bw = {i:0 for i in range(NBEAM)}
                 for host,name,side,loss,txbw in found['tengine']:
                     total_tengine_bw[side] += txbw
                     if loss > 0.10:    # >10% packet loss
@@ -1860,7 +1737,6 @@ class MsgProcessor(ConsumerThread):
         if key == 'NUM_SERVERS':       return NSERVER
         if key == 'NUM_BOARDS':        return NBOARD
         if key == 'NUM_BEAMS':         return self.drx.nbeam
-        if key == 'BEAM_FIR_COEFFS':   return FIR_NCOEF
         # TODO: T_NOM
         if key == 'NUM_DRX_TUNINGS':   return self.drx.ntuning
         if args[0] == 'DRX' and args[1] == 'CONFIG':
@@ -1879,9 +1755,6 @@ class MsgProcessor(ConsumerThread):
             if args[2] == 'FILTER':
                 return self.tbs.cur_filt
         if key == 'NUM_FREQ_CHANS':    return NCHAN
-        if key == 'FIR_CHAN_INDEX':    return self._get_next_fir_index()
-        if key == 'FIR':
-            return self.fst.get_fir_coefs(slot)[input2standpol(self.fir_idx)]
         if key == 'CLK_VAL':           return MCS2.slot2mpm(slot-1)
         if key == 'UTC_START':         return self.utc_start_str # Not in spec
         if key == 'UPTIME':            return self.uptime() # Not in spec
@@ -1981,10 +1854,7 @@ class MsgProcessor(ConsumerThread):
             'NUM_STANDS':         lambda x: struct.pack('>H', x),
             'NUM_BOARDS':         lambda x: struct.pack('>B', x),
             'NUM_SERVERS':        lambda x: struct.pack('>B', x),
-            'BEAM_FIR_COEFFS':    lambda x: struct.pack('>B', x),
             #'T_NOMn:
-            'FIR_CHAN_INDEX':     lambda x: struct.pack('>H', x),
-            'FIR':                lambda x: x.astype('>h').tobytes(),
             'CLK_VAL':            lambda x: struct.pack('>I', x),
             'UTC_START':          lambda x: truncate_message(x, 256), # Not in spec
             'UPTIME':             lambda x: struct.pack('>I', x),     # Not in spec
@@ -2030,7 +1900,6 @@ class MsgProcessor(ConsumerThread):
     def _format_report_result(self, key, value):
         format_function = defaultdict(lambda : str)
         format_function.update({
-            'FIR':      pretty_print_bytes,
             'CMD_STAT': lambda x: '%i commands in previous slot' % len(x)
         })
         return format_function[key](value)
