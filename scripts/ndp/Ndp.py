@@ -1313,9 +1313,6 @@ class MsgProcessor(ConsumerThread):
         tb_re = re.compile(r'--(?P<type>(tuning)|(beam))[= \t](?P<side>\d+)')
         
         # Go!
-        n_beams = self.config['drx'][0]['beam_count']
-        n_tunings = len(self.config['drx'])
-        n_servers = len(self.config['host']['servers-data'])
         while not self.shutdown_event.is_set():
             ## A little more state
             problems_found = False
@@ -1330,7 +1327,7 @@ class MsgProcessor(ConsumerThread):
                 found = {'drx':[], 'tengine':[]}
                 for host in list(pipelines.keys()):
                     ### Basic information about what to expect
-                    n_expected = n_beams if host == 'localhost' else n_tunings
+                    n_expected = NBEAM if host == 'localhost' else (NPIPE_PER_SERVER*NSERVER)
                     
                     ### Check to see if our view of which pipelines are running has changed
                     refresh = False if len(pipelines[host]) == n_expected else True
@@ -1388,7 +1385,7 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
-                for side in range(n_beams):
+                for side in range(NBEAM):
                     if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
@@ -1396,9 +1393,9 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                if len(found['tengine']) != n_beams:
+                if len(found['tengine']) != NBEAM:
                     problems_found = True
-                    msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), n_beams)
+                    msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), NBEAMS)
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
@@ -1444,7 +1441,7 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
-                for side in range(n_tunings):
+                for side in range(NPIPE_PER_SERVER*NSERVER):
                     if self.drx.cur_freq[side] > 0 and total_drx_inactive[side] > 0:
                         problems_found = True
                         msg = "DRX-%i -- TX rate of %.1f MB/s" % (side, total_drx_bw[side]/1024.0**2)
@@ -1452,9 +1449,9 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                if len(found['drx']) != n_tunings:
+                if len(found['drx']) != NPIPE_PER_SERVER*NSERVER:
                     problems_found = True
-                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings)
+                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), NPIPE_PER_SERVER*NSERVER)
                     new_status = 'WARNING'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
