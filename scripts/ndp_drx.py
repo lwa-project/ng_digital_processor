@@ -842,7 +842,7 @@ class StreamingOp(object):
         if config:
             frequency, filt = config
             chan = int(round(frequency / CHAN_BW))
-            nchan = max(TBS_MIN_NCHAN_PER_PKT, FILTER2CHAN(filt))
+            nchan = max(TBS_MIN_NCHAN_PER_PKT, FILTER2CHAN[filt])
             bw = nchan*CHAN_BW
             self.log.info("StreamingOp: New configuration received for %.3f MHz with %.3f kHz of bandwidth", frequency/1e6, bw/1e3)
             
