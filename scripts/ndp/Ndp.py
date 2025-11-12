@@ -201,7 +201,7 @@ class TbtCommand(object):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
         self.trigger, self.samples, self.mask \
-            = struct.unpack('>iiq', msg.data)
+            = struct.unpack('>Qiq', msg.data)
 
 
 class Tbt(SlotCommandProcessor):
