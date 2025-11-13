@@ -1,15 +1,14 @@
 ! Command: show running-config
-! device: arista (DCS-7050QX-32S, EOS-4.19.5M)
+! device: arista (DCS-7060CX-32S, EOS-4.20.14M)
 !
-! boot system flash:/EOS-4.19.5M.swi
-!
-hardware port-group 1 select Et1-4
+! boot system flash:/EOS-4.20.14M.swi
 !
 errdisable recovery cause link-flap
 !
 ip igmp snooping vlan 1 querier
 ip igmp snooping vlan 1 querier address 192.168.40.1
 ip igmp snooping vlan 1 querier version 3
+ip igmp snooping querier
 !
 transceiver qsfp default-mode 4x10G
 !
@@ -21,209 +20,118 @@ service unsupported-transceiver FS f5047577
 !
 no aaa root
 !
-username admin privilege 15 role network-admin secret sha512 $6$uhtNpzVR.fg4DL/p$N6SmJfAqWwTKaaI25Kcyig0K36ZHKEFRkg9/Tsu3QZmwuyFKOg6bF3aVY4v7RDVcmIn7JbPJ7gLAvgzZC5Stb.
+username admin privilege 15 role network-admin secret sha512 $6$c5MWRn/lZ.2rFwVa$AmXFrjAXa9N1Gg5BtRCYBp40pTqR9vR8YCWKAMaV4.ZJW3LODzxvLVoc9xHG31nszNrPDuiipCGtlzaezXctv1
 !
-interface Ethernet1
-   flowcontrol receive on
+interface Ethernet1/1
+   speed forced 40gfull
 !
-interface Ethernet2
-   flowcontrol receive on
+interface Ethernet2/1
+   speed forced 40gfull
 !
-interface Ethernet3
-   flowcontrol receive on
+interface Ethernet3/1
+   speed forced 40gfull
 !
-interface Ethernet4
-   flowcontrol receive on
+interface Ethernet4/1
+   speed forced 40gfull
+!
+interface Ethernet5/1
+   speed forced 40gfull
 !
 interface Ethernet6/1
-!
-interface Ethernet6/2
-!
-interface Ethernet6/3
-!
-interface Ethernet6/4
+   speed forced 40gfull
 !
 interface Ethernet7/1
-!
-interface Ethernet7/2
-!
-interface Ethernet7/3
-!
-interface Ethernet7/4
+   speed forced 40gfull
 !
 interface Ethernet8/1
-!
-interface Ethernet8/2
-!
-interface Ethernet8/3
-!
-interface Ethernet8/4
+   speed forced 40gfull
 !
 interface Ethernet9/1
-!
-interface Ethernet9/2
-!
-interface Ethernet9/3
-!
-interface Ethernet9/4
+   speed forced 40gfull
 !
 interface Ethernet10/1
-!
-interface Ethernet10/2
-!
-interface Ethernet10/3
-!
-interface Ethernet10/4
+   speed forced 40gfull
 !
 interface Ethernet11/1
-!
-interface Ethernet11/2
-!
-interface Ethernet11/3
-!
-interface Ethernet11/4
+   speed forced 40gfull
 !
 interface Ethernet12/1
-!
-interface Ethernet12/2
-!
-interface Ethernet12/3
-!
-interface Ethernet12/4
+   speed forced 40gfull
 !
 interface Ethernet13/1
-!
-interface Ethernet13/2
-!
-interface Ethernet13/3
-!
-interface Ethernet13/4
+   speed forced 40gfull
 !
 interface Ethernet14/1
-!
-interface Ethernet14/2
-!
-interface Ethernet14/3
-!
-interface Ethernet14/4
+   speed forced 40gfull
 !
 interface Ethernet15/1
-!
-interface Ethernet15/2
-!
-interface Ethernet15/3
-!
-interface Ethernet15/4
+   speed forced 40gfull
 !
 interface Ethernet16/1
-!
-interface Ethernet16/2
-!
-interface Ethernet16/3
-!
-interface Ethernet16/4
+   speed forced 40gfull
 !
 interface Ethernet17/1
-!
-interface Ethernet17/2
-!
-interface Ethernet17/3
-!
-interface Ethernet17/4
+   speed forced 40gfull
 !
 interface Ethernet18/1
-!
-interface Ethernet18/2
-!
-interface Ethernet18/3
-!
-interface Ethernet18/4
+   speed forced 40gfull
 !
 interface Ethernet19/1
-!
-interface Ethernet19/2
-!
-interface Ethernet19/3
-!
-interface Ethernet19/4
+   flowcontrol receive on
 !
 interface Ethernet20/1
 !
-interface Ethernet20/2
-!
-interface Ethernet20/3
-!
-interface Ethernet20/4
-!
 interface Ethernet21/1
-!
-interface Ethernet21/2
-!
-interface Ethernet21/3
-!
-interface Ethernet21/4
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet22/1
-!
-interface Ethernet22/2
-!
-interface Ethernet22/3
-!
-interface Ethernet22/4
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet23/1
-!
-interface Ethernet23/2
-!
-interface Ethernet23/3
-!
-interface Ethernet23/4
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet24/1
-!
-interface Ethernet24/2
-!
-interface Ethernet24/3
-!
-interface Ethernet24/4
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet25/1
-   speed forced 40gfull
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet26/1
-   speed forced 40gfull
+   flowcontrol send on
+   flowcontrol receive on
 !
 interface Ethernet27/1
+   flowcontrol send on
    flowcontrol receive on
-   speed forced 40gfull
 !
 interface Ethernet28/1
+   flowcontrol send on
    flowcontrol receive on
+!
+interface Ethernet29/1
+   flowcontrol send on
+   flowcontrol receive on
+!
+interface Ethernet30/1
+   flowcontrol send on
+   flowcontrol receive on
+!
+interface Ethernet31/1
+   flowcontrol receive on
+!
+interface Ethernet32/1
+   flowcontrol send on
    speed forced 40gfull
-!
-interface Ethernet29
-   flowcontrol send on
-   flowcontrol receive on
-!
-interface Ethernet30
-   flowcontrol send on
-   flowcontrol receive on
-!
-interface Ethernet31
-   flowcontrol send on
-!
-interface Ethernet32
-   flowcontrol send on
+   switchport mode trunk
 !
 interface Ethernet33
-   flowcontrol send on
 !
 interface Ethernet34
-   flowcontrol send on
-!
-interface Ethernet35
-!
-interface Ethernet36
 !
 interface Management1
    ip address dhcp
@@ -231,11 +139,7 @@ interface Management1
 interface Vlan1
    ip pim sparse-mode
 !
-mac address-table static e8eb.d396.8cdc vlan 1 interface Ethernet29
-mac address-table static e8eb.d396.8cd0 vlan 1 interface Ethernet30
-mac address-table static e8eb.d396.8cda vlan 1 interface Ethernet31
-mac address-table static e8eb.d396.8cd8 vlan 1 interface Ethernet32
-mac address-table static e8eb.d396.8cd6 vlan 1 interface Ethernet34
+mac address-table static b8e9.24e3.46a4 vlan 1 interface Ethernet19/1
 !
 ip routing
 !
