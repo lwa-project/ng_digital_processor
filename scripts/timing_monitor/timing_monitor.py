@@ -35,6 +35,7 @@ class TimingMonitor:
             
         # Touch up the time on the device
         t0 = time.time()
+        self._exit_bypass()
         self._command((f"TIME SET EPOCH {t0:.0f}").encode())
         
     def close(self):
