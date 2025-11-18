@@ -11,3 +11,8 @@ nvidia-smi -lgc 1300,1300
 for i in `seq 0 1 63`; do
         echo performance > /sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor
 done
+
+# Synthesizer to 196 MHz
+/home/ndp/ng_digital_processor/scripts/valon_program_196MHz.py
+
+exit 0
