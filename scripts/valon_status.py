@@ -18,5 +18,5 @@ if __name__ == "__main__":
                  REF_EXT: "external"}
     print("Ref source:", ref_names[synth.get_valon_ref_source()])
     print("Ref freq:  ", synth.get_valon_ref_freq(), "MHz")
-    print_synth(synth, valon.SYNTH_A)
-    print_synth(synth, valon.SYNTH_B)
+    print_synth(synth, SYNTH_A)
+    print_synth(synth, SYNTH_B)
