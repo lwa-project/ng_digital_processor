@@ -255,6 +255,28 @@ class TimingMonitor:
             raise RuntimeError("Failed to determine refrerence frequency")
         return resp
         
+    def set_valon_ref_freq(self, freq_MHz: float):
+        """
+        Set the Valon reference source frequency (in MHz).
+        
+        .. note:: On 5009 models (original/a, not b) this will also set the
+                  reference doubler/divider appropriately.
+        """
+        
+        info = self.get_valon_info()
+        use_doubler_divider = False
+        if info['model'] in ('5009', '5009a'):
+            use_doubler_divider = True
+            
+        self._valon_command((f"ref {freq_MHz}").encode())
+        if use_doubler_divider:
+            if freq_MHz < 20:
+                self._valon_command(b'refdb 1')
+                self._valon_command(b'refdiv 0')
+            else:
+                self._valon_command(b'refdb 0')
+                self._valon_command(b'refdiv 1')
+                
     def get_valon_freq(self, source: int=ValonOutputs.SYNTH_A) -> float:
         """
         Get the Valon output frequency (in MHz) for the specified syntheizer.
