@@ -1,20 +1,20 @@
 import re
+import enum
 import time
 import serial
 
 from typing import Dict, Any
 
-#: First Valon output
-SYNTH_A = 1
+__all__ = ['ValonOutputs', 'ValonReferences', 'TimingMonitor']
 
-#: Second Valon outupt
-SYNTH_B = 2
 
-#: Internal Valon reference source
-REF_INT = 0
+class ValonOutputs(enum.IntEnum):
+    SYNTH_A = 1
+    SYNTH_B = 2
 
-#: External Valon reference source
-REF_EXT = 1
+class ValonReferences(enum.IntEnum):
+    REF_INT = 0
+    REF_EXT = 1
 
 
 class TimingMonitor:
@@ -218,7 +218,7 @@ class TimingMonitor:
         _ref = re.compile(r'REFS (?P<ref_source>\d);')
         mtch = _ref.search(resp)
         if mtch is not None:
-            resp = int(mtch.group('ref_source'), 10)
+            resp = ValonReferences(int(mtch.group('ref_source'), 10))
         else:
             raise RuntimeError("Failed to determine reference source")
         return resp
@@ -228,7 +228,7 @@ class TimingMonitor:
         Set the Valon reference source.
         """
         
-        if ref_source not in (REF_INT, REF_EXT):
+        if ref_source not in ValonReferences:
             raise ValueError(f"Invalid reference source '{source}'")
             
         self._valon_command((f"refs {ref_source}").encode())
@@ -249,12 +249,12 @@ class TimingMonitor:
             raise RuntimeError("Failed to determine refrerence frequency")
         return resp
         
-    def get_valon_freq(self, source: int=SYNTH_A) -> float:
+    def get_valon_freq(self, source: int=ValonOutputs.SYNTH_A) -> float:
         """
         Get the Valon output frequency (in MHz) for the specified syntheizer.
         """
         
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         self._valon_command((f"source {source}").encode())
@@ -269,23 +269,23 @@ class TimingMonitor:
             raise RuntimeError(f"Failed to determine frequency for source {source}")
         return resp
         
-    def set_valon_freq(self, freq_MHz: float, source: int=SYNTH_A):
+    def set_valon_freq(self, freq_MHz: float, source: int=ValonOutputs.SYNTH_A):
         """
         Set the Valon output frequency (in MHz) for the specified syntheizer.
         """
         
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         self._valon_command((f"source {source}").encode())
         self._valon_command((f"F {freq_MHz}").encode())
         
-    def get_valon_atten(self, source: int=SYNTH_A) -> float:
+    def get_valon_atten(self, source: int=ValonOutputs.SYNTH_A) -> float:
         """
         Get the internal attenuator setting (in dB) for the specified syntheizer.
         """
         
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         self._valon_command((f"source {source}").encode())
@@ -300,7 +300,7 @@ class TimingMonitor:
             raise RuntimeError(f"Failed to determine attenuator setting for source {source}")
         return resp
         
-    def set_valon_atten(self, value_dB,  source: int=SYNTH_A):
+    def set_valon_atten(self, value_dB,  source: int=ValonOutputs.SYNTH_A):
         """
         Set the internal attenuator setting (in dB) for the specified syntheizer.
         """
@@ -308,18 +308,18 @@ class TimingMonitor:
         value_dB = int(round(value_dB*4))/4.0
         if value_dB < 0 or value_dB > 31.75:
             raise ValueError(f"Invalid attenuation setting '{value_dB}'")
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         self._valon_command((f"source {source}").encode())
         self._valon_command((f"att {value_dB:.2f}").encode())
         
-    def get_valon_rf_enabled(self, source: int=SYNTH_A) -> bool:
+    def get_valon_rf_enabled(self, source: int=ValonOutputs.SYNTH_A) -> bool:
         """
         Get the RF output state for the specified synthesizer.
         """
         
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         self._valon_command((f"source {source}").encode())
@@ -334,24 +334,24 @@ class TimingMonitor:
             raise RuntimeError(f"Failed to determine RF output state for source {source}")
         return resp
         
-    def set_valon_rf_enabled(self, turn_on: bool, source: int=SYNTH_A):
+    def set_valon_rf_enabled(self, turn_on: bool, source: int=ValonOutputs.SYNTH_A):
         """
         Get the RF output state for the specified synthesizer.
         """
         
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         value = 1 if turn_on else 0
         self._valon_command((f"source {source}").encode())
         self._valon_command((f'oen {value}').encode())
         
-    def get_valon_name(self, source: int=SYNTH_A) -> str:
+    def get_valon_name(self, source: int=ValonOutputs.SYNTH_A) -> str:
         """
         Get the name of the specified synthesizer.
         """
         
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         self._valon_command((f"source {source}").encode())
@@ -366,7 +366,7 @@ class TimingMonitor:
             raise RuntimeError(f"Failed to determine name for source {source}")
         return resp
         
-    def set_valon_name(self, name, source: int=SYNTH_A):
+    def set_valon_name(self, name, source: int=ValonOutputs.SYNTH_A):
         """
         Set the name of the specified synthesizer.
         """
@@ -374,18 +374,18 @@ class TimingMonitor:
         if len(name) > 16:
             print("WARNING: truncating name to 16 characters")
             name = name[:16]
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         self._valon_command((f"source {source}").encode())
         self._valon_command((f"name {name}").encode())
         
-    def get_valon_lock(self, source: int=SYNTH_A) -> bool:
+    def get_valon_lock(self, source: int=ValonOutputs.SYNTH_A) -> bool:
         """
         Get the Valon output lock status for the specified syntheizer.
         """
         
-        if source not in (SYNTH_A, SYNTH_B):
+        if source not in ValonOutputs:
             raise ValueError(f"Invalid source '{source}'")
             
         resp = self._valon_command((f"lock{source}?").encode())
