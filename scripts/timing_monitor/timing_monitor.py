@@ -273,9 +273,12 @@ class TimingMonitor:
             if freq_MHz < 20:
                 self._valon_command(b'refdb 1')
                 self._valon_command(b'refdiv 0')
-            else:
+            elif freq_MHz > 20:
                 self._valon_command(b'refdb 0')
                 self._valon_command(b'refdiv 1')
+            else:
+                self._valon_command(b'refdb 0')
+                self._valon_command(b'refdiv 0')
                 
     def get_valon_freq(self, source: int=ValonOutputs.SYNTH_A) -> float:
         """
