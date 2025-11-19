@@ -5,7 +5,7 @@ import serial
 
 from typing import Dict, Any
 
-__all__ = ['ValonOutputs', 'ValonReferences', 'TimingMonitor']
+__all__ = ['ValonOutputs', 'ValonReferences', 'ValonSpurModes', 'TimingMonitor']
 
 
 class ValonOutputs(enum.IntEnum):
@@ -15,6 +15,14 @@ class ValonOutputs(enum.IntEnum):
 class ValonReferences(enum.IntEnum):
     REF_INT = 0
     REF_EXT = 1
+
+class ValonSpurModes(enum.IntEnum):
+    LOW_NOISE_1 = 0
+    LOW_NOISE_2 = 1
+    LOW_SPUR_1 = 2
+    LOW_SPUR_2 = 3
+    LOW_SPUR_1 = 10
+    LOW_SPUR_2 = 11
 
 
 class TimingMonitor:
@@ -279,6 +287,39 @@ class TimingMonitor:
             
         self._valon_command((f"source {source}").encode())
         self._valon_command((f"F {freq_MHz}").encode())
+        
+    def get_valon_spur_mode(self, source: int=ValonOutputs.SYNTH_A) -> int:
+        """
+        Get the spur mitigation mode fro the specified syntheizer.
+        """
+        
+        if source not in ValonOutputs:
+            raise ValueError(f"Invalid source '{source}'")
+            
+        self._valon_command((f"source {source}").encode())
+        resp = self._valon_command(b'sdn?')
+        resp = resp.decode()
+        
+        _mod = re.compile(r'SDN (?P<mode>\d+);')
+        mtch = _mod.search(resp)
+        if mtch is not None:
+            resp = ValonSpurModes(int(mtch.group('mode'), 10))
+        else:
+            raise RuntimeError(f"Failed to determine spur mitigation mode for source {source}")
+        return resp
+        
+    def set_valon_spur_mode(self, mode: int, source: int=ValonOutputs.SYNTH_A):
+        """
+        Set the spur mitigation mode fro the specified syntheizer.
+        """
+        
+        if mode not in ValonSpurModes:
+            raise ValueError(f"Invalid spur mitigation mode '{mode}'")
+        if source not in ValonOutputs:
+            raise ValueError(f"Invalid source '{source}'")
+            
+        self._valon_command((f"source {source}").encode())
+        self._valon_command((f"sdn {mode}").encode())
         
     def get_valon_atten(self, source: int=ValonOutputs.SYNTH_A) -> float:
         """
