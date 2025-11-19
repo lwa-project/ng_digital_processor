@@ -21,8 +21,6 @@ class ValonSpurModes(enum.IntEnum):
     LOW_NOISE_2 = 1
     LOW_SPUR_1 = 2
     LOW_SPUR_2 = 3
-    LOW_SPUR_1 = 10
-    LOW_SPUR_2 = 11
 
 
 class TimingMonitor:
