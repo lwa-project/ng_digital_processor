@@ -8,7 +8,7 @@ def print_synth(synth, which):
     print("  Phase locked:", synth.get_valon_lock(which))
     print("  RF enabled:  ", synth.get_valon_rf_enabled(which))
     sdn = synth.get_valon_spur_mode(which)
-    print("  Spur modde:  ", sdn.name)
+    print("  Spur mode:  ", sdn.name)
 
 if __name__ == "__main__":
     import sys
@@ -16,6 +16,8 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         device = sys.argv[1]
     synth = TimingMonitor(device)
+    info = synth.get_valon_info()
+    print("Model:", info['model'])
     ref = synth.get_valon_ref_source()
     print("Ref source:", ref.name)
     print("Ref freq:  ", synth.get_valon_ref_freq(), "MHz")
