@@ -553,7 +553,7 @@ class ZCU102MonitorClient(object):
         
     def unprogram(self, reboot=False):
         with self.access_lock:
-            if self.zcu.is_connected():
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
                 self.zcu.deprogram()
                 
     def get_samples(self, slot, stand, pol, nsamps=None):
@@ -1075,14 +1075,14 @@ class MsgProcessor(ConsumerThread):
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: self._head_zcus.configure(),
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i == 0],
                                   'Configuring master FPGA',
-                                  self._head_zcus.host):
+                                  [s.host for i,s in enumerate(self.zcus) if i == 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: self._rest_zcus.configure(),
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i != 0],
                                   'Configuring remaining FPGAs',
-                                  self._rest_zcus.host):
+                                  [s.host for i,s in enumerate(self.zcus) if i != 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
