@@ -16,6 +16,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         device = sys.argv[1]
     synth = TimingMonitor(device)
+    synth.print_status()
     info = synth.get_valon_info()
     print("Model:", info['model'])
     ref = synth.get_valon_ref_source()
