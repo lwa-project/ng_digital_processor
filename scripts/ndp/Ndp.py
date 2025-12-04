@@ -541,7 +541,8 @@ class ZCU102MonitorClient(object):
         username = self.config['zcu']['username']
         password = self.config['zcu']['password']
         self.zcu   = zcu102_fengine.ZCU102Fengine(self.host,
-                                                  username=username, password=password)
+                                                  username=username,
+                                                  password=password)
         
         self.equalizer_coeffs = None
         try:
@@ -626,6 +627,7 @@ class ZCU102MonitorClient(object):
                         self.zcu = zcu102_fengine.ZCU102Fengine(self.host,
                                                                 username=username,
                                                                 password=password)
+                        success = self.zcu.program(firmware)
                         
                         break
                     except Exception as e:
