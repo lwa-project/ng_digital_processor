@@ -1088,7 +1088,10 @@ class MsgProcessor(ConsumerThread):
                 
         self.log.info("  Finished configuring FPGAs")
         
-        self.utc_start     = self.zcus[0].get_tt_of_sync()
+        try:
+            self.utc_start     = self.zcus[0].get_tt_of_sync()
+        except RuntimeError:
+            return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
         self.utc_start_str = str(self.utc_start)
         self.state['lastlog'] = "Starting correlator processing at timetag "+self.utc_start_str
         self.log.info("Starting correlator processing at timetag "+self.utc_start_str)
