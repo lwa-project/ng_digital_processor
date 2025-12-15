@@ -1400,7 +1400,7 @@ class MsgProcessor(ConsumerThread):
                         self.log.error(msg)
                 if len(found['tengine']) != NBEAM:
                     problems_found = True
-                    msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), NBEAMS)
+                    msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), NBEAM)
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
