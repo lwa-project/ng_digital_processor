@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 
+import os
+import sys
+tm_path = os.path.dirname(os.path.abspath(__file__))
+if tm_path not in sys.path:
+    sys.path.insert(0, tm_path)
+    
 from timing_monitor import *
 
 def print_synth(synth, which):
