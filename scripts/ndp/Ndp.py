@@ -541,7 +541,8 @@ class ZCU102MonitorClient(object):
         username = self.config['zcu']['username']
         password = self.config['zcu']['password']
         self.zcu   = zcu102_fengine.ZCU102Fengine(self.host,
-                                                  username=username, password=password)
+                                                  username=username,
+                                                  password=password)
         
         self.equalizer_coeffs = None
         try:
@@ -553,7 +554,7 @@ class ZCU102MonitorClient(object):
         
     def unprogram(self, reboot=False):
         with self.access_lock:
-            if self.zcu.is_connected():
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
                 self.zcu.deprogram()
                 
     def get_samples(self, slot, stand, pol, nsamps=None):
@@ -626,6 +627,7 @@ class ZCU102MonitorClient(object):
                         self.zcu = zcu102_fengine.ZCU102Fengine(self.host,
                                                                 username=username,
                                                                 password=password)
+                        success = self.zcu.program(firmware)
                         
                         break
                     except Exception as e:
@@ -1075,20 +1077,23 @@ class MsgProcessor(ConsumerThread):
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: self._head_zcus.configure(),
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i == 0],
                                   'Configuring master FPGA',
-                                  self._head_zcus.host):
+                                  [s.host for i,s in enumerate(self.zcus) if i == 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: self._rest_zcus.configure(),
+        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i != 0],
                                   'Configuring remaining FPGAs',
-                                  self._rest_zcus.host):
+                                  [s.host for i,s in enumerate(self.zcus) if i != 0]):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
         self.log.info("  Finished configuring FPGAs")
         
-        self.utc_start     = self.zcus[0].get_tt_of_sync()
+        try:
+            self.utc_start     = self.zcus[0].get_tt_of_sync()
+        except RuntimeError:
+            return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
         self.utc_start_str = str(self.utc_start)
         self.state['lastlog'] = "Starting correlator processing at timetag "+self.utc_start_str
         self.log.info("Starting correlator processing at timetag "+self.utc_start_str)
