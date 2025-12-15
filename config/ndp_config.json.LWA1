@@ -25,7 +25,7 @@
                          "mcg40s2-data1", "mcg40s2-data2", "mcg40s2-data1", "mcg40s2-data2",
                          "mcg40s3-data1", "mcg40s3-data2", "mcg40s3-data1", "mcg40s3-data2",
                          "mcg40s4-data1", "mcg40s4-data2", "mcg40s4-data1", "mcg40s4-data2"],
-        "tengines": ["mcg40-data1", "mcg40-data2", "mcg40-data1", "mcg40-data2"]
+        "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
     },
     "ipmi": {
         "username": "root",
