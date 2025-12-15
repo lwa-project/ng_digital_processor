@@ -16,7 +16,7 @@ if __name__ == "__main__":
     synth = TimingMonitor(device)
     #synth.set_valon_name("Sampling clock", ValonOutputs.SYNTH_A) # Note: 16 char limit
     #synth.set_valon_name("Tone injection", ValonOutputs.SYNTH_B) # Note: 16 char limit
-    print("Old synth A freq:", synth.get_valon_frequency(ValonOutputs.SYNTH_A))
+    print("Old synth A freq:", synth.get_valon_freq(ValonOutputs.SYNTH_A))
     synth.set_valon_freq(ValonOutputs.SYNTH_A, 196.0)
     print("New synth A freq:", synth.get_valon_freq(ValonOutputs.SYNTH_A))
     synth.save_valon_config()
