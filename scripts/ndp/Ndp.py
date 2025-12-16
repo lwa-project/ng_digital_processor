@@ -752,6 +752,7 @@ class ZCU102MonitorClient(object):
                         break
                         
                     except Exception as e:
+                        self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
                         pass
                         
         return success
