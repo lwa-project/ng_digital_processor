@@ -737,9 +737,20 @@ class ZCU102MonitorClient(object):
             if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
                 for i in range(self.config['zcu']['max_program_attempts']):
                     try:
-                        self.zcu.cold_start_from_config(configname) 
+                        self.zcu.cold_start_from_config(configname)
+                        
+                        ## At LWA1 the ZCU102's have a non-zero chance of coming up
+                        ## in a state where everything looks ok but no packets come
+                        ## out.  We can check for this by looking for massive overflows
+                        ## of the packet transmission buffer.
+                        time.sleep(1)
+                        
+                        if self.zcu.eth.get_status()[0]['tx_of'] > 100:
+                            raise RuntimeError("Non-zero packet transmission buffer overflow counter")
+                            
                         sucesss = True
                         break
+                        
                     except Exception as e:
                         pass
                         
