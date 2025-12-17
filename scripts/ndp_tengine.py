@@ -731,7 +731,7 @@ class TEngineOp(object):
                                 
                                 ## Setup and load
                                 idata = ispan.data_view(np.complex64).reshape(ishape)
-                                odata = ospan.data_view(self.out_dtype).reshape(oshape)
+                                odata = ospan.data_view(self.out_dtype).reshape(self.odata_shape)
                                 
                                 ## Prune the data ahead of the IFFT
                                 try:
