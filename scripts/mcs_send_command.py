@@ -48,7 +48,7 @@ if __name__ == '__main__':
         trigger = int(trigger, 10)
         samples = int(samples, 10)
         mask = int(mask, 10)
-        data = struct.pack('>iiq', trigger, samples, mask)
+        data = struct.pack('>Qiq', trigger, samples, mask)
         
     msg = MCS2.Msg(dst='NDP', cmd=cmd, data=data)
     print(f"Sending {msg}")
