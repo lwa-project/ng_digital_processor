@@ -219,7 +219,7 @@ class Tbt(SlotCommandProcessor):
     def start(self, trigger, samples, mask):
         self.log.info('Starting TBT: trigger=%i, samples=%i, mask=%i' % (trigger, samples, mask))
         
-        self.messenger.trigger(trigger, samples, mask)
+        self.messenger.trigger(trigger, samples, mask, local=False)
         
         return True
         
