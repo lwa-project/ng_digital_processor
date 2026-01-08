@@ -697,12 +697,9 @@ class TriggeredDumpOp(object):
         
         ntime_pkt = 1 # TODO: Should be TBT_NTIME_PER_PKT?
         
-        # Always write to disk
-        local = True
-        
         # HACK TESTING
         dump_time_tag = time_tag
-        if (dump_time_tag == 0 and local) or not local:
+        if dump_time_tag == 0:
             time_offset    = -2.0
             time_offset_s  = int(time_offset)
             time_offset_us = int(round((time_offset-time_offset_s)*1e6))
