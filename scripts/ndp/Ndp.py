@@ -897,7 +897,9 @@ class MsgProcessor(ConsumerThread):
         self.run_failsafe_thread = threading.Thread(target=self.run_failsafe)
         self.run_failsafe_thread.daemon = True
         self.run_failsafe_thread.start()
-        
+       
+        self.health_check_lock = threading.Lock()
+         
         self.start_lock_thread()
         self.start_internal_trigger_thread()
         
@@ -1789,18 +1791,24 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_GAIN
         #  BEAM%i_TUNING # Note: (NDP only)
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
-            t_now = datetime.datetime.utcnow()
-            spectra = self.zcus.get_spectra()
-            spectra = np.array(list(spectra))
-            spectra = spectra.reshape(-1, spectra.shape[-1])
-            spectra = spectra.astype(np.float32)
-            
-            checkname = t_now.strftime("%y%m%d_%H%M%S")
-            checkname = "/tmp/"+checkname+"_zcuspecs.dat"
-            with open(checkname, 'wb') as fh:
-                fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
-                spectra.tofile(fh)
-            return checkname
+            acquired = self.health_check_lock.acquire(blocking=False)
+            if not acquired:
+                raise RuntimeError("HEALTH_CHECK already in progress")
+            try:
+                t_now = datetime.datetime.utcnow()
+                spectra = self.zcus.get_spectra()
+                spectra = np.array(list(spectra))
+                spectra = spectra.reshape(-1, spectra.shape[-1])
+                spectra = spectra.astype(np.float32)
+                
+                checkname = t_now.strftime("%y%m%d_%H%M%S")
+                checkname = "/tmp/"+checkname+"_zcuspecs.dat"
+                with open(checkname, 'wb') as fh:
+                    fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
+                    spectra.tofile(fh)
+                return checkname
+            finally:
+                 self.health_check_lock.release()
         if args[0] == 'BOARD':
             board = args[1]-1
             if not (0 <= board < NBOARD):
