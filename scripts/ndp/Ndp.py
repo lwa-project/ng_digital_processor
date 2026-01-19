@@ -217,9 +217,13 @@ class Tbt(SlotCommandProcessor):
         self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
     def start(self, trigger, samples, mask):
-        self.log.info('Starting TBT: trigger=%i, samples=%i, mask=%i' % (trigger, samples, mask))
+        local = mask & 2**62
+        flg = ''
+        if local:
+            flg = ", 'local' flag is set"
+        self.log.info('Starting TBT: trigger=%i, samples=%i, mask=%i%s' % (trigger, samples, mask, flg))
         
-        self.messenger.trigger(trigger, samples, mask, local=False)
+        self.messenger.trigger(trigger, samples, mask, local=local)
         
         return True
         
