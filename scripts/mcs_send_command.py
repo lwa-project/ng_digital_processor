@@ -48,7 +48,7 @@ if __name__ == '__main__':
         trigger = int(trigger, 10)
         samples = int(samples, 10)
         mask = int(mask, 10)
-        mask |= 2**62   # Flag to know that we're going local
+        mask *= -1   # Flag to know that we're going local
         data = struct.pack('>Qiq', trigger, samples, mask)
         
     msg = MCS2.Msg(dst='NDP', cmd=cmd, data=data)

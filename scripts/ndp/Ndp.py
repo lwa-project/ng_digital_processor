@@ -217,7 +217,8 @@ class Tbt(SlotCommandProcessor):
         self.cur_trigger = self.cur_samples = self.cur_mask = 0
         
     def start(self, trigger, samples, mask):
-        local = mask & 2**62
+        local = (mask < 0)
+        mask = abs(mask)
         flg = ''
         if local:
             flg = ", 'local' flag is set"
