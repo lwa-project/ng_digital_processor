@@ -1096,14 +1096,14 @@ class MsgProcessor(ConsumerThread):
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i == 0],
+        if not self.check_success(lambda: self._head_zcus.configure(),
                                   'Configuring master FPGA',
-                                  [s.host for i,s in enumerate(self.zcus) if i == 0]):
+                                  self._head_zcus.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.zcus) if i != 0],
+        if not self.check_success(lambda: self._rest_zcus.configure(),
                                   'Configuring remaining FPGAs',
-                                  [s.host for i,s in enumerate(self.zcus) if i != 0]):
+                                  self._rest_zcus.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
