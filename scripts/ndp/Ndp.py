@@ -753,6 +753,7 @@ class ZCU102MonitorClient(object):
                         if self.zcu.eth.get_status()[0]['tx_of'] > 100:
                             raise RuntimeError("Non-zero packet transmission buffer overflow counter")
                             
+                        self.log.info(f"{self.host} configuration succeeded")
                         sucesss = True
                         break
                         
