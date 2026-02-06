@@ -86,7 +86,7 @@ class DrxCommand(object):
         assert( 1 <= self.beam <= NBEAM )
         assert( 1 <= self.tuning <= 2 )
         # TODO: Check allowed range of freq
-        assert( 0 <= self.filt    <= 8 )
+        assert( 0 <= self.filt    <= 7 )
         assert( 0 <= self.gain    <= 15 )
         assert( 0 <= self.high_dr <= 1 )
         assert( 0 <= self.subslot <= 99)
@@ -160,6 +160,7 @@ class TbsCommand(object):
             msg.data = msg.data.encode()
         self.frequency, self.filt \
             = struct.unpack('>dB', msg.data)
+        assert( 7 <= self.filt    <= 9 )
 
 
 class Tbs(SlotCommandProcessor):
