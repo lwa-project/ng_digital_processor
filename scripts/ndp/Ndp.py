@@ -686,7 +686,7 @@ class ZCU102MonitorClient(object):
                     pass
         return status
         
-    def configure(self):
+    def configure(self, requested_start_chan0=None):
         # Configure the FPGA and start data flowing
         
         ## Configuration
@@ -720,6 +720,20 @@ class ZCU102MonitorClient(object):
             
         ### X-engine channel mapping
         i = 0
+        #### Pass 1 - Find the lowest start channel in the config. file
+        start_chan0 = NCHAN*2
+        for host in self.config['host']['servers-data']:
+            if i >= len(self.config['drx']):
+                break
+            ip = host2ip(host)
+            chan0 = self.config['drx'][i]['first_channel']
+            if chan0 < start_chan0:
+                start_chan0 = chan0
+            i += 1
+        #### Pass 2 - Figure out the new channel mapping
+        if requested_start_chan0 is None:
+            requested_start_chan0 = start_chan0
+        #### Pass 3 - Make it happen
         for host in self.config['host']['servers-data']:
             if i >= len(self.config['drx']):
                 break
@@ -727,7 +741,9 @@ class ZCU102MonitorClient(object):
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
             port = self.config['server']['data_ports'][i % NPIPE_PER_SERVER]
-        
+            
+            chan0 = chan0 - start_chan0 + requested_start_chan0
+            
             sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
             i += 1
             
@@ -1098,12 +1114,21 @@ class MsgProcessor(ConsumerThread):
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: self._head_zcus.configure(),
+        requested_start_chan0 = None
+        for a in arg.split(None):
+            if a.startswith('STARTFREQ'):
+                try:
+                    requested_start_chan0 = float(a.split('_', 1)[-1])*1e6 / CHAN_BW
+                    requested_start_chan0 = int(round(CHAN_BW/16))*16
+                    self.log.info("Setting first channel to %i (%.3f MHz)", requested_start_chan0, requested_start_chan0*CHAN_BW)
+                except Exception as e:
+                    self.log.warning("Failed to parse INI STARTREQ request with '%s', ignoring", str(e))
+        if not self.check_success(lambda: self._head_zcus.configure(requested_start_chan0=requested_start_chan0),
                                   'Configuring master FPGA',
                                   self._head_zcus.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: self._rest_zcus.configure(),
+        if not self.check_success(lambda: self._rest_zcus.configure(requested_start_chan0=requested_start_chan0),
                                   'Configuring remaining FPGAs',
                                   self._rest_zcus.host):
             if 'FORCE' not in arg:
