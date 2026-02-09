@@ -1119,7 +1119,7 @@ class MsgProcessor(ConsumerThread):
             if a.startswith('STARTFREQ'):
                 try:
                     requested_start_chan0 = float(a.split('_', 1)[-1])*1e6 / CHAN_BW
-                    requested_start_chan0 = int(round(CHAN_BW/16))*16
+                    requested_start_chan0 = int(round(requested_start_chan0/16))*16
                     self.log.info("Setting first channel to %i (%.3f MHz)", requested_start_chan0, requested_start_chan0*CHAN_BW)
                 except Exception as e:
                     self.log.warning("Failed to parse INI STARTREQ request with '%s', ignoring", str(e))
