@@ -719,8 +719,8 @@ class ZCU102MonitorClient(object):
             sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
             
         ### X-engine channel mapping
-        i = 0
         #### Pass 1 - Find the lowest start channel in the config. file
+        i = 0
         start_chan0 = NCHAN*2
         for host in self.config['host']['servers-data']:
             if i >= len(self.config['drx']):
@@ -734,6 +734,7 @@ class ZCU102MonitorClient(object):
         if requested_start_chan0 is None:
             requested_start_chan0 = start_chan0
         #### Pass 3 - Make it happen
+        i = 0
         for host in self.config['host']['servers-data']:
             if i >= len(self.config['drx']):
                 break
@@ -771,7 +772,7 @@ class ZCU102MonitorClient(object):
                             raise RuntimeError("Non-zero packet transmission buffer overflow counter")
                             
                         self.log.info(f"{self.host} configuration succeeded")
-                        sucesss = True
+                        success = True
                         break
                         
                     except Exception as e:
@@ -1122,7 +1123,7 @@ class MsgProcessor(ConsumerThread):
                     requested_start_chan0 = int(round(requested_start_chan0/16))*16
                     self.log.info("Setting first channel to %i (%.3f MHz)", requested_start_chan0, requested_start_chan0*CHAN_BW)
                 except Exception as e:
-                    self.log.warning("Failed to parse INI STARTREQ request with '%s', ignoring", str(e))
+                    self.log.warning("Failed to parse INI STARTFREQ request with '%s', ignoring", str(e))
         if not self.check_success(lambda: self._head_zcus.configure(requested_start_chan0=requested_start_chan0),
                                   'Configuring master FPGA',
                                   self._head_zcus.host):
