@@ -9,7 +9,7 @@ nvidia-smi -lgc 1300,1300
 
 # Set CPUs to performance mode
 is_amd=`grep -i amd /proc/cpuinfo`
-if [[ "${is_amd}" != "" ]]; then
+if [ "${is_amd}" != "" ]; then
         ## AMD - dual 16 core CPUs with hyperthreading
         for i in `seq 0 1 63`; do
                 echo performance > /sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor
