@@ -4,3 +4,6 @@
 [submodule "bifrost_tcc_wrapper"]
 	path = bifrost_tcc_wrapper
 	url = https://github.com/ledatelescope/bifrost_tcc_wrapper
+[submodule "bifrost"]
+	path = bifrost
+	url = https://github.com/lwa-project/bifrost
