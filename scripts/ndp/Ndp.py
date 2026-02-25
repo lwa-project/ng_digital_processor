@@ -978,7 +978,8 @@ class MsgProcessor(ConsumerThread):
                      'PIPELINE_STARTUP_FAILED':    (0x0B,'Pipeline startup failed'),
                      'SNAP2_CALIBRATION_FAILED':   (0x0C,'ADC calibration failed'),
                      'SNAP2_INTERNAL_ERROR':       (0x0D,'Internal SNAP2 error condition'),
-                     'PIPLINE_PROCESSING_ERROR':   (0x0E,'Pipeline processing error')}
+                     'PIPLINE_PROCESSING_ERROR':   (0x0E,'Pipeline processing error'),
+                     'OTHER_INTERAL_ERROR':        (0x0F,'Other internal error')}
         code, msg = state_map[state]
         self.state['lastlog'] = '%s: Finished with error' % cmd
         self.state['status']  = 'ERROR'
@@ -1364,6 +1365,9 @@ class MsgProcessor(ConsumerThread):
         # Regular expresion for parsing command lines to find tuning/beam info
         tb_re = re.compile(r'--(?P<type>(tuning)|(beam))[= \t](?P<side>\d+)')
         
+        # State variable for polling the timing monitor board
+        tm_poll = 0.0
+        
         # Go!
         while not self.shutdown_event.is_set():
             ## A little more state
@@ -1561,6 +1565,72 @@ class MsgProcessor(ConsumerThread):
                             ext_msg = ' '.join(ext_msg)
                             self.log.error('Board(s) are: %s', ext_msg)
                             
+                ## Check the timing monitor board
+                if time.time() - tm_poll > 1800:
+                    try:
+                        output = subprocess.check_output(['/home/ndp/ng_digital_processor/scripts/valon_status.py'], text=True)
+                        
+                        tm_12V = tm_6V = tm_9V = False
+                        tm_lock = tm_sync = False
+                        tm_temp = False
+                        tm_count = 0
+                        for line in output.split('\n'):
+                            if line.startswith('12V:'):
+                                _, value = line.split(None, 1)
+                                value = float(value)
+                                if value > 2:
+                                    tm_12V = True
+                                    tm_count += 1
+                            elif line.startswith('9V:'):
+                                _, value = line.split(None, 1)
+                                value = float(value)
+                                if value > 2:
+                                    tm_9V = True
+                                    tm_count += 1
+                            elif line.startswith('6V:'):
+                                _, value = line.split(None, 1)
+                                value = float(value)
+                                if value > 2:
+                                    tm_6V = True
+                                    tm_count += 1
+                            elif line.startswith('Valon Lock: True'):
+                                tm_lock = True
+                                tm_count += 1
+                            elif line.startswith('Last Sync Pulse:'):
+                                _, value, _ = line.split(None, 2)
+                                value = float(value)
+                                if value < 10:
+                                    tm_sync = True
+                                    tm_count += 1
+                            elif line.startswith('MCU Temperature:'):
+                                _, value, _ = line.split(None, 2)
+                                value = float(value)
+                                if value > 10 and value < 60:
+                                    tm_temp = True
+                                    tm_count += 1
+                                    
+                        if tm_count:
+                            problems_found = True
+                            msg = "Found %i timing monitor problems" % (tm_count,)
+                            new_status = 'ERROR'
+                            new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0F, msg)
+                            status, info = self._combine_status(status, info, new_status, new_info)
+                            self.log.error(msg)
+                            ext_msg = []
+                            for n,s in zip(('12V','9V','6V','Lock','Sync','Temp'),(tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)):
+                                if not s:
+                                    ext_msg.append(n)
+                            ext_msg = ' '.join(ext_msg)
+                            self.log.error('Timing monitor problems are: %s', ext_msg)
+                            
+                        tm_poll = time.time()
+                        
+                    except subprocess.CalledProcessError as e:
+                        self.log.warning('failed to call valon_status.py: %s', str(e))
+                        
+                    except Exception as e:
+                        self.log.warning('failed to process valon_status.py output: %s', str(e))
+                        
                 ## De-assert anything that we can de-assert
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
