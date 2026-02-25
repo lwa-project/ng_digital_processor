@@ -1570,46 +1570,39 @@ class MsgProcessor(ConsumerThread):
                     try:
                         output = subprocess.check_output(['/home/ndp/ng_digital_processor/scripts/valon_status.py'], text=True)
                         
-                        tm_12V = tm_6V = tm_9V = False
+                        tm_12V = tm_9V = tm_6V = False
                         tm_lock = tm_sync = False
                         tm_temp = False
-                        tm_count = 0
                         for line in output.split('\n'):
                             if line.startswith('12V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
                                 if value > 2:
                                     tm_12V = True
-                                    tm_count += 1
                             elif line.startswith('9V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
                                 if value > 2:
                                     tm_9V = True
-                                    tm_count += 1
                             elif line.startswith('6V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
                                 if value > 2:
                                     tm_6V = True
-                                    tm_count += 1
                             elif line.startswith('Valon Lock: True'):
                                 tm_lock = True
-                                tm_count += 1
                             elif line.startswith('Last Sync Pulse:'):
                                 _, value, _ = line.split(None, 2)
                                 value = float(value)
                                 if value < 10:
                                     tm_sync = True
-                                    tm_count += 1
                             elif line.startswith('MCU Temperature:'):
                                 _, value, _ = line.split(None, 2)
                                 value = float(value)
                                 if value > 10 and value < 60:
                                     tm_temp = True
-                                    tm_count += 1
                                     
-                        if tm_count:
+                        if not (tm_12V and tm_9V and tm_6V and tm_lock and tm_sync and tm_temp):
                             problems_found = True
                             msg = "Found %i timing monitor problems" % (tm_count,)
                             new_status = 'ERROR'
@@ -1617,7 +1610,7 @@ class MsgProcessor(ConsumerThread):
                             status, info = self._combine_status(status, info, new_status, new_info)
                             self.log.error(msg)
                             ext_msg = []
-                            for n,s in zip(('12V','9V','6V','Lock','Sync','Temp'),(tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)):
+                            for n,s in zip(('12V out-of-range','9V out-of-range','6V out-of-range','Valon not locked','No recent sync pulse','MCU temperature out-of-range'),(tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)):
                                 if not s:
                                     ext_msg.append(n)
                             ext_msg = ' '.join(ext_msg)
