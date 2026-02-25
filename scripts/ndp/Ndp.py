@@ -1597,7 +1597,7 @@ class MsgProcessor(ConsumerThread):
                                 if value < 10:
                                     tm_sync = True
                             elif line.startswith('MCU Temperature:'):
-                                _, value, _ = line.split(None, 2)
+                                _, _, value, _ = line.split(None, 3)
                                 value = float(value)
                                 if value > 10 and value < 60:
                                     tm_temp = True
