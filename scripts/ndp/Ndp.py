@@ -1604,7 +1604,8 @@ class MsgProcessor(ConsumerThread):
                                     
                         if not (tm_12V and tm_9V and tm_6V and tm_lock and tm_sync and tm_temp):
                             problems_found = True
-                            msg = "Found %i timing monitor problems" % (tm_count,)
+                            tm_count = sum([1-s for s in (tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)])
+                            msg = "Found timing monitor problems" % (tm_count,)
                             new_status = 'ERROR'
                             new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0F, msg)
                             status, info = self._combine_status(status, info, new_status, new_info)
