@@ -1592,7 +1592,7 @@ class MsgProcessor(ConsumerThread):
                             elif line.startswith('Valon Lock: True'):
                                 tm_lock = True
                             elif line.startswith('Last Sync Pulse:'):
-                                _, value, _ = line.split(None, 2)
+                                _, _, _, value, _ = line.split(None, 4)
                                 value = float(value)
                                 if value < 10:
                                     tm_sync = True
