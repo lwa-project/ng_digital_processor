@@ -1616,7 +1616,7 @@ class MsgProcessor(ConsumerThread):
                         tm_state['comm'] = False
                         tm_state = {k:False for k in tm_state}
                         
-                if not all(tm_state.values):
+                if not all(tm_state.values()):
                     problems_found = True
                     tm_count = len(tm_state) - sum(tm_state.values())
                     msg = "Found %i timing monitor problem(s)" % (tm_count,)
