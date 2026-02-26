@@ -1372,6 +1372,10 @@ class MsgProcessor(ConsumerThread):
         while not self.shutdown_event.is_set():
             ## A little more state
             problems_found = False
+            tm_comm = False
+            tm_12V = tm_9V = tm_6V = False
+            tm_lock = tm_sync = False
+            tm_temp = False
             
             if self.ready:
                 ## Initial state
@@ -1570,9 +1574,6 @@ class MsgProcessor(ConsumerThread):
                     try:
                         output = subprocess.check_output(['/home/ndp/ng_digital_processor/scripts/valon_status.py'], text=True)
                         
-                        tm_12V = tm_9V = tm_6V = False
-                        tm_lock = tm_sync = False
-                        tm_temp = False
                         for line in output.split('\n'):
                             if line.startswith('12V:'):
                                 _, value = line.split(None, 1)
@@ -1602,29 +1603,32 @@ class MsgProcessor(ConsumerThread):
                                 if value > 10 and value < 60:
                                     tm_temp = True
                                     
-                        if not (tm_12V and tm_9V and tm_6V and tm_lock and tm_sync and tm_temp):
-                            problems_found = True
-                            tm_count = sum([1-s for s in (tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)])
-                            msg = "Found %i timing monitor problem(s)" % (tm_count,)
-                            new_status = 'ERROR'
-                            new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0F, msg)
-                            status, info = self._combine_status(status, info, new_status, new_info)
-                            self.log.error(msg)
-                            ext_msg = []
-                            for n,s in zip(('12V out-of-range','9V out-of-range','6V out-of-range','Valon not locked','No recent sync pulse','MCU temperature out-of-range'),(tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)):
-                                if not s:
-                                    ext_msg.append(n)
-                            ext_msg = ' '.join(ext_msg)
-                            self.log.error('Timing monitor problems are: %s', ext_msg)
-                            
                         tm_poll = time.time()
+                        tm_comm = True
                         
                     except subprocess.CalledProcessError as e:
                         self.log.warning('failed to call valon_status.py: %s', str(e))
+                        tm_comm = False
                         
                     except Exception as e:
                         self.log.warning('failed to process valon_status.py output: %s', str(e))
+                        tm_comm = False
                         
+                if not (tm_comm and tm_12V and tm_9V and tm_6V and tm_lock and tm_sync and tm_temp):
+                    problems_found = True
+                    tm_count = sum([1-s for s in (tm_comm,tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)])
+                    msg = "Found %i timing monitor problem(s)" % (tm_count,)
+                    new_status = 'ERROR'
+                    new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0F, msg)
+                    status, info = self._combine_status(status, info, new_status, new_info)
+                    self.log.error(msg)
+                    ext_msg = []
+                    for n,s in zip(('Communication error','12V out-of-range','9V out-of-range','6V out-of-range','Valon not locked','No recent sync pulse','MCU temperature out-of-range'),(tm_comm,tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)):
+                        if not s:
+                            ext_msg.append(n)
+                    ext_msg = ', '.join(ext_msg)
+                    self.log.error('Timing monitor problems are: %s', ext_msg)
+                    
                 ## De-assert anything that we can de-assert
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
