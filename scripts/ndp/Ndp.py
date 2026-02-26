@@ -1367,15 +1367,15 @@ class MsgProcessor(ConsumerThread):
         
         # State variable for polling the timing monitor board
         tm_poll = 0.0
+        tm_state = {'comm': False,
+                    '12V': False, '9V': False, '6V': False,
+                    'lock': False, 'sync': False,
+                    'temp': False}
         
         # Go!
         while not self.shutdown_event.is_set():
             ## A little more state
             problems_found = False
-            tm_comm = False
-            tm_12V = tm_9V = tm_6V = False
-            tm_lock = tm_sync = False
-            tm_temp = False
             
             if self.ready:
                 ## Initial state
@@ -1579,51 +1579,61 @@ class MsgProcessor(ConsumerThread):
                                 _, value = line.split(None, 1)
                                 value = float(value)
                                 if value > 2:
-                                    tm_12V = True
+                                    tm_state['12V'] = True
                             elif line.startswith('9V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
                                 if value > 2:
-                                    tm_9V = True
+                                    tm_state['9V'] = True
                             elif line.startswith('6V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
                                 if value > 2:
-                                    tm_6V = True
+                                    tm_state['6V'] = True
                             elif line.startswith('Valon Lock: True'):
-                                tm_lock = True
+                                tm_state['lock'] = True
                             elif line.startswith('Last Sync Pulse:'):
                                 _, _, _, value, _ = line.split(None, 4)
                                 value = float(value)
                                 if value < 10:
-                                    tm_sync = True
+                                    tm_state['sync'] = True
                             elif line.startswith('MCU Temperature:'):
                                 _, _, value, _ = line.split(None, 3)
                                 value = float(value)
                                 if value > 10 and value < 60:
-                                    tm_temp = True
+                                    tm_state['temp'] = True
                                     
                         tm_poll = time.time()
-                        tm_comm = True
+                        tm_state['comm'] = True
                         
                     except subprocess.CalledProcessError as e:
                         self.log.warning('failed to call valon_status.py: %s', str(e))
-                        tm_comm = False
+                        tm_state['comm'] = False
+                        tm_state = {k:False for k in tm_state}
                         
                     except Exception as e:
                         self.log.warning('failed to process valon_status.py output: %s', str(e))
-                        tm_comm = False
+                        tm_state['comm'] = False
+                        tm_state = {k:False for k in tm_state}
                         
-                if not (tm_comm and tm_12V and tm_9V and tm_6V and tm_lock and tm_sync and tm_temp):
+                if not all(tm_state.values):
                     problems_found = True
-                    tm_count = sum([1-s for s in (tm_comm,tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)])
+                    tm_count = len(tm_state) - sum(tm_state.values())
                     msg = "Found %i timing monitor problem(s)" % (tm_count,)
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0F, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
                     ext_msg = []
-                    for n,s in zip(('Communication error','12V out-of-range','9V out-of-range','6V out-of-range','Valon not locked','No recent sync pulse','MCU temperature out-of-range'),(tm_comm,tm_12V,tm_9V,tm_6V,tm_lock,tm_sync,tm_temp)):
+                    for k,s in tm_state.items():
+                        n = k+' out-of-range'
+                        if n == 'comm':
+                            n = 'Communication error'
+                        elif n == 'lock':
+                            n = 'Valon not locked'
+                        elif n == 'sync':
+                            n = 'No recent sync pulse'
+                            
                         if not s:
                             ext_msg.append(n)
                     ext_msg = ', '.join(ext_msg)
