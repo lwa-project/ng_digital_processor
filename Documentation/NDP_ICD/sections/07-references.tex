@@ -45,7 +45,7 @@ The following software components implement the NDP system.  Table~\ref{tab:soft
         \texttt{ndp/MCS2.py} & MCS message protocol implementation \\
         \texttt{ndp\_drx.py} & X-engine beamformer and correlator pipeline \\
         \texttt{ndp\_tengine.py} & T-engine pipeline (frequency to time domain) \\
-        \texttt{lwa\_f} & ZCU102 F-engine control library \\
+        \texttt{lwa\_f} & F-engine control library (ZCU102 and SNAP2) \\
         \bottomrule
     \end{tabular}
 \end{table}
@@ -172,7 +172,7 @@ The \texttt{host} object maps logical roles to network hostnames (Table~\ref{tab
         \textbf{Key} & \textbf{Type} & \textbf{Description} \\
         \midrule
         \texttt{servers}      & array of string & X-engine server hostnames \\
-        \texttt{zcus}         & array of string & F-engine ZCU102 board hostnames \\
+        \texttt{fpgas}        & array of string & F-engine board hostnames \\
         \texttt{servers-data} & array of string & Data network interface hostnames (two per server) \\
         \texttt{tengines}     & array of string & T-engine host identifiers \\
         \bottomrule
@@ -197,21 +197,21 @@ The \texttt{ipmi} object provides credentials for out-of-band server management 
     \end{tabular}
 \end{table}
 
-\subsection{\texttt{zcu} --- F-engine Configuration}
+\subsection{\texttt{fpga} --- F-engine Configuration}
 
-The \texttt{zcu} object configures the ZCU102 F-engine boards, including FPGA firmware, filter bank settings, and temperature thresholds (Table~\ref{tab:config-zcu}).
+The \texttt{fpga} object configures the F-engine boards, including FPGA firmware, filter bank settings, and temperature thresholds (Table~\ref{tab:config-fpga}).
 
 \begin{table}[htbp]
     \centering
-    \caption{\texttt{zcu} Configuration Parameters}
-    \label{tab:config-zcu}
+    \caption{\texttt{fpga} Configuration Parameters}
+    \label{tab:config-fpga}
     \begin{tabular}{llp{7cm}}
         \toprule
         \textbf{Key} & \textbf{Type} & \textbf{Description} \\
         \midrule
-        \texttt{username}             & string         & SSH username for ZCU102 boards \\
-        \texttt{password}             & string         & SSH password for ZCU102 boards \\
-        \texttt{data\_ip\_base}       & string         & Base IP address for ZCU102 data interfaces \\
+        \texttt{username}             & string         & SSH username for F-engine boards (ZCU102 only) \\
+        \texttt{password}             & string         & SSH password for F-engine boards (ZCU102 only) \\
+        \texttt{data\_ip\_base}       & string         & Base IP address for F-engine data interfaces \\
         \texttt{data\_port\_base}     & int            & Base UDP port for F-engine data output \\
         \texttt{firmware}             & string         & Path to FPGA firmware file (\texttt{.fpg}) \\
         \texttt{max\_program\_attempts} & int          & Maximum FPGA programming retries \\

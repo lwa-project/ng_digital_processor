@@ -328,8 +328,9 @@ The \cmd{INI} command initializes the NDP subsystem (Table~\ref{tab:cmd-ini}).
 
 The initialization sequence:
 \begin{enumerate}
+    \item Validate configuration file (pipeline and board counts)
     \item Verify F-engine boards are accessible
-    \item Program FPGA firmware on all ZCU102 boards
+    \item Program FPGA firmware on all F-engine boards
     \item Configure F-engine parameters (FFT shift, equalization)
     \item Verify X-engine servers are accessible
     \item Start X-engine pipelines
@@ -340,6 +341,7 @@ The initialization sequence:
 
 \begin{tabular}{cl}
     \hex{00} & Process accepted without error \\
+    \hex{01} & Invalid configuration file values \\
     \hex{04} & Board programming failed \\
     \hex{05} & Board configuration failed \\
     \hex{08} & Board-level shutdown failed \\
