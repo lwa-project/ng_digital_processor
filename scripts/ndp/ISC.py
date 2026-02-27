@@ -90,7 +90,7 @@ class PipelineMessageServer(object):
         
     def packetStartTime(self, utcStartTime):
         """
-        Send the UTC start time to TBN and DRX clients.
+        Send the UTC start time to DRX clients.
         """
         
         try:

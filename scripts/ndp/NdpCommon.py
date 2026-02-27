@@ -29,7 +29,6 @@ STAT_SAMP_SIZE   = 512 # The ADC limit is 512 (TODO: Allow > via multiples)
 MAX_MSGS_PER_SEC = 20
 ADC_BITS         = 8
 ADC_MAXVAL       = (1<<(ADC_BITS-1))-1
-TBN_BITS         = 16
 DATE_FORMAT      = "%Y_%m_%dT%H_%M_%S"
 NDP_EPOCH        = datetime.datetime(1970, 1, 1)
 M5C_EPOCH        = datetime.datetime(1990, 1, 1)
