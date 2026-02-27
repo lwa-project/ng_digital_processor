@@ -1,0 +1,153 @@
+% 01-description.tex - Section 1: Description
+
+\chapter{Description}
+\label{sec:description}
+
+\section{Purpose}
+
+This document describes the interface control for the Next-Generation Digital Processor (NDP) subsystem of the Long Wavelength Array at the New Mexico site (LWA-NA). The NDP is responsible for digitizing, channelizing, and processing the analog signals from the Front End Electronics (FEE) via the Analog Signal Processor (ASP), producing beamformed and correlated data products.
+
+\section{Scope}
+
+This Interface Control Document (ICD) defines:
+\begin{itemize}
+    \item Physical interfaces to and from NDP
+    \item Monitor and control (M\&C) interfaces
+    \item Output data interfaces and formats
+    \item Safety interfaces
+    \item Command and response message formats
+    \item Management Information Base (MIB) entries
+\end{itemize}
+
+\section{System Overview}
+
+The NDP subsystem performs the following functions:
+\begin{itemize}
+    \item Analog-to-digital conversion at 196~MHz sample rate
+    \item F-engine processing: Polyphase filter bank (PFB) channelization with 4096 channels
+    \item X-engine processing: Power line interference flagging (Appendix~\ref{app:powerline})
+    \item X-engine processing: Beamforming (up to 4 dual-polarization beams)
+    \item X-engine processing: Correlation (full visibility matrix)
+    \item X-engine processing: Streaming complex spectra output from all antennas (TBS)
+    \item X-engine processing: Triggered complex spectra dumps from all antennas (TBT)
+    \item T-engine processing: Conversion from frequency domain to time domain for DRX output
+\end{itemize}
+
+\subsection{Hardware Architecture}
+
+The NDP system consists of three main hardware components:
+
+\subsubsection{ZCU102 F-engine Boards}
+
+The F-engines perform analog-to-digital conversion and frequency channelization using Xilinx ZCU102 FPGA boards.  Table~\ref{tab:fengine-config} summarizes the F-engine configuration.
+
+\begin{table}[htbp]
+    \centering
+    \caption{F-engine Configuration}
+    \label{tab:fengine-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Number of boards & 16 \\
+        Inputs per board & 32 (16 stands $\times$ 2 polarizations) \\
+        Sample rate & 196~MHz \\
+        ADC resolution & 8 bits \\
+        FFT channels & 4096 \\
+        Channel bandwidth & 23.926~kHz \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{GPU Servers (X-engines)}
+
+The X-engines perform beamforming and correlation using GPU-accelerated servers running the Bifrost framework.  Table~\ref{tab:xengine-config} lists the X-engine parameters.
+
+\begin{table}[htbp]
+    \centering
+    \caption{X-engine Configuration}
+    \label{tab:xengine-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Number of servers & 4 \\
+        Pipelines per server & 4 \\
+        Total pipelines & 16 \\
+        Processing framework & Bifrost \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{T-engines}
+
+The T-engines convert frequency-domain beamformed data back to the time domain for DRX-format output, producing Mark~5C compatible packets.  Table~\ref{tab:tengine-config} lists the T-engine parameters.
+
+\begin{table}[htbp]
+    \centering
+    \caption{T-engine Configuration}
+    \label{tab:tengine-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Number of servers & 1 \\
+        Pipelines per server & 4 (one per beam) \\
+        Total pipelines & 4 \\
+        Processing framework & Bifrost \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{System Capacity}
+
+Table~\ref{tab:system-capacity} summarizes the overall system capacity.
+
+\begin{table}[htbp]
+    \centering
+    \caption{NDP System Capacity}
+    \label{tab:system-capacity}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Maximum stands & 256 \\
+        Polarizations per stand & 2 \\
+        Total inputs & 512 \\
+        Maximum beams & 4 (dual-polarization) \\
+        Frequency channels & 4096 \\
+        Maximum tunings per beam & 2 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Observing Modes}
+
+\subsection{DRX (Beam Recording)}
+
+The primary observing mode provides up to 4 dual-polarization beams with configurable tuning frequencies. Each beam can have up to 2 independent frequency tunings. The DRX output is in Mark~5C compatible format.
+
+\subsection{COR (Correlator)}
+
+The correlator mode cross-correlates all 512 inputs to produce a full visibility matrix. The integration time is configurable via the \cmd{COR} command.
+
+\subsection{TBS (Transient Buffer -- Streaming)}
+
+Continuous streaming mode that outputs frequency-domain spectra for all 512 inputs. TBS is designed for 100\% duty cycle operation with a narrow bandwidth selection ($\sim$200~kHz at filter code 8). This mode can run concurrently with other observing modes.
+
+\subsection{TBT (Transient Buffer -- Triggered)}
+
+Triggered dump mode that captures frequency-domain spectra with wider bandwidth than TBS. TBT trades duty cycle for increased bandwidth, making it suitable for capturing transient events with more spectral coverage.
+
+\section{Document Organization}
+
+This document is organized as follows:
+\begin{itemize}
+    \item \textbf{Section~\ref{sec:description}} (this section): General description and scope
+    \item \textbf{Section~\ref{sec:abbreviations}}: Abbreviations and definitions
+    \item \textbf{Section~\ref{sec:physical}}: Physical interface specifications
+    \item \textbf{Section~\ref{sec:monitor-control}}: Monitor and control interface
+    \item \textbf{Section~\ref{sec:output}}: Output data interfaces
+    \item \textbf{Section~\ref{sec:safety}}: Safety interface
+    \item \textbf{Section~\ref{sec:references}}: References
+\end{itemize}

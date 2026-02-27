@@ -1,0 +1,774 @@
+% 04-monitor-control.tex - Section 4: Monitor and Control Interface
+
+\chapter{Monitor and Control Interface}
+\label{sec:monitor-control}
+
+\section{Overview}
+
+The NDP subsystem communicates with the Monitor and Control System (MCS) via UDP messages. Commands are received on port 1742 and responses are sent to port 1743.
+
+\section{Message Format}
+
+\subsection{Command Message Format}
+
+Commands from MCS to NDP follow the standard LWA message format (Table~\ref{tab:cmd-format}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Command Message Format}
+    \label{tab:cmd-format}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Field} & \textbf{Bytes} & \textbf{Position} & \textbf{Description} \\
+        \midrule
+        Destination & 3 & 0--2 & Subsystem ID (``NDP'') \\
+        Sender & 3 & 3--5 & Sender ID (``MCS'') \\
+        Command & 3 & 6--8 & Command code \\
+        Reference & 9 & 9--17 & Reference number \\
+        Data Length & 4 & 18--21 & Length of data section \\
+        MJD & 6 & 22--27 & Modified Julian Date \\
+        MPM & 9 & 28--36 & Milliseconds Past Midnight \\
+        - & 1 & 37 & Space \\
+        Data & Variable & 38+ & Command-specific data \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Example Command Message}
+
+A \cmd{DRX} command from MCS to NDP:
+\begin{verbatim}
+NDP MCS DRX       123    15 60710  43200000 <binary data>
+\end{verbatim}
+
+Where:
+\begin{itemize}
+    \item Destination = ``NDP'' (padded to 3 chars)
+    \item Sender = ``MCS'' (padded to 3 chars)
+    \item Command = ``DRX'' (padded to 3 chars)
+    \item Reference = 123 (right-justified in 9 chars)
+    \item Data Length = 15 (right-justified in 4 chars)
+    \item MJD = 60710 (right-justified in 6 chars)
+    \item MPM = 43200000 (right-justified in 9 chars)
+    \item Followed by 15 bytes of binary command data
+\end{itemize}
+
+\subsection{Response Message Format}
+
+Responses from NDP to MCS include the command status and any requested data (Table~\ref{tab:resp-format}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Response Message Format}
+    \label{tab:resp-format}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Field} & \textbf{Bytes} & \textbf{Position} & \textbf{Description} \\
+        \midrule
+        Destination & 3 & 0--2 & Destination ID (echo of sender) \\
+        Sender & 3 & 3--5 & ``NDP'' \\
+        Command & 3 & 6--8 & Echo of command \\
+        Reference & 9 & 9--17 & Echo of reference number \\
+        Data Length & 4 & 18--21 & Length of data section \\
+        MJD & 6 & 22--27 & Response MJD \\
+        MPM & 9 & 28--36 & Response MPM \\
+        - & 1 & 37 & Space \\
+        Accept/Reject & 1 & 38 & ``A'' (accept) or ``R'' (reject) \\
+        Status & 7 & 39--45 & Status code \\
+        Data & Variable & 46+ & Response data \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Management Information Base (MIB)}
+\label{sec:mib}
+
+The following MIB entries can be queried using the \cmd{RPT} command.
+
+\subsection{General Information}
+
+Table~\ref{tab:mib-general} lists the general MIB entries that identify the subsystem and report its overall status.
+
+\begin{table}[htbp]
+    \centering
+    \caption{General MIB Entries}
+    \label{tab:mib-general}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{SUMMARY} & char[7] & Current system status \\
+        \mib{INFO} & char[256] & Detailed status information \\
+        \mib{LASTLOG} & char[256] & Last log entry \\
+        \mib{SUBSYSTEM} & char[3] & Subsystem identifier (``NDP'') \\
+        \mib{SERIALNO} & char[5] & Serial number \\
+        \mib{VERSION} & char[256] & Software version \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{System Configuration}
+
+Table~\ref{tab:mib-config} lists the fixed system configuration parameters.
+
+\begin{table}[htbp]
+    \centering
+    \caption{System Configuration MIB Entries}
+    \label{tab:mib-config}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{NUM\_STANDS} & uint16 & Number of stands (256) \\
+        \mib{NUM\_SERVERS} & uint8 & Number of servers (4) \\
+        \mib{NUM\_BOARDS} & uint8 & Number of F-engine boards (16) \\
+        \mib{NUM\_BEAMS} & uint8 & Number of beams (4) \\
+        \mib{NUM\_DRX\_TUNINGS} & uint8 & Tunings per beam (2) \\
+        \mib{NUM\_FREQ\_CHANS} & uint16 & Number of frequency channels (4096) \\
+        \mib{STAT\_SAMPLE\_SIZE} & uint32 & Samples used for statistics (512) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{DRX Configuration}
+
+Table~\ref{tab:mib-drx} lists the per-tuning DRX configuration entries, where \texttt{\{n\}} ranges over active tunings.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX Configuration MIB Entries}
+    \label{tab:mib-drx}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{DRX\{n\}\_CONFIG\_FREQ} & float64 & Tuning \{n\} frequency in Hz \\
+        \mib{DRX\{n\}\_CONFIG\_FILTER} & uint16 & Tuning \{n\} filter code \\
+        \mib{DRX\{n\}\_CONFIG\_GAIN} & uint16 & Tuning \{n\} gain setting \\
+        \mib{DRX\{n\}\_CONFIG\_HIGH\_DR} & uint8 & Tuning \{n\} high DR mode \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{TBS Configuration}
+
+Table~\ref{tab:mib-tbs} lists the TBS configuration entries.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBS Configuration MIB Entries}
+    \label{tab:mib-tbs}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{TBS\_CONFIG\_FREQ} & float64 & TBS center frequency in Hz \\
+        \mib{TBS\_CONFIG\_FILTER} & uint16 & TBS filter code \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Input Statistics}
+
+Table~\ref{tab:mib-ant} lists the per-input statistics entries, where \texttt{\{n\}} is the 1-based input index (stand $\times$ polarization).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Input Statistics MIB Entries}
+    \label{tab:mib-ant}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{ANT\{n\}\_RMS} & float32 & RMS of samples for input \{n\} \\
+        \mib{ANT\{n\}\_DCOFFSET} & float32 & Mean (DC offset) of samples \\
+        \mib{ANT\{n\}\_SAT} & int32 & Saturated sample count \\
+        \mib{ANT\{n\}\_PEAK} & int32 & Peak sample value \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{F-engine Board Status}
+
+Table~\ref{tab:mib-board} lists the per-board F-engine status entries, where \texttt{\{n\}} is the 1-based board index.
+
+\begin{table}[htbp]
+    \centering
+    \caption{F-engine Board MIB Entries}
+    \label{tab:mib-board}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{BOARD\{n\}\_STAT} & char[256] & Board \{n\} status (JSON) \\
+        \mib{BOARD\{n\}\_INFO} & char[256] & Board \{n\} information (JSON) \\
+        \mib{BOARD\{n\}\_TEMP\_MAX} & float32 & Maximum temperature \\
+        \mib{BOARD\{n\}\_TEMP\_MIN} & float32 & Minimum temperature \\
+        \mib{BOARD\{n\}\_TEMP\_AVG} & float32 & Average temperature \\
+        \mib{BOARD\{n\}\_FIRMWARE} & char[256] & Firmware version \\
+        \mib{BOARD\{n\}\_HOSTNAME} & char[256] & Network hostname \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{X-engine Server Status}
+
+Table~\ref{tab:mib-server} lists the per-server X-engine status entries, where \texttt{\{n\}} is the 1-based server index.
+
+\begin{table}[htbp]
+    \centering
+    \caption{X-engine Server MIB Entries}
+    \label{tab:mib-server}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{SERVER\{n\}\_STAT} & uint64 & Server \{n\} status \\
+        \mib{SERVER\{n\}\_INFO} & char[256] & Server \{n\} information \\
+        \mib{SERVER\{n\}\_SOFTWARE} & char[256] & Software version \\
+        \mib{SERVER\{n\}\_TEMP\_MAX} & float32 & Maximum temperature \\
+        \mib{SERVER\{n\}\_TEMP\_MIN} & float32 & Minimum temperature \\
+        \mib{SERVER\{n\}\_TEMP\_AVG} & float32 & Average temperature \\
+        \mib{SERVER\{n\}\_HOSTNAME} & char[256] & Network hostname \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{calloutBox}{Implementation Note}{blue}
+Server index 1 refers to the headnode. Indices 2--5 refer to the servers running the X-engine pipelines.
+\end{calloutBox}
+
+\subsection{Global Status}
+
+Table~\ref{tab:mib-global} lists system-wide status entries.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Global Status MIB Entries}
+    \label{tab:mib-global}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{GLOBAL\_TEMP\_MAX} & float32 & Maximum system temperature \\
+        \mib{GLOBAL\_TEMP\_MIN} & float32 & Minimum system temperature \\
+        \mib{GLOBAL\_TEMP\_AVG} & float32 & Average system temperature \\
+        \mib{CLK\_VAL} & uint32 & Milliseconds past midnight \\
+        \mib{UTC\_START} & char[256] & UTC start time string \\
+        \mib{UPTIME} & uint32 & System uptime in seconds \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Command Status}
+
+Table~\ref{tab:mib-cmdstat} lists the command status MIB entry.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Command Status MIB Entry}
+    \label{tab:mib-cmdstat}
+    \begin{tabular}{llp{6cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Type} & \textbf{Description} \\
+        \midrule
+        \mib{CMD\_STAT} & struct & Command status for previous slot \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The \mib{CMD\_STAT} structure contains:
+\begin{itemize}
+    \item \texttt{slot\_time} (uint32): Seconds past station time midnight
+    \item \texttt{num\_commands} (uint16): Number of commands ($N \leq 606$)
+    \item \texttt{reference[N]} (uint32): Reference numbers
+    \item \texttt{completion\_code[N]} (uint8): Exit codes
+\end{itemize}
+
+\section{Control Commands}
+\label{sec:commands}
+
+\subsection{PNG --- Ping}
+
+The \cmd{PNG} command tests connectivity with the NDP subsystem (Table~\ref{tab:cmd-png}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{PNG Command}
+    \label{tab:cmd-png}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{PNG} \\
+        Data & (none) \\
+        Response & Status only \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{INI --- Initialize}
+
+The \cmd{INI} command initializes the NDP subsystem (Table~\ref{tab:cmd-ini}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{INI Command}
+    \label{tab:cmd-ini}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{INI} \\
+        Data & Mode string (optional flags) \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The initialization sequence:
+\begin{enumerate}
+    \item Verify F-engine boards are accessible
+    \item Program FPGA firmware on all ZCU102 boards
+    \item Configure F-engine parameters (FFT shift, equalization)
+    \item Verify X-engine servers are accessible
+    \item Start X-engine pipelines
+    \item Verify data flow from F-engines to X-engines
+\end{enumerate}
+
+\subsubsection{Exit Codes}
+
+\begin{tabular}{cl}
+    \hex{00} & Process accepted without error \\
+    \hex{04} & Board programming failed \\
+    \hex{05} & Board configuration failed \\
+    \hex{08} & Board-level shutdown failed \\
+    \hex{09} & Server startup failed \\
+    \hex{0A} & Server shutdown failed \\
+    \hex{0B} & Pipeline startup failed \\
+    \hex{0C} & Blocking operation in progress \\
+    \hex{0D} & Internal F-engine error condition \\
+    \hex{0E} & Pipeline processing error \\
+\end{tabular}
+
+\subsubsection{Options}
+
+The \cmd{INI} command accepts the option strings listed in Table~\ref{tab:ini-options} (space-separated).
+
+\begin{table}[htbp]
+    \centering
+    \caption{INI Command Options}
+    \label{tab:ini-options}
+    \begin{tabular}{lp{9cm}}
+        \toprule
+        \textbf{Option} & \textbf{Description} \\
+        \midrule
+        \texttt{FORCE} & Continue initialization even if errors occur on some boards \\
+        \texttt{NOREPROGRAM} & Skip FPGA programming (assume already programmed) \\
+        \texttt{STARTFREQ\_NNN} & Set the starting frequency of the observed band to \texttt{NNN}~MHz. The value is rounded to the nearest multiple of 16 channels ($\approx$383~kHz). If not specified, the default starting frequency from the configuration file is used. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{SHT --- Shutdown}
+
+The \cmd{SHT} command shuts down the NDP subsystem (Table~\ref{tab:cmd-sht}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{SHT Command}
+    \label{tab:cmd-sht}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{SHT} \\
+        Data & Mode string (optional, space-separated) \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Exit Codes}
+
+\begin{tabular}{cl}
+    \hex{00} & Process accepted without error \\
+    \hex{07} & Invalid command arguments (unknown mode) \\
+    \hex{08} & Board-level shutdown failed \\
+    \hex{0A} & Server shutdown failed \\
+    \hex{0C} & Blocking operation in progress \\
+\end{tabular}
+
+\subsubsection{Options}
+
+The available options are listed in Table~\ref{tab:sht-options}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{SHT Command Options}
+    \label{tab:sht-options}
+    \begin{tabular}{lp{9cm}}
+        \toprule
+        \textbf{Option} & \textbf{Description} \\
+        \midrule
+        \texttt{SCRAM} & Immediate hard shutdown without cleanup \\
+        \texttt{RESTART} & Restart system after shutdown \\
+        \texttt{FORCE} & Continue shutdown even if errors occur \\
+        \texttt{HARD} & Reboot F-engine boards instead of just unprogramming \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{STP --- Stop}
+
+The \cmd{STP} command stops an active observing mode (Table~\ref{tab:cmd-stp}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{STP Command}
+    \label{tab:cmd-stp}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{STP} \\
+        Data & Mode to stop: ``DRX'', ``TBS'', ``TBT'', ``BEAM\{n\}'', ``COR'' \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Exit Codes}
+
+\begin{tabular}{cl}
+    \hex{00} & Process accepted without error \\
+    \hex{63} & Subsystem not ready \\
+    \hex{FF} & Invalid mode string \\
+\end{tabular}
+
+\subsubsection{Mode Strings}
+
+The valid mode strings are listed in Table~\ref{tab:stp-modes}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{STP Mode Strings}
+    \label{tab:stp-modes}
+    \begin{tabular}{lp{9cm}}
+        \toprule
+        \textbf{Mode} & \textbf{Description} \\
+        \midrule
+        \texttt{DRX} & Stop all DRX/beam outputs \\
+        \texttt{TBS} & Stop TBS streaming mode \\
+        \texttt{TBT} & Stop TBT capture \\
+        \texttt{BEAM1} -- \texttt{BEAM4} & Stop specific beam output \\
+        \texttt{COR} & Stop correlator output \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{calloutBox}{Implementation Note}{blue}
+The \texttt{TBT} and \texttt{COR} stop modes are currently no-ops.  TBT captures complete on their own and COR runs continuously once the system is initialized.
+\end{calloutBox}
+
+\subsection{DRX --- Configure Beam Tuning}
+
+The \cmd{DRX} command configures a frequency tuning for a beam (Table~\ref{tab:cmd-drx}).  The command data format is given in Table~\ref{tab:drx-data}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX Command}
+    \label{tab:cmd-drx}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{DRX} \\
+        Data & Binary packed structure (see below) \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX Command Data Format (Big-Endian)}
+    \label{tab:drx-data}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Range} & \textbf{Description} \\
+        \midrule
+        beam & uint8 & 1--4 & Beam number \\
+        tuning & uint8 & 1--2 & Tuning number within beam \\
+        freq & float64 & 0--98~MHz & Center frequency in Hz \\
+        filter & uint8 & 1--7 & Filter code (see Table~\ref{tab:drx-filters}) \\
+        gain & int16 & 0--15 & Gain setting (right bit-shift) \\
+        high\_dr & uint8 & 0--1 & High dynamic range mode \\
+        subslot & uint8 & 0--99 & Subslot for execution \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>BBdBhBB'} (15 bytes total)
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX Filter Codes}
+    \label{tab:drx-filters}
+    \begin{tabular}{cl}
+        \toprule
+        \textbf{Code} & \textbf{Sample Rate} \\
+        \midrule
+        1 & 250~kHz \\
+        2 & 500~kHz \\
+        3 & 1.0~MHz \\
+        4 & 2.0~MHz \\
+        5 & 4.9~MHz \\
+        6 & 9.8~MHz \\
+        7 & 19.6~MHz \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Exit Codes}
+
+\begin{tabular}{cl}
+    \hex{00} & Process accepted without error \\
+    \hex{63} & Subsystem not ready \\
+    \hex{FF} & Invalid parameter \\
+\end{tabular}
+
+\subsection{TBS --- Transient Buffer -- Streaming}
+
+The \cmd{TBS} command configures the triggered buffer spectra mode (Table~\ref{tab:cmd-tbs}).  The command data format is given in Table~\ref{tab:tbs-data}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBS Command}
+    \label{tab:cmd-tbs}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{TBS} \\
+        Data & Binary packed structure (see below) \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBS Command Data Format (Big-Endian)}
+    \label{tab:tbs-data}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Range} & \textbf{Description} \\
+        \midrule
+        freq & float64 & 0--98~MHz & Center frequency in Hz \\
+        filter & uint8 & 7--9 & Filter code (see Table~\ref{tab:tbs-filters})\\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>dB'} (9 bytes total)
+
+\begin{calloutBox}{Implementation Note}{blue}
+TBS configuration commands are sent to all X-engine pipelines but a pipeline will only output data if it handles the entire frequency range requested.  Because of this any TBS requests that falls on a X-engine server/pipeline boundary will be accepted but not produce data.
+\end{calloutBox}
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBS Filter Codes}
+    \label{tab:tbs-filters}
+    \begin{tabular}{cl}
+        \toprule
+        \textbf{Code} & \textbf{Sample Rate} \\
+        \midrule
+        7 & $\approx$95.7~kHz \\
+        8 & $\approx$191.4~kHz \\
+        9 & $\approx$287.1~kHz \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{TBT --- Transient Buffer -- Triggered}
+
+The \cmd{TBT} command configures and triggers a time-domain voltage capture (Table~\ref{tab:cmd-tbt}).  The command data format is given in Table~\ref{tab:tbt-data}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBT Command}
+    \label{tab:cmd-tbt}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{TBT} \\
+        Data & Binary packed structure (see below) \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBT Command Data Format (Big-Endian)}
+    \label{tab:tbt-data}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Range} & \textbf{Description} \\
+        \midrule
+        trigger & uint64 & Full range & Trigger time in \fs{} ticks \\
+        samples & int32 & Full range & Number of samples to capture \\
+        mask & int64 & Full range & Stand mask (negative = local dump) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>Qiq'} (20 bytes total)
+
+\begin{calloutBox}{Implementation Note}{blue}
+If the mask value is negative, the absolute value is used as the mask and the data is written to local storage rather than transmitted over the network.
+\end{calloutBox}
+
+\subsection{BAM --- Beamformer Coefficients}
+
+The \cmd{BAM} command sets the beamformer delays and gains for a beam (Table~\ref{tab:cmd-bam}).  The command data format is given in Table~\ref{tab:bam-data}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{BAM Command}
+    \label{tab:cmd-bam}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{BAM} \\
+        Data & Binary packed structure (see below) \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{BAM Command Data Format (Big-Endian)}
+    \label{tab:bam-data}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Range} & \textbf{Description} \\
+        \midrule
+        beam & uint16 & 1--4 & Beam number \\
+        delays & uint16[512] & Full range & Delay per input (fixed 16.4) \\
+        gains & uint16[256][2][2] & Full range & Gain matrix per stand \\
+        subslot & uint8 & 0--99 & Subslot for execution \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The delays array contains one 16-bit value per input (512 total). The value is in fixed-point format with 12 integer bits and 4 fractional bits, representing the delay in samples.
+
+The gains array contains a $2 \times 2$ polarization mixing matrix for each stand. The matrix layout is:
+\[
+\begin{bmatrix}
+G_{XX} & G_{XY} \\
+G_{YX} & G_{YY}
+\end{bmatrix}
+\]
+
+\subsubsection{Exit Codes}
+
+\begin{tabular}{cl}
+    \hex{00} & Process accepted without error \\
+    \hex{63} & Subsystem not ready \\
+    \hex{FF} & Invalid parameter \\
+\end{tabular}
+
+\subsection{COR --- Correlator Configuration}
+
+The \cmd{COR} command configures the correlator (Table~\ref{tab:cmd-cor}).  The command data format is given in Table~\ref{tab:cor-data}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{COR Command}
+    \label{tab:cmd-cor}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{COR} \\
+        Data & Binary packed structure (see below) \\
+        Response & Status; on failure: exit code and message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{COR Command Data Format (Big-Endian)}
+    \label{tab:cor-data}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Range} & \textbf{Description} \\
+        \midrule
+        navg & int32 & $\geq 500$ & Integration time in subslots \\
+        gain & int16 & 0--15 & Gain setting (right bit-shift) \\
+        subslot & uint8 & 0--99 & Subslot for execution \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>ihB'} (7 bytes total)
+
+\subsubsection{Exit Codes}
+
+\begin{tabular}{cl}
+    \hex{00} & Process accepted without error \\
+    \hex{63} & Subsystem not ready \\
+    \hex{FF} & Invalid parameter \\
+\end{tabular}
+
+\begin{calloutBox}{Implementation Note}{blue}
+The \texttt{COR} command is currently a no-op and the correlator output starts automatically with $\approx$5 s integrations once the system is initialized.
+\end{calloutBox}
+
+\subsection{RPT --- Report MIB Entry}
+
+The \cmd{RPT} command queries a MIB entry (Table~\ref{tab:cmd-rpt}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{RPT Command}
+    \label{tab:cmd-rpt}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Field} & \textbf{Value} \\
+        \midrule
+        Command & \cmd{RPT} \\
+        Data & MIB entry name (ASCII string) \\
+        Response & MIB value; on failure: error message \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{System States}
+
+The NDP subsystem reports one of the status values listed in Table~\ref{tab:sys-status}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{System Status Values}
+    \label{tab:sys-status}
+    \begin{tabular}{lp{10cm}}
+        \toprule
+        \textbf{Status} & \textbf{Description} \\
+        \midrule
+        \texttt{SHUTDWN} & System is shut down or not yet initialized. No commands except \cmd{INI} will be processed. \\
+        \texttt{BOOTING} & System is in the process of initializing. Commands will be rejected with exit code \hex{0C}. \\
+        \texttt{NORMAL} & System is operating normally. All commands are accepted. \\
+        \texttt{WARNING} & System is operating but a warning condition exists. Commands are accepted. \\
+        \texttt{ERROR} & An error condition exists. The system may need to be re-initialized. \\
+        \bottomrule
+    \end{tabular}
+\end{table}

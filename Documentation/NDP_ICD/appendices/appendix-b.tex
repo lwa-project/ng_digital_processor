@@ -1,0 +1,440 @@
+% appendix-b.tex - Appendix B: Detailed Packet Formats
+
+\chapter{Detailed Packet Formats}
+\label{app:packets}
+
+\section{MCS Message Format}
+
+All MCS messages use a 38-byte ASCII header followed by binary or ASCII data.
+
+\subsection{Header Format}
+
+Table~\ref{tab:mcs-header-detail} details the fields within the 38-byte MCS message header.
+
+\begin{table}[htbp]
+    \centering
+    \caption{MCS Message Header (38 bytes)}
+    \label{tab:mcs-header-detail}
+    \begin{tabular}{llllp{5cm}}
+        \toprule
+        \textbf{Field} & \textbf{Offset} & \textbf{Length} & \textbf{Format} & \textbf{Description} \\
+        \midrule
+        DST & 0 & 3 & ASCII & Destination (left-justified, space-padded) \\
+        SRC & 3 & 3 & ASCII & Source (left-justified, space-padded) \\
+        CMD & 6 & 3 & ASCII & Command (left-justified, space-padded) \\
+        REF & 9 & 9 & Decimal & Reference number (right-justified) \\
+        DATALEN & 18 & 4 & Decimal & Data length (right-justified) \\
+        MJD & 22 & 6 & Decimal & Modified Julian Date (right-justified) \\
+        MPM & 28 & 9 & Decimal & Milliseconds past midnight (right-justified) \\
+        SPACE & 37 & 1 & ASCII & Space character (0x20) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Example Command Message}
+
+A DRX command from MCS to NDP:
+\begin{verbatim}
+NDP MCS DRX       123    15 60710  43200000 <binary data>
+\end{verbatim}
+
+Where:
+\begin{itemize}
+    \item DST = ``NDP'' (padded to 3 chars)
+    \item SRC = ``MCS'' (padded to 3 chars)
+    \item CMD = ``DRX'' (padded to 3 chars)
+    \item REF = 123 (right-justified in 9 chars)
+    \item DATALEN = 15 (right-justified in 4 chars)
+    \item MJD = 60710 (right-justified in 6 chars)
+    \item MPM = 43200000 (right-justified in 9 chars)
+    \item Followed by 15 bytes of binary command data
+\end{itemize}
+
+\section{Common Packet Features}
+
+Table~\ref{tab:common-features} summarizes the features shared by all NDP output packets.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Common Packet Features}
+    \label{tab:common-features}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Feature} & \textbf{Value} \\
+        \midrule
+        Sync word & \hex{5CDEC0DE} \\
+        Byte order & Big-endian (network order) for multi-byte fields \\
+        Time reference & Ticks since 1970-01-01 00:00:00 UTC at \fs{} rate \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{DRX Command Binary Format}
+
+Table~\ref{tab:drx-layout} shows the DRX command data layout, packed in big-endian format.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX Command Data Layout}
+    \label{tab:drx-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Pack Code} & \textbf{Field} \\
+        \midrule
+        0 & 1 & uint8 & B & beam \\
+        1 & 1 & uint8 & B & tuning \\
+        2 & 8 & float64 & d & freq \\
+        10 & 1 & uint8 & B & filter \\
+        11 & 2 & int16 & h & gain \\
+        13 & 1 & uint8 & B & high\_dr \\
+        14 & 1 & uint8 & B & subslot \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>BBdBhBB'} (15 bytes total)
+
+\section{DRX/DRX8 Output Packet Format}
+
+Table~\ref{tab:drx-pkt-layout} describes the 32-byte header used in DRX and DRX8 output packets.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX/DRX8 Packet Header (32 bytes)}
+    \label{tab:drx-pkt-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Field} & \textbf{Description} \\
+        \midrule
+        0 & 4 & uint32 & sync\_word & \hex{5CDEC0DE} \\
+        4 & 4 & uint32 & frame\_count\_word & Frame count + ID (see below) \\
+        8 & 4 & uint32 & seconds\_count & Seconds since 1970-01-01 UTC \\
+        12 & 2 & uint16 & decimation & Decimation factor \\
+        14 & 2 & uint16 & time\_offset & Time offset (Tnom) \\
+        16 & 8 & uint64 & time\_tag & Time tag in \fs{} ticks (big-endian) \\
+        24 & 4 & uint32 & tuning\_word & Tuning frequency (big-endian) \\
+        28 & 4 & uint32 & flags & Status flags \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Frame Count Word Encoding}
+
+Table~\ref{tab:drx-fcw} shows how the frame\_count\_word encodes beam, tuning, format, and polarization.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX Frame Count Word Bit Fields}
+    \label{tab:drx-fcw}
+    \begin{tabular}{cll}
+        \toprule
+        \textbf{Bits} & \textbf{Name} & \textbf{Description} \\
+        \midrule
+        0--2 & beam & Beam number (0-based) \\
+        3--5 & tuning & Tuning number (0-based) \\
+        6 & drx8\_flag & 0 = DRX (4+4 bit), 1 = DRX8 (8+8 bit) \\
+        7 & polarization & 0 = X, 1 = Y \\
+        8--31 & frame\_count & Frame counter \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Payload}
+
+Table~\ref{tab:drx-payload} describes the payload format for DRX and DRX8 packets.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX/DRX8 Payload}
+    \label{tab:drx-payload}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Format} & \textbf{Samples} & \textbf{Data Type} & \textbf{Size} \\
+        \midrule
+        DRX & 4096 & CI4 (4-bit I, 4-bit Q) & 4096 bytes \\
+        DRX8 & 4096 & CI8 (8-bit I, 8-bit Q) & 8192 bytes \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Total frame size: DRX = 4128 bytes, DRX8 = 8224 bytes
+
+\section{COR Output Packet Format}
+
+Table~\ref{tab:cor-pkt-layout} describes the 32-byte header used in COR output packets.
+
+\begin{table}[htbp]
+    \centering
+    \caption{COR Packet Header (32 bytes)}
+    \label{tab:cor-pkt-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Field} & \textbf{Description} \\
+        \midrule
+        0 & 4 & uint32 & sync\_word & \hex{5CDEC0DE} \\
+        4 & 4 & uint32 & frame\_count\_word & Server/format info (see below) \\
+        8 & 4 & uint32 & seconds\_count & Seconds since 1970-01-01 UTC \\
+        12 & 2 & uint16 & first\_chan & First channel index (big-endian) \\
+        14 & 2 & uint16 & gain & Gain value (big-endian) \\
+        16 & 8 & uint64 & time\_tag & Time tag (big-endian) \\
+        24 & 4 & uint32 & navg & Integration count (big-endian) \\
+        28 & 2 & uint16 & stand0 & First antenna, 1-based (big-endian) \\
+        30 & 2 & uint16 & stand1 & Second antenna, 1-based (big-endian) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Frame Count Word Encoding}
+
+Table~\ref{tab:cor-fcw} defines the bit fields within the COR frame count word.
+
+\begin{table}[htbp]
+    \centering
+    \caption{COR Frame Count Word Bit Fields}
+    \label{tab:cor-fcw}
+    \begin{tabular}{cll}
+        \toprule
+        \textbf{Bits} & \textbf{Name} & \textbf{Description} \\
+        \midrule
+        0--7 & server\_id & Server identifier \\
+        8--15 & nserver & Number of servers \\
+        16--23 & nchan\_decim & Channel decimation \\
+        24--31 & format\_id & \hex{02} for COR \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Payload}
+
+Each packet contains visibility data for one baseline (stand0, stand1) across multiple channels:
+
+\begin{verbatim}
+    [nchan channels][4 products (XX, YY, Re(XY), Im(XY))][complex64]
+\end{verbatim}
+
+Data format: CF32 (32-bit complex floating point, little-endian)
+
+Payload size: $4 \times \text{nchan} \times 8$ bytes
+
+\section{TBX Output Packet Format (TBS/TBT)}
+
+The TBS and TBT modes use the unified TBX packet format. Table~\ref{tab:tbx-pkt-layout} describes its 24-byte header.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBX Packet Header (24 bytes)}
+    \label{tab:tbx-pkt-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Field} & \textbf{Description} \\
+        \midrule
+        0 & 4 & uint32 & sync\_word & \hex{5CDEC0DE} \\
+        4 & 4 & uint32 & frame\_count\_word & Frame count + format ID \\
+        8 & 4 & uint32 & seconds\_count & Seconds since 1970-01-01 UTC \\
+        12 & 4 & uint32 & first\_chan & First channel (big-endian) \\
+        16 & 2 & uint16 & nstand & Number of stands \\
+        18 & 2 & uint16 & nchan & Number of channels \\
+        20 & 8 & uint64 & time\_tag & Time tag (big-endian) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Frame Count Word Encoding}
+
+Table~\ref{tab:tbx-fcw} defines the bit fields within the TBX frame count word.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBX Frame Count Word Bit Fields}
+    \label{tab:tbx-fcw}
+    \begin{tabular}{cll}
+        \toprule
+        \textbf{Bits} & \textbf{Name} & \textbf{Description} \\
+        \midrule
+        0--23 & frame\_count & Frame counter \\
+        24--31 & format\_id & \hex{08} for TBX \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Payload}
+
+Each packet contains frequency-domain data for all stands:
+
+\begin{verbatim}
+    [nchan channels][nstand stands][2 pols][CI4 sample]
+\end{verbatim}
+
+Data format: CI4 (4-bit I, 4-bit Q packed into 1 byte)
+
+Payload size: $\text{nchan} \times \text{nstand} \times 2$ bytes
+
+Supported nstand values: 64, 128, 256
+
+\subsection{TBS vs TBT Configuration}
+
+Table~\ref{tab:tbs-tbt-config} compares the channel configuration for TBS and TBT modes.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBS vs TBT Channel Configuration}
+    \label{tab:tbs-tbt-config}
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Mode} & \textbf{Channels per Packet} & \textbf{Use Case} \\
+        \midrule
+        TBS & 4, 8, or 12 & Continuous streaming \\
+        TBT & 16 & Triggered dump \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{BAM Command Binary Format}
+
+Table~\ref{tab:bam-layout} shows the binary layout of the BAM command data.
+
+\begin{table}[htbp]
+    \centering
+    \caption{BAM Command Data Layout (3075 bytes)}
+    \label{tab:bam-layout}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Field} \\
+        \midrule
+        0 & 2 & uint16 & beam \\
+        2 & 1024 & uint16[512] & delays (one per input) \\
+        1026 & 2048 & uint16[256][2][2] & gains (per stand) \\
+        3074 & 1 & uint8 & subslot \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{COR Command Binary Format}
+
+Table~\ref{tab:cor-cmd-layout} shows the binary layout of the COR command data.
+
+\begin{table}[htbp]
+    \centering
+    \caption{COR Command Data Layout (7 bytes)}
+    \label{tab:cor-cmd-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Pack Code} & \textbf{Field} \\
+        \midrule
+        0 & 4 & int32 & i & navg \\
+        4 & 2 & int16 & h & gain \\
+        6 & 1 & uint8 & B & subslot \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>ihB'} (7 bytes total)
+
+\section{TBS Command Binary Format}
+
+Table~\ref{tab:tbs-cmd-layout} shows the binary layout of the TBS command data.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBS Command Data Layout (9 bytes)}
+    \label{tab:tbs-cmd-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Pack Code} & \textbf{Field} \\
+        \midrule
+        0 & 8 & float64 & d & freq \\
+        8 & 1 & uint8 & B & filter \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>dB'} (9 bytes total)
+
+\section{TBT Command Binary Format}
+
+Table~\ref{tab:tbt-cmd-layout} shows the binary layout of the TBT command data.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBT Command Data Layout (20 bytes)}
+    \label{tab:tbt-cmd-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Pack Code} & \textbf{Field} \\
+        \midrule
+        0 & 8 & uint64 & Q & trigger \\
+        8 & 4 & int32 & i & samples \\
+        12 & 8 & int64 & q & mask \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Python struct format: \texttt{'>Qiq'} (20 bytes total)
+
+\begin{calloutBox}{Implementation Note}{blue}
+When the mask value is negative, the absolute value is used as the stand mask and the captured data is written to local storage instead of being transmitted over the network.
+\end{calloutBox}
+
+\section{Format Identification Summary}
+
+Table~\ref{tab:format-ids} summarizes how each packet format is identified.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Packet Format Identification}
+    \label{tab:format-ids}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Format} & \textbf{ID Byte} & \textbf{Location} & \textbf{Distinguishing Feature} \\
+        \midrule
+        DRX & -- & Bit 6 = 0 & 4+4 bit samples \\
+        DRX8 & -- & Bit 6 = 1 & 8+8 bit samples \\
+        COR & \hex{02} & Bits 24--31 & Visibility data \\
+        TBX & \hex{08} & Bits 24--31 & TBS/TBT spectra \\
+        ZCU102 & -- & No sync word & F-engine channelized data \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{ZCU102 F-engine Packet Format (Internal)}
+
+The ZCU102 F-engine output is an internal multicast format carrying channelized voltage data from the F-engines to X-engines. Table~\ref{tab:zcu102-layout} describes its 32-byte header.
+
+\begin{table}[htbp]
+    \centering
+    \caption{ZCU102 Packet Header Layout (32 bytes, all big-endian)}
+    \label{tab:zcu102-layout}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Offset} & \textbf{Size} & \textbf{Type} & \textbf{Field} & \textbf{Description} \\
+        \midrule
+        0 & 8 & uint64 & seq & Spectra/packet counter \\
+        8 & 4 & uint32 & sync\_time & UNIX sync time \\
+        12 & 2 & uint16 & npol & Pols in this packet \\
+        14 & 2 & uint16 & npol\_tot & Total pols \\
+        16 & 2 & uint16 & nchan & Channels in this packet \\
+        18 & 2 & uint16 & nchan\_tot & Total channels \\
+        20 & 4 & uint32 & chan\_block\_id & Channel block ID \\
+        24 & 4 & uint32 & chan0 & First channel \\
+        28 & 4 & uint32 & pol0 & First polarization \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Payload Format}
+
+\begin{verbatim}
+    [nchan channels][npol polarizations][CI4 sample] = nchan * npol bytes
+\end{verbatim}
+
+Data format: CI4 (4-bit I, 4-bit Q packed into 1 byte per complex sample)
+
+\subsection{Source Identification}
+
+The source index for packet reassembly is computed as:
+\begin{verbatim}
+    npol_blocks = npol_tot / npol
+    nchan_blocks = nchan_tot / nchan
+    nsrc = npol_blocks * nchan_blocks
+    src = (pol0 / npol) + chan_block_id * npol_blocks
+\end{verbatim}

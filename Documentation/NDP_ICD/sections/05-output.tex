@@ -1,0 +1,392 @@
+% 05-output.tex - Section 5: Output Interfaces
+
+\chapter{Output Data Interfaces}
+\label{sec:output}
+
+\section{Overview}
+
+The NDP subsystem produces several types of output data:
+\begin{itemize}
+    \item Beamformer output (DRX) --- phased array beam data, 4+4 bit complex
+    \item Beamformer output (DRX8) --- phased array beam data, 8+8 bit complex (high dynamic range)
+    \item Correlator output (COR) --- visibility data
+    \item All dipoles output (TBS) --- continuous frequency-domain spectra, 100\% duty cycle
+    \item All dipoles output (TBT) --- triggered frequency-domain spectra dump, wider bandwidth
+\end{itemize}
+
+All output data is transmitted via UDP packets to data recorders or written to local storage.
+
+The DRX and COR data products pass through the power line interference flagger before beamforming and correlation, respectively. TBS and TBT data are not flagged, preserving the raw channelized voltages for offline analysis. See Appendix~\ref{app:powerline} for details.
+
+\section{Beamformer Output (DRX/DRX8)}
+
+The beamformer produces time-domain complex samples for each beam and polarization. The T-engine converts the internal frequency-domain representation back to time domain for output.
+
+\subsection{Packet Header}
+
+Table~\ref{tab:drx-header} defines the DRX/DRX8 packet header fields.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX/DRX8 Packet Header (32 bytes)}
+    \label{tab:drx-header}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Bytes} & \textbf{Offset} & \textbf{Description} \\
+        \midrule
+        sync\_word & uint32 & 4 & 0 & \hex{5CDEC0DE} \\
+        frame\_count\_word & uint32 & 4 & 4 & Frame count + ID (see below) \\
+        secs\_count & uint32 & 4 & 8 & Seconds since 1970-01-01 UTC \\
+        decimation & uint16 & 2 & 12 & Sample rate decimation factor \\
+        time\_offset & uint16 & 2 & 14 & Time offset (Tnom) in \fs{} ticks \\
+        time\_tag & uint64 & 8 & 16 & Sample time in \fs{} ticks (big-endian) \\
+        tuning\_word & uint32 & 4 & 24 & Tuning frequency (big-endian) \\
+        flags & uint32 & 4 & 28 & Status flags \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Frame Count Word}
+
+The frame\_count\_word encodes beam, tuning, format, and polarization, as detailed in Table~\ref{tab:drx-fcw}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{DRX Frame Count Word Bit Fields}
+    \label{tab:drx-fcw}
+    \begin{tabular}{cll}
+        \toprule
+        \textbf{Bits} & \textbf{Name} & \textbf{Description} \\
+        \midrule
+        0--2 & beam & Beam number (0-based) \\
+        3--5 & tuning & Tuning number (0-based) \\
+        6 & drx8\_flag & 0 = DRX (4+4 bit), 1 = DRX8 (8+8 bit) \\
+        7 & polarization & 0 = X, 1 = Y \\
+        8--31 & frame\_count & Frame counter \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Packet Payload}
+
+Each packet payload contains 4096 complex samples from one polarization of one beam.
+
+\subsubsection{DRX Format (4+4 bit)}
+
+Standard DRX packets use 4-bit real and 4-bit imaginary components packed into one byte per sample:
+
+\begin{verbatim}
+    [4096 samples][2 complex (I,Q)][4 bits] = 4096 bytes
+\end{verbatim}
+
+\subsubsection{DRX8 Format (8+8 bit)}
+
+High dynamic range DRX8 packets use 8-bit real and 8-bit imaginary components:
+
+\begin{verbatim}
+    [4096 samples][2 complex (I,Q)][8 bits] = 8192 bytes
+\end{verbatim}
+
+The DRX8 format is selected by setting the \texttt{high\_dr} flag in the \cmd{DRX} command.
+
+\subsection{Data Rate}
+
+For one 19.6~MHz dual-polarization beam:
+\begin{verbatim}
+    DRX:  2 tunings * 2 pols * 1 byte/sample * 19.6e6 samples/sec = 78.4 MB/s
+    DRX8: 2 tunings * 2 pols * 2 bytes/sample * 19.6e6 samples/sec = 156.8 MB/s
+\end{verbatim}
+
+\section{Correlator Output (COR)}
+
+The correlator produces visibility data for all baselines.
+
+\subsection{Packet Header}
+
+Table~\ref{tab:cor-header} defines the COR packet header fields.
+
+\begin{table}[htbp]
+    \centering
+    \caption{COR Packet Header}
+    \label{tab:cor-header}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Bytes} & \textbf{Offset} & \textbf{Description} \\
+        \midrule
+        sync\_word & uint32 & 4 & 0 & \hex{5CDEC0DE} \\
+        frame\_count\_word & uint32 & 4 & 4 & Frame count + ID (see below) \\
+        secs\_count & uint32 & 4 & 8 & Seconds since 1970-01-01 UTC \\
+        freq\_chan & int16 & 2 & 12 & First channel in packet (0-based) \\
+        COR\_GAIN & int16 & 2 & 14 & Gain setting \\
+        time\_tag & int64 & 8 & 16 & Central time in \fs{} ticks \\
+        COR\_NAVG & int32 & 4 & 24 & Integration time in subslots \\
+        stand\_i & int16 & 2 & 28 & Unconjugated stand (1--256) \\
+        stand\_j & int16 & 2 & 30 & Conjugated stand (1--256) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Frame Count Word}
+
+The frame\_count\_word encodes server identification and format information, as detailed in Table~\ref{tab:cor-fcw}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{COR Frame Count Word Bit Fields}
+    \label{tab:cor-fcw}
+    \begin{tabular}{cll}
+        \toprule
+        \textbf{Bits} & \textbf{Name} & \textbf{Description} \\
+        \midrule
+        0--7 & server\_id & Server identifier \\
+        8--15 & nserver & Number of servers \\
+        16--23 & nchan\_decim & Channel decimation \\
+        24--31 & format\_id & \hex{02} for COR \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Packet Payload}
+
+Each packet contains N frequency channels and 4 polarization products for one baseline:
+
+\begin{verbatim}
+    [N chans][2 pol_i (X,Y)][2 pol_j (X,Y)][8 bytes complex] = 1056 bytes
+\end{verbatim}
+
+Polarizations are ordered X then Y, giving combined order: XiXj, XiYj, YiXj, YiYj, where `j' elements represent the conjugated stand.
+
+Each visibility value is stored as a little-endian complex64 (two 32-bit floats: real, imaginary).
+
+\begin{calloutBox}{Implementation Note}{blue}
+The COR output channels have a factor of four decimation relative to the input F-engine channels.
+\end{calloutBox}
+
+\subsection{Data Rate}
+
+For 33-channel subbands with all baselines:
+\begin{verbatim}
+    1056 bytes * 256*257/2 baselines / COR_NAVG seconds
+    = 34.7 MB / COR_NAVG
+    = 3.47 MB/s @ COR_NAVG = 10 seconds (1000 subslots)
+\end{verbatim}
+
+\section{TBX Format Overview}
+
+The TBS and TBT output modes use a unified packet format (TBX) derived from the legacy TBF format. Both modes output frequency-domain complex spectra for all inputs, but differ in their intended use case and channel configuration:
+
+\begin{itemize}
+    \item \textbf{TBS} (Transient Buffer -- Streaming): Continuous streaming mode designed for 100\% duty cycle operation at narrow bandwidth ($\sim$200~kHz at filter code 8)
+    \item \textbf{TBT} (Transient Buffer -- Triggered): Triggered dump mode with wider bandwidth but reduced duty cycle, used for capturing transient events
+\end{itemize}
+
+\subsection{TBX Packet Header}
+
+Table~\ref{tab:tbx-header} defines the TBX packet header fields shared by TBS and TBT.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBX Packet Header (TBS/TBT) --- 28 bytes}
+    \label{tab:tbx-header}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Bytes} & \textbf{Offset} & \textbf{Description} \\
+        \midrule
+        sync\_word & uint32 & 4 & 0 & \hex{5CDEC0DE} \\
+        frame\_count\_word & uint32 & 4 & 4 & Frame count + \hex{08} in bits 24--31 \\
+        secs\_count & uint32 & 4 & 8 & Seconds since 1970-01-01 UTC \\
+        first\_chan & uint32 & 4 & 12 & First channel (big-endian) \\
+        nstand & uint16 & 2 & 16 & Number of stands \\
+        nchan & uint16 & 2 & 18 & Number of channels \\
+        time\_tag & uint64 & 8 & 20 & Time tag in \fs{} ticks (big-endian) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{TBX Packet Payload}
+
+Each packet contains frequency-domain data for multiple channels and all stands:
+
+\begin{verbatim}
+    [N chans][256 stands][2 pols (X,Y)][2 complex (I,Q)][4 bits] = N * 512 bytes
+\end{verbatim}
+
+The number of channels per packet varies by mode.
+
+\section{TBS Output (Transient Buffer -- Streaming)}
+
+TBS is a continuous streaming mode that outputs frequency-domain spectra for all 512 inputs. It is designed for 100\% duty cycle operation with a narrow bandwidth selection.
+
+\subsection{Configuration}
+
+Table~\ref{tab:tbs-config} lists the TBS configuration parameters.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBS Configuration}
+    \label{tab:tbs-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Channels per packet & 4, 8, or 12 \\
+        Bandwidth (filter 8) & $\sim$200~kHz \\
+        Duty cycle & 100\% (continuous) \\
+        Data format & Complex 4+4 bit \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Data Rate}
+
+TBS is designed for sustainable continuous streaming. At filter code 8 with $\sim$200~kHz bandwidth:
+\begin{verbatim}
+    ~200 kHz / 23.926 kHz/chan = ~8 channels
+    8 chans * 512 inputs * 1 byte/sample * 23.926 kHz = ~98 MB/s
+\end{verbatim}
+
+\section{TBT Output (Transient Buffer -- Triggered)}
+
+TBT is a triggered dump mode that captures frequency-domain spectra with wider bandwidth than TBS. It trades duty cycle for increased bandwidth, making it suitable for capturing transient events.
+
+\subsection{Configuration}
+
+Table~\ref{tab:tbt-config} lists the TBT configuration parameters.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TBT Configuration}
+    \label{tab:tbt-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Channels per packet & 16 \\
+        Duty cycle & $<$ 100\% (triggered) \\
+        Data format & Complex 4+4 bit \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Local Storage Option}
+
+When the TBT mask is specified as a negative value in the \cmd{TBT} command, the data is written to local storage on the X-engine servers rather than transmitted over the network. This allows for higher instantaneous data rates.
+
+\section{Output Summary}
+
+Table~\ref{tab:output-summary} provides an overview of all NDP output modes.
+
+\begin{table}[htbp]
+    \centering
+    \caption{NDP Output Summary}
+    \label{tab:output-summary}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Mode} & \textbf{Format ID} & \textbf{Frame Size} & \textbf{Duty Cycle} & \textbf{Typical Rate} \\
+        \midrule
+        DRX & Bit 6 = 0 & 4128 bytes & 100\% & 78.4 MB/s/beam \\
+        DRX8 & Bit 6 = 1 & 8224 bytes & 100\% & 156.8 MB/s/beam \\
+        COR & \hex{02} (bits 24--31) & Variable & 100\% & 3.5 MB/s @ 10s \\
+        TBS & \hex{08} (bits 24--31) & Variable & 100\% & $\sim$98 MB/s \\
+        TBT & \hex{08} (bits 24--31) & Variable & $<$100\% & $\leq$100 MB/s when sent to the data recorder \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+%% ============================================================
+%% INTERNAL INTERFACES
+%% ============================================================
+
+\section{Internal Interfaces}
+
+This section documents internal data formats that are available via multicast and may be accessed by other instruments or monitoring systems.
+
+\subsection{ZCU102 F-engine Output}
+
+The ZCU102 F-engine boards output channelized voltage data via multicast UDP packets. This data stream is the input to the X-engine servers but can also be received by other systems on the same network.
+
+\subsubsection{Packet Header}
+
+All header fields are big-endian (network byte order).  Table~\ref{tab:zcu102-header} defines the header fields.
+
+\begin{table}[htbp]
+    \centering
+    \caption{ZCU102 Packet Header (32 bytes)}
+    \label{tab:zcu102-header}
+    \begin{tabular}{lllll}
+        \toprule
+        \textbf{Field} & \textbf{Type} & \textbf{Bytes} & \textbf{Offset} & \textbf{Description} \\
+        \midrule
+        seq & uint64 & 8 & 0 & Spectra/packet counter \\
+        sync\_time & uint32 & 4 & 8 & UNIX sync time (seconds) \\
+        npol & uint16 & 2 & 12 & Polarizations in this packet \\
+        npol\_tot & uint16 & 2 & 14 & Total polarizations \\
+        nchan & uint16 & 2 & 16 & Channels in this packet \\
+        nchan\_tot & uint16 & 2 & 18 & Total channels (for this pipeline) \\
+        chan\_block\_id & uint32 & 4 & 20 & Channel block identifier \\
+        chan0 & uint32 & 4 & 24 & First channel in this packet \\
+        pol0 & uint32 & 4 & 28 & First polarization in this packet \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Packet Payload}
+
+The payload contains channelized complex voltage data from the polyphase filter bank:
+
+\begin{verbatim}
+    [nchan channels][npol polarizations][2 complex (I,Q)][4 bits]
+\end{verbatim}
+
+Table~\ref{tab:zcu102-payload} summarizes the payload format parameters.
+
+\begin{table}[htbp]
+    \centering
+    \caption{ZCU102 Payload Format}
+    \label{tab:zcu102-payload}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Data format & CI4 (4-bit I, 4-bit Q) \\
+        Sample size & 1 byte per complex sample \\
+        Payload size & nchan $\times$ npol bytes \\
+        Channel bandwidth & $\approx$23.926~kHz \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsubsection{Packet Addressing}
+
+Each ZCU102 board transmits data to the X-engine servers via multicast. The channel and polarization assignments are encoded in the header fields:
+
+\begin{itemize}
+    \item \texttt{chan0}: Absolute first channel number in this packet
+    \item \texttt{chan\_block\_id}: Block index for channel assignment
+    \item \texttt{pol0}: First polarization index (related to the ZCU102 boards index within the system)
+    \item The effective channel within a pipeline is: \texttt{chan\_block\_id} $\times$ \texttt{nchan}
+\end{itemize}
+
+\subsubsection{Source Identification}
+
+The source index for packet reassembly is computed as:
+\begin{verbatim}
+    npol_blocks = npol_tot / npol
+    nchan_blocks = nchan_tot / nchan
+    nsrc = npol_blocks * nchan_blocks
+    src = (chan - chan0)  / nchan * npol_blocks + (pol - pol0) / npol
+\end{verbatim}
+
+\subsubsection{Data Rate}
+
+Each ZCU102 board outputs channelized data for 32 inputs (16 stands $\times$ 2 polarizations):
+
+\begin{verbatim}
+    32 inputs * 4096 channels * 1 byte/sample * 23.926 kHz = ~3.1 GB/s per board
+\end{verbatim}
+
+Total F-engine output (16 boards): $\sim$50~GB/s aggregate
+
+\begin{siteNote}
+The SNAP2 board at LWA-NA use the same packet header but include 64 inputs per packet instead of the ZCU102's 32 inputs.
+\end{siteNote}

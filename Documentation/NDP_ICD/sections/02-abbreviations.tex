@@ -1,0 +1,105 @@
+% 02-abbreviations.tex - Section 2: Abbreviations
+
+\chapter{Abbreviations and Definitions}
+\label{sec:abbreviations}
+
+\section{Abbreviations}
+
+\begin{longtable}{p{3cm}p{10cm}}
+    \toprule
+    \textbf{Abbreviation} & \textbf{Definition} \\
+    \midrule
+    \endfirsthead
+
+    \toprule
+    \textbf{Abbreviation} & \textbf{Definition} \\
+    \midrule
+    \endhead
+
+    \bottomrule
+    \endfoot
+
+    ADC & Analog-to-Digital Converter \\
+    ASP & Analog Signal Processor \\
+    BAM & Beamformer coefficient command \\
+    COR & Correlator command/mode \\
+    DRX & Digital Receiver command/mode \\
+    FEE & Front End Electronics \\
+    FFT & Fast Fourier Transform \\
+    FPGA & Field-Programmable Gate Array \\
+    GPU & Graphics Processing Unit \\
+    ICD & Interface Control Document \\
+    IPMI & Intelligent Platform Management Interface \\
+    LWA & Long Wavelength Array \\
+    M\&C & Monitor and Control \\
+    MCS & Monitor and Control System \\
+    MIB & Management Information Base \\
+    MJD & Modified Julian Date \\
+    MPM & Milliseconds Past Midnight \\
+    NDP & Next-Generation Digital Processor \\
+    PFB & Polyphase Filter Bank \\
+    TBS & Transient Buffer -- Streaming \\
+    TBT & Transient Buffer -- Triggered \\
+    UDP & User Datagram Protocol \\
+    ZCU & Zynq UltraScale+ MPSoC (ZCU102 board) \\
+
+\end{longtable}
+
+\section{Definitions}
+
+\begin{description}
+    \item[Stand] A single antenna structure consisting of two polarizations (X and Y). Each stand is identified by a unique number from 1 to 256.
+
+    \item[Input] A single signal path from one polarization of one stand. Inputs are numbered 1 to 512, where input $n$ corresponds to stand $\lceil n/2 \rceil$ and polarization $(n-1) \mod 2 + 1$.
+
+    \item[Board] A ZCU102 FPGA board that services 16 stands (32 inputs). Boards are numbered 1 to 16.
+
+    \item[Server] A GPU-equipped processing server running the X-engine software. Servers are numbered 1 to 4.
+
+    \item[Head node] A GPU-equipped processing server running the NDP control and T-engine software.
+
+    \item[Pipeline] A processing instance within a server. Each server runs 4 pipelines.
+
+    \item[Beam] A phased-array beam output. Beams are numbered 1 to 4, each with two polarizations.
+
+    \item[Tuning] A frequency setting for a beam. Each beam supports up to 2 tunings.
+
+    \item[Channel] A frequency channel produced by the PFB. Channels are numbered 0 to 4095, with channel $n$ centered at frequency $n \times f_c$ Hz, where $f_c \approx 23.926$~kHz (196000 kHz / 8192).
+
+    \item[Subslot] A time subdivision of a second. There are 100 subslots per second (10~ms each).
+
+    \item[Slot] A one-second time interval used for command scheduling.
+
+\end{description}
+
+\section{Fixed Parameters}
+
+\begin{siteNote}
+The parameters shown below are for a full station like LWA1.  For a mini-station the values for NSTAND and NINPUT will be one-forth of the presented values.  There may also be other differences in NPIPE_PER_SERVER.
+\end{siteNote}
+
+Table~\ref{tab:fixed-params} lists the fixed parameters used throughout this document.
+
+\begin{table}[htbp]
+    \centering
+    \caption{NDP Fixed Parameters}
+    \label{tab:fixed-params}
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Symbol} & \textbf{Value} & \textbf{Description} \\
+        \midrule
+        SUBSYSTEM & ``NDP'' & Subsystem identifier \\
+        \fs{} & 196.0~MHz & Signal sampling frequency \\
+        \fc{} & 23.926~kHz & Channel bandwidth ($f_s / (2 \times 4096)$) \\
+        NCHAN & 4096 & Number of frequency channels \\
+        NSTAND & 256 & Number of stands \\
+        NPOL & 2 & Polarizations per stand \\
+        NINPUT & 512 & Total number of inputs \\
+        NBEAM & 4 & Maximum number of beams \\
+        NBOARD & 16 & Number of F-engine boards \\
+        NSERVER & 4 & Number of X-engine servers \\
+        NPIPE\_PER\_SERVER & 4 & Pipelines per server \\
+        ADC\_BITS & 8 & ADC resolution \\
+        \bottomrule
+    \end{tabular}
+\end{table}

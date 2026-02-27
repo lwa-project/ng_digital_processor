@@ -1,0 +1,176 @@
+% appendix-c.tex - Appendix C: Power Line Interference Flagger
+
+\chapter{Power Line Interference Flagger}
+\label{app:powerline}
+
+\section{Background}
+
+Radio frequency interference (RFI) from overhead power lines is a persistent concern for the LWA. The dominant mechanism is \emph{micro arcing}: small electrical discharges that occur at hardware junctions on power line infrastructure (e.g., insulators, connectors, and transformers). Each micro arc produces a short, broadband burst of electromagnetic radiation. Because the arcing is driven by the 60~Hz AC mains cycle, these bursts repeat at 60~Hz and its harmonics, leading to a characteristic ``picket fence'' pattern in the time domain with a period of approximately 16.7~ms.
+
+In the frequency-channelized data produced by the NDP F-engines, a micro arc event appears as a transient increase in power across many or all frequency channels simultaneously for one or a few consecutive spectra. Because the bursts are broadband (spanning the full LWA band), they are visible at all frequencies and cannot be excised by simple channel blanking. Instead, the NDP uses a real-time temporal flagging algorithm, the \textbf{PowerLineFlaggerOp}, to detect and replace contaminated time samples before they are integrated into the beamformed and correlated data products.
+
+\section{Scope of Flagging}
+
+The power line flagger operates in the X-engine pipeline and processes data \emph{after} the F-engine channelizer output has been assembled but \emph{before} the beamformer and correlator. This means that the following data products are protected by the flagger:
+
+\begin{itemize}
+    \item \textbf{DRX} (beamformed output) --- flagged data are replaced before beamforming
+    \item \textbf{COR} (correlator output) --- flagged data are replaced before correlation
+\end{itemize}
+
+The following data products are \emph{not} affected by the power line flagger:
+
+\begin{itemize}
+    \item \textbf{TBT} (triggered buffer) --- operates on a separate data path after the flagger, capturing raw channelized data
+    \item \textbf{TBS} (streaming buffer) --- operates on a separate data path after the flagger, streaming raw channelized data
+\end{itemize}
+
+This design is intentional: TBT and TBS are meant to provide unmodified voltage-level data for offline analysis, where users may wish to apply their own RFI mitigation strategies.
+
+\section{Algorithm Overview}
+
+The flagger processes data in ``gulps'' of 2500 spectra. At the NDP's native time resolution of one spectrum every $8192 / 196 \times 10^6 \approx 41.8~\mu$s, each gulp spans approximately 104.5~ms, or roughly 6.3 periods of the 60~Hz mains cycle.
+
+The algorithm proceeds in three stages:
+
+\subsection{Stage 1: Mean Power Computation}
+
+For each time sample in the gulp, the flagger computes the mean power across \emph{all} stands and polarizations in groups of 16 frequency channels (the ``channel block size''). Specifically, for each of the $4096/16 = 256$ channel blocks and each time sample, the algorithm:
+
+\begin{enumerate}
+    \item Unpacks the 4-bit complex (CI4) samples for all $512$ inputs (256 stands $\times$ 2 polarizations) in the 16-channel block
+    \item Computes $|s|^2 = \mathrm{Re}(s)^2 + \mathrm{Im}(s)^2$ for each sample
+    \item Averages these power values to produce a single mean power value per channel block per time sample
+\end{enumerate}
+
+This averaging across all inputs suppresses input-specific fluctuations and enhances the visibility of array-wide transient events such as power line arcs.
+
+\subsection{Stage 2: Baseline Estimation and Burst Detection}
+
+The 2500 time samples in each gulp are divided into overlapping windows at two timescales, as shown in Table~\ref{tab:flagger-windows}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Flagger Time Window Parameters}
+    \label{tab:flagger-windows}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Window} & \textbf{Size (spectra)} & \textbf{Duration} & \textbf{Purpose} \\
+        \midrule
+        Fast & 16 & $\sim$669~$\mu$s & Burst detection \\
+        Slow & 32 & $\sim$1.34~ms & Baseline estimation \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The ``fast'' windows are formed by averaging consecutive groups of 16 time samples. The ``slow'' windows are formed by averaging pairs of adjacent fast windows, producing windows that overlap by 16 samples with a stride of 16 samples.
+
+The baseline noise level is estimated from the slow window with the \emph{minimum} mean power. Within this quietest window, the algorithm computes both the mean power ($\bar{P}$) and the standard deviation ($\sigma_P$) of the per-sample power values. The minimum-power window is chosen because it is least likely to contain a burst event, providing a clean estimate of the quiescent noise floor.
+
+\subsection{Stage 3: Flagging and Replacement}
+
+Each individual time sample is compared against a threshold:
+
+\begin{equation}
+    P_\mathrm{threshold} = \bar{P} + N_\sigma \cdot \sigma_P
+    \label{eq:threshold}
+\end{equation}
+
+\noindent where $N_\sigma$ is a configurable parameter (default: 8). Any time sample whose mean power (in a given channel block) exceeds this threshold is flagged.
+
+For each flagged time sample, all 16 channels in the affected channel block are replaced with appropriately-scaled Gaussian noise. The noise amplitude $\sigma$ is derived from the quiescent mean power via the relation for the exponential distribution of power in Gaussian noise ($\sigma_\mathrm{raw} = \sqrt{\bar{P}/2}$), with a quantization correction that accounts for the effect of clipping on the relationship between the expectation value of the exponential distribution and the underlying Gaussian standard deviation. For unclipped data, $\langle |z|^2 \rangle = 2\sigma^2$, but after clipping to the 4-bit range ($\pm 7$) the observed mean power underestimates the true $\sigma$. The correction is:
+
+\begin{equation}
+    \sigma_\mathrm{repl} = \sigma_\mathrm{raw} \times \left( a_3 \sigma_\mathrm{raw}^3 + a_2 \sigma_\mathrm{raw}^2 + a_1 \sigma_\mathrm{raw} + a_0 \right)
+\end{equation}
+
+\noindent with the polynomial coefficients given in Table~\ref{tab:quantcorr-coeffs}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Quantization Correction Polynomial Coefficients}
+    \label{tab:quantcorr-coeffs}
+    \begin{tabular}{cl}
+        \toprule
+        \textbf{Coefficient} & \textbf{Value} \\
+        \midrule
+        $a_3$ & $1.15267220 \times 10^{-5}$ \\
+        $a_2$ & $-8.93112370 \times 10^{-4}$ \\
+        $a_1$ & $2.49709188 \times 10^{-2}$ \\
+        $a_0$ & $8.55697984 \times 10^{-1}$ \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+These coefficients are derived from a Monte Carlo simulation of the quantization process. For complex Gaussian noise $z = x + iy$ where $x, y \sim \mathcal{N}(0, \sigma)$, the squared magnitude $|z|^2$ follows an exponential distribution with mean $\langle |z|^2 \rangle = 2\sigma^2$, so that $\sigma = \sqrt{\langle |z|^2 \rangle / 2}$. After clipping to the CI4 range ($\pm 7$), the observed mean power $\langle |z_\mathrm{q}|^2 \rangle < 2\sigma^2$ because clipping suppresses the tails of the Gaussian distribution, and the na\"ive estimate $\sigma_\mathrm{raw} = \sqrt{\langle |z_\mathrm{q}|^2 \rangle / 2}$ underestimates $\sigma$. The correction factor $c(\sigma_\mathrm{raw}) = \sigma_\mathrm{true} / \sigma_\mathrm{raw}$ is computed by simulating $5 \times 10^5$ complex samples at each of 101 values of $\sigma$ spanning 0.5 to 20, quantizing and clipping to $\pm 7$, and fitting a third-order polynomial to the resulting correction curve as a function of $\sigma_\mathrm{raw}$.
+
+The replacement noise is drawn from a pre-generated pool of $2^{28}$ random samples stored in GPU memory to avoid the overhead of per-sample random number generation.
+
+\begin{calloutBox}{Design Note}{blue}
+The replaced samples are constrained to the 4-bit range ($-7$ to $+7$) to match the CI4 data format. The quantization correction ensures that the replaced noise, after clipping, has the same power statistics as the quiescent signal.
+\end{calloutBox}
+
+\section{Timing Considerations}
+
+Table~\ref{tab:flagger-timing} summarizes the key timing parameters of the power line flagger.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Power Line Flagger Timing}
+    \label{tab:flagger-timing}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Spectrum period & $8192 / 196\times10^6 \approx 41.8~\mu$s \\
+        Gulp size & 2500 spectra ($\sim$104.5~ms) \\
+        Fast window & 16 spectra ($\sim$669~$\mu$s) \\
+        Slow window & 32 spectra ($\sim$1.34~ms) \\
+        Fast windows per gulp & 156 \\
+        Slow windows per gulp & 155 \\
+        60~Hz period & $\sim$16.67~ms ($\sim$399 spectra) \\
+        60~Hz cycles per gulp & $\sim$6.3 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Since a typical micro arc burst lasts for less than a millisecond, the fast window of $\sim$669~$\mu$s is well-matched to capturing individual events without excessive dilution from quiescent data. The slow window of $\sim$1.34~ms encompasses roughly two burst durations, ensuring a robust baseline even if one sub-window is partially contaminated.
+
+\section{Monitoring and Reporting}
+
+\subsection{Statistics Tracking}
+
+The flagger maintains two flagging statistics that are updated after every gulp:
+
+\begin{itemize}
+    \item \textbf{Instantaneous flag fraction} (\texttt{flag\_frac\_now}): The fraction of data samples flagged in the most recent gulp, computed as the total number of flagged channel-block/time entries divided by the total data volume.
+    \item \textbf{Moving average flag fraction} (\texttt{flag\_frac\_move}): An exponential moving average of the instantaneous flag fraction with a smoothing factor of $\alpha = 0.0005$:
+    \begin{equation}
+        F_\mathrm{move}^{(n)} = \alpha \cdot F_\mathrm{now}^{(n)} + (1 - \alpha) \cdot F_\mathrm{move}^{(n-1)}
+    \end{equation}
+    At the gulp rate of $\sim$9.6 gulps/second, the $e$-folding time of this moving average is approximately 3.5~minutes.
+\end{itemize}
+
+Both statistics are published to the Bifrost process log system and are available to the pipeline monitor.
+
+\subsection{Log Messages}
+
+The flagger logs the moving average flag fraction every 1500 gulps, which corresponds to approximately every 2.6~minutes. These messages appear at the \texttt{INFO} level and have the format:
+
+\begin{verbatim}
+    PowerLineFlagger - flagged X.XX%
+\end{verbatim}
+
+\subsection{System Health Integration}
+
+The NDP pipeline monitor reads the flagging statistics from each X-engine pipeline. If the moving average flag fraction exceeds 2\% on any pipeline, the system status is elevated to \texttt{WARNING} and the condition is reported in the \texttt{SUMMARY} field of the MIB:
+
+\begin{verbatim}
+    <host>, DRX-<n> -- Flagging fraction at X.X%
+\end{verbatim}
+
+\noindent This threshold provides an early indication that power line interference is significant enough to potentially degrade data quality, even after flagging and replacement.
+
+\begin{calloutBox}{Operational Note}{green}
+A sustained flag fraction above 2\% does not mean that the data are unusable---the flagged samples have been replaced with appropriately-scaled noise. However, it does mean that a non-trivial fraction of the data has been substituted, which reduces the effective integration time and may affect the noise level of the beamformed and correlated outputs.
+\end{calloutBox}

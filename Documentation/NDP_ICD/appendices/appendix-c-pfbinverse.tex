@@ -1,0 +1,56 @@
+% appendix-c-pfbinverse.tex - Appendix C: PFB Inversion in the T-Engine
+
+\chapter{PFB Inversion in the T-Engine}
+\label{app:pfbinverse}
+
+\section{Motivation}
+
+The NDP F-engines channelize the incoming voltage data using a polyphase filter bank (PFB) with $n_\mathrm{tap} = 4$ taps and $n_\mathrm{chan} = 4096$ channels, producing a channel bandwidth of $f_s / 2 n_\mathrm{chan} \approx 23.9$~kHz.  The T-engine (beamformer) must synthesize a wideband time series from these channelized data before applying delays and re-channelizing to the output frequency resolution.  A na\"ive approach---simply performing an inverse FFT on the channelized data---ignores the windowing applied by the PFB and introduces spectral artifacts at channel boundaries.  To recover a faithful time series, the T-engine implements a PFB inversion that undoes the effects of both the Fourier transform and the PFB window function.
+
+\section{Approach}
+
+The PFB inversion follows the method described by Sievers\footnote{J.~Sievers, ``Inverting a Polyphase Filter Bank,'' unpublished note, 2022.  See also Reference~\ref{ref:sievers-pfb}.}, which formulates the forward PFB as a matrix equation
+\begin{equation}
+    \mathbf{d}_\mathrm{PFB} = \mathbf{F} \, \mathbf{S} \, \mathbf{W} \, \mathbf{d}
+\end{equation}
+where $\mathbf{d}$ is the raw time series, $\mathbf{W}$ is a diagonal matrix applying the windowed-sinc tap weights, $\mathbf{S}$ is a stacking matrix that folds the windowed data into $n_\mathrm{tap}$ segments and sums them, and $\mathbf{F}$ is the DFT.  The inverse DFT undoes $\mathbf{F}$, leaving the product $\mathbf{S}\mathbf{W}$ to be inverted.  Because $\mathbf{S}\mathbf{W}$ only couples samples separated by $2 n_\mathrm{chan}$, the problem decomposes into $2 n_\mathrm{chan}$ independent sub-problems, each involving a band-diagonal Toeplitz matrix of size $n_\mathrm{tap}$.
+
+Imposing circulant boundary conditions on these sub-problems allows the pseudo-inverse to be computed efficiently via FFTs: the inverse is applied by transforming along the tap axis, dividing by the eigenvalues of the circulant matrix (which are just the DFT of the sub-sampled window function), and transforming back.  Because quantization in the F-engine introduces noise that is amplified by small eigenvalues, a Wiener filter is applied in the eigenvalue domain to regularize the inversion.
+
+\section{NDP Implementation}
+
+The T-engine's \texttt{ReChannelizerOp} implements the PFB inversion on the GPU as follows:
+
+\begin{enumerate}
+    \item \textbf{Window construction.}  The PFB window is a 4-tap Hamming-windowed sinc, matching the F-engine firmware:
+    \begin{equation}
+        w[n] = \mathrm{hamming}(4 \cdot n_\mathrm{chan}) \times \mathrm{sinc}\!\left(\frac{n}{n_\mathrm{chan}}\right)
+    \end{equation}
+    This window is reshaped into a $4 \times n_\mathrm{chan}$ matrix corresponding to the $n_\mathrm{tap}$ sub-sampled phases.
+
+    \item \textbf{Eigenvalue computation.}  The sub-sampled window is embedded in a zero-padded matrix and Fourier-transformed along the tap axis to obtain the eigenvalues $H[k]$ of the circulant sub-problems.
+
+    \item \textbf{Wiener-filtered pseudo-inverse.}  The inverse filter is constructed as
+    \begin{equation}
+        G[k] = \frac{|H[k]|^2}{|H[k]|^2 + \epsilon^2} \cdot \frac{1 + \epsilon^2}{H^*[k]}
+        \label{eq:wiener}
+    \end{equation}
+    where $\epsilon = 0.3$ is the Wiener regularization threshold.  This suppresses noise amplification at eigenvalues where the forward PFB strongly attenuates signal power.
+
+    \item \textbf{Inversion.}  For each gulp of channelized data:
+    \begin{enumerate}
+        \item An inverse FFT across frequency channels recovers the (windowed) time series.
+        \item A 4-point DFT along the tap axis, pointwise multiplication by $G[k]$, and a 4-point inverse DFT apply the pseudo-inverse.  The 4-point transforms are implemented as hand-unrolled butterfly operations for efficiency.
+        \item A forward FFT re-channelizes the recovered time series to the output frequency resolution.
+    \end{enumerate}
+\end{enumerate}
+
+The PFB inverter is enabled by default in the T-engine configuration and can be toggled via the \texttt{pfb\_inverter} key in the T-engine configuration block.
+
+\begin{calloutBox}{Design Note}{blue}
+The Wiener threshold of $\epsilon = 0.3$ was chosen empirically to balance reconstruction fidelity against quantization noise amplification for the NDP's 4-bit (CI4) channelized data.  The $(1+\epsilon^2)$ normalization in Equation~\ref{eq:wiener} preserves the overall signal amplitude so that the reconstructed time series has the correct power level.
+\end{calloutBox}
+
+\section{Effect on Output Data}
+
+When the PFB inverter is enabled, the beamformed output gains are adjusted by $-3$ counts (in the DRX gain field) relative to the non-inverted case to account for the change in signal normalization.  The inversion also removes the scalloping loss inherent in the PFB channel response, producing a flatter passband in the re-channelized output.

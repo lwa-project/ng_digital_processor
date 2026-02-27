@@ -1,0 +1,40 @@
+% NDP_ICD.tex - NDP Interface Control Document
+% Version A - February 2026
+%
+% Long Wavelength Array Project
+% Next-Generation Digital Processor (NDP) Interface Control Document
+
+\documentclass{lwa-icd}
+
+% Project-specific configuration
+\input{config/packages}
+\input{config/macros}
+\input{config/metadata}
+
+\begin{document}
+
+% Title page
+\makeICDtitlepage
+
+% Change record
+\input{frontmatter/revisions}
+
+% Table of contents
+\makeICDtoc
+
+% Main content
+\input{sections/01-description}
+\input{sections/02-abbreviations}
+\input{sections/03-physical}
+\input{sections/04-monitor-control}
+\input{sections/05-output}
+\input{sections/06-safety}
+\input{sections/07-references}
+
+% Appendices
+\appendix
+\input{appendices/appendix-a}
+\input{appendices/appendix-b-powerline}
+\input{appendices/appendix-c-pfbinverse}
+
+\end{document}

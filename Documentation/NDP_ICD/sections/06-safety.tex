@@ -1,0 +1,177 @@
+% 06-safety.tex - Section 6: Safety Interface
+
+\chapter{Safety Interface}
+\label{sec:safety}
+
+\section{Overview}
+
+The NDP subsystem includes several safety features to protect equipment from damage due to temperature anomalies or hardware failures.
+
+\section{Temperature Monitoring}
+
+The NDP continuously monitors temperature across all subsystems:
+\begin{itemize}
+    \item F-engine board (ZCU102) FPGA die temperatures
+    \item X-engine server temperatures (via IPMI sensors)
+    \item Headnode temperatures
+\end{itemize}
+
+\subsection{Temperature Sensors}
+
+\subsubsection{F-engine Boards}
+
+Each ZCU102 board reports FPGA die temperature through the Xilinx system monitor interface.
+
+\subsubsection{Head Node and X-engine Servers}
+
+Server temperatures are monitored via IPMI sensors, which may include:
+\begin{itemize}
+    \item CPU temperatures
+    \item GPU temperatures
+    \item Ambient temperatures
+    \item Power supply temperatures
+\end{itemize}
+
+\subsection{Temperature MIB Entries}
+
+The following MIB entries report temperature status.  Table~\ref{tab:temp-mib} lists the available temperature MIB entries.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Temperature Monitoring MIB Entries}
+    \label{tab:temp-mib}
+    \begin{tabular}{lp{8cm}}
+        \toprule
+        \textbf{MIB Entry} & \textbf{Description} \\
+        \midrule
+        \mib{BOARD\{n\}\_TEMP\_MAX} & Maximum temperature on F-engine board \{n\} \\
+        \mib{BOARD\{n\}\_TEMP\_MIN} & Minimum temperature on F-engine board \{n\} \\
+        \mib{BOARD\{n\}\_TEMP\_AVG} & Average temperature on F-engine board \{n\} \\
+        \mib{SERVER\{n\}\_TEMP\_MAX} & Maximum temperature on server \{n\} \\
+        \mib{SERVER\{n\}\_TEMP\_MIN} & Minimum temperature on server \{n\} \\
+        \mib{SERVER\{n\}\_TEMP\_AVG} & Average temperature on server \{n\} \\
+        \mib{GLOBAL\_TEMP\_MAX} & Maximum temperature across all systems \\
+        \mib{GLOBAL\_TEMP\_MIN} & Minimum temperature across all systems \\
+        \mib{GLOBAL\_TEMP\_AVG} & Average temperature across all systems \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{IPMI Power Control}
+
+The X-engine servers support out-of-band power control via IPMI.  Table~\ref{tab:ipmi-power} lists the supported power operations.
+
+\begin{table}[htbp]
+    \centering
+    \caption{IPMI Power Operations}
+    \label{tab:ipmi-power}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Operation} & \textbf{Description} \\
+        \midrule
+        status & Query current power state (on/off) \\
+        on & Power on server \\
+        off & Power off server \\
+        cycle & Power cycle server \\
+        reset & Reset server \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Subsystem State Machine}
+
+The NDP subsystem operates in one of the states shown in Table~\ref{tab:state-machine}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{NDP State Machine}
+    \label{tab:state-machine}
+    \begin{tabular}{lp{10cm}}
+        \toprule
+        \textbf{State} & \textbf{Description} \\
+        \midrule
+        \texttt{SHUTDWN} & System is powered down or not initialized. Only \cmd{INI} commands are processed. \\
+        \texttt{BOOTING} & System is initializing (programming FPGAs, starting pipelines). Commands are rejected with status \hex{0C}. \\
+        \texttt{NORMAL} & System is operating normally. All commands are accepted. \\
+        \texttt{WARNING} & A warning condition exists but the system continues to operate. \\
+        \texttt{ERROR} & An error condition exists. The system may need to be re-initialized. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{State Transitions}
+
+\begin{center}
+\begin{tabular}{lcl}
+    \texttt{SHUTDWN} & $\xrightarrow{\text{INI}}$ & \texttt{BOOTING} \\
+    \texttt{BOOTING} & $\xrightarrow{\text{success}}$ & \texttt{NORMAL} \\
+    \texttt{BOOTING} & $\xrightarrow{\text{failure}}$ & \texttt{ERROR} \\
+    \texttt{NORMAL} & $\xrightarrow{\text{SHT}}$ & \texttt{SHUTDWN} \\
+    \texttt{NORMAL} & $\xrightarrow{\text{warning}}$ & \texttt{WARNING} \\
+    \texttt{NORMAL} & $\xrightarrow{\text{error}}$ & \texttt{ERROR} \\
+    \texttt{WARNING} & $\xrightarrow{\text{resolved}}$ & \texttt{NORMAL} \\
+    \texttt{WARNING} & $\xrightarrow{\text{error}}$ & \texttt{ERROR} \\
+    \texttt{ERROR} & $\xrightarrow{\text{SHT}}$ & \texttt{SHUTDWN} \\
+\end{tabular}
+\end{center}
+
+\section{F-engine Board Monitoring}
+
+The NDP monitors F-engine board health including:
+\begin{itemize}
+    \item FPGA programming status
+    \item FFT overflow counters
+    \item Equalizer clip counts
+    \item Ethernet transmit overflow/full status
+    \item Data transmission status
+\end{itemize}
+
+If an F-engine board fails to program or stops transmitting data, the system enters the \texttt{ERROR} state.
+
+\section{X-engine Pipeline Monitoring}
+
+The NDP monitors X-engine pipeline status via ZMQ communication:
+\begin{itemize}
+    \item Pipeline running status
+    \item Data capture status
+    \item Processing errors
+\end{itemize}
+
+\section{Timing Monitor Monitoring}
+
+The NDP monitors the timing monitor board including:
+\begin{itemize}
+    \item Power supply voltages (12V, 9V, 6V)
+    \item Valon synthesizer lock status
+    \item Recent detection of a sync pulse
+    \item Microcontroller temperature
+\end{itemize}
+
+If the timing monitor board reports a problem, the system enters the \texttt{ERROR} state.
+
+\section{Error Recovery}
+
+To recover from most error conditions:
+\begin{enumerate}
+    \item Identify the underlying cause via \mib{INFO} and \mib{LASTLOG} MIB entries
+    \item Address the hardware or configuration issue
+    \item Issue a \cmd{SHT} command if the system is not already shut down
+    \item Issue an \cmd{INI} command to re-initialize
+\end{enumerate}
+
+\begin{calloutBox}{Warning}{orange}
+If a blocking operation (\cmd{INI} or \cmd{SHT}) is in progress, additional \cmd{INI} or \cmd{SHT} commands will be rejected with exit code \hex{0C} (blocking operation in progress).
+\end{calloutBox}
+
+\section{Command Validation}
+
+The NDP validates all commands before execution:
+\begin{itemize}
+    \item Beam numbers must be in range 1--4
+    \item Tuning numbers must be in range 1--2
+    \item DRX filter codes must be in range 1--7; TBS filter codes must be in range 7--9
+    \item Gain values must be in range 0--15
+    \item Subslot values must be in range 0--99
+\end{itemize}
+
+Invalid commands are rejected with appropriate exit codes (see Appendix~\ref{app:codes}).
