@@ -1578,28 +1578,35 @@ class MsgProcessor(ConsumerThread):
                             if line.startswith('12V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
+                                tm_state['12V'] = False
                                 if value > 2:
                                     tm_state['12V'] = True
                             elif line.startswith('9V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
+                                tm_state['9V'] = False
                                 if value > 2:
                                     tm_state['9V'] = True
                             elif line.startswith('6V:'):
                                 _, value = line.split(None, 1)
                                 value = float(value)
+                                tm_state['6V'] = False
                                 if value > 2:
                                     tm_state['6V'] = True
-                            elif line.startswith('Valon Lock: True'):
-                                tm_state['lock'] = True
+                            elif line.startswith('Valon Lock:'):
+                                tm_state['lock'] = False
+                                if line.find('True') != -1:
+                                    tm_state['lock'] = True
                             elif line.startswith('Last Sync Pulse:'):
                                 _, _, _, value, _ = line.split(None, 4)
                                 value = float(value)
+                                tm_state['sync'] = False
                                 if value < 10:
                                     tm_state['sync'] = True
                             elif line.startswith('MCU Temperature:'):
                                 _, _, value, _ = line.split(None, 3)
                                 value = float(value)
+                                tm_state['temp'] = False
                                 if value > 10 and value < 60:
                                     tm_state['temp'] = True
                                     
