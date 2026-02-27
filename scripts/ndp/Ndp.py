@@ -294,7 +294,7 @@ class Cor(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.ntuning = NPIPE_PER_SERVER*NSERVER
+        self.ntuning = len(self.config['host']['servers-data'])
         self.cur_navg = [0]*self.ntuning
         self.cur_gain = [0]*self.ntuning
         
@@ -553,6 +553,9 @@ class ZCU102MonitorClient(object):
             
         self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
         
+        self.nserver = len(self.config['host']['servers'])
+        self.npipe_per_server = len(self.config['host']['servers-data']) \
+                                 // self.nserver
     @property
     def zcu(self):
         """Helper to keep a missing board from killing everything at startup"""
@@ -749,7 +752,7 @@ class ZCU102MonitorClient(object):
             ip = host2ip(host)
             chan0 = self.config['drx'][i]['first_channel']
             nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = self.config['server']['data_ports'][i % NPIPE_PER_SERVER]
+            port = self.config['server']['data_ports'][i % self.npipe_per_server]
             
             chan0 = chan0 - start_chan0 + requested_start_chan0
             
@@ -875,6 +878,15 @@ class MsgProcessor(ConsumerThread):
         self.utc_start     = None
         self.utc_start_str = "NULL"
         
+        self.computed = {}
+        self.computed['NBOARD'] = len(self.config['host']['fpags'])
+        self.computed['NINPUT_PER_BOARD'] = firmware2ninput(self.config['fpga']['firmware'])
+        self.computed['NSTAND'] = self.computed['NBOARD'] * self.computed['NINPUT_PER_BOARD'] \
+                                   // NPOL
+        self.computed['NSERVER'] = len(self.config['host']['servers'])
+        self.computed['NPIPE_PER_SERVER'] = len(self.config['host']['servers-data']) \
+                                             // self.computed['NSERVER']
+        
         self.messageServer = ISC.PipelineMessageServer(addr=('ndp',5832))
         
         mcs_local_host  = self.config['mcs']['headnode']['local_host']
@@ -894,7 +906,7 @@ class MsgProcessor(ConsumerThread):
         self.headnode = ObjectPool([NdpServerMonitorClient(config, log, 'ndp'),])
         self.servers = ObjectPool([NdpServerMonitorClient(config, log, host)
                                 for host in self.config['host']['servers']])
-        nfpga = NBOARD
+        nfpga = self.computed['NBOARD']
         if firmware2type(self.config['fpga']['firmware']) == 'zcu102':
             self.fpgas = ObjectPool([ZCU102MonitorClient(config, log, num+1)
                                     for num in range(nfpga)])
@@ -1045,7 +1057,7 @@ class MsgProcessor(ConsumerThread):
                     
         ## Stop the pipelines
         self.log.info('Stopping pipelines')
-        for tuning in range(NPIPE_PER_SERVER):
+        for tuning in range(self.computed['NPIPE_PER_SERVER']):
             self.servers.stop_drx(tuning=tuning)
         for beam in range(self.config['drx'][0]['beam_count']):
             self.headnode.stop_tengine(beam=beam)
@@ -1061,7 +1073,7 @@ class MsgProcessor(ConsumerThread):
                     for pid in filter(lambda x: x > 0, pids):
                         self.log.warning('  Killing %s TEngine-%i, PID %i', server.host, beam, pid)
                         server.kill_pid(pid)
-            for tuning in range(NPIPE_PER_SERVER*NSERVER):
+            for tuning in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
                 for server in self.servers:
                     pids = server.pid_drx(tuning=tuning)
                     for pid in filter(lambda x: x > 0, pids):
@@ -1110,7 +1122,7 @@ class MsgProcessor(ConsumerThread):
                                           self.headnode.host):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('INI', 'SERVER_STARTUP_FAILED')
-            for tuning in range(NPIPE_PER_SERVER):
+            for tuning in range(self.computed['NPIPE_PER_SERVER']):
                 if not self.check_success(lambda: self.servers.restart_drx(tuning=tuning),
                                           'Restarting pipelines - DRX',
                                           self.servers.host):
@@ -1162,7 +1174,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Checking pipeline processing")
         ## DRX
         pipeline_pids = []
-        for tuning in range(NPIPE_PER_SERVER*NSERVER):
+        for tuning in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
             pipeline_pids = [p for s in self.servers.pid_drx(tuning=tuning) for p in s]
             pipeline_pids = list(filter(lambda x: x>0, pipeline_pids))
             print('DRX-%i:' % tuning, len(pipeline_pids), pipeline_pids)
@@ -1229,7 +1241,7 @@ class MsgProcessor(ConsumerThread):
                     if exception_in(self.servers.do_power('soft')):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming zcus')
+                    self.log.info('Unprogramming FPGAs')
                     if exception_in(self.fpgas.unprogram(do_reboot)):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
@@ -1261,7 +1273,7 @@ class MsgProcessor(ConsumerThread):
                     if exception_in(self.servers.do_power('soft')):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming zcus')
+                    self.log.info('Unprogramming FPGAs')
                     if exception_in(self.fpgas.unprogram(do_reboot)):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
@@ -1303,7 +1315,7 @@ class MsgProcessor(ConsumerThread):
         t0, t1 = time.time(), time.time()
         while nRunning > 0:
             pids = []
-            for tuning in range(NPIPE_PER_SERVER*NSERVER):
+            for tuning in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
                 for server in self.servers:
                     pids.extend( server.pid_drx(tuning=tuning) )
             for beam in range(NBEAM):
@@ -1398,7 +1410,7 @@ class MsgProcessor(ConsumerThread):
                 found = {'drx':[], 'tengine':[]}
                 for host in list(pipelines.keys()):
                     ### Basic information about what to expect
-                    n_expected = NBEAM if host == 'localhost' else (NPIPE_PER_SERVER*NSERVER)
+                    n_expected = NBEAM if host == 'localhost' else (self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])
                     
                     ### Check to see if our view of which pipelines are running has changed
                     refresh = False if len(pipelines[host]) == n_expected else True
@@ -1479,8 +1491,8 @@ class MsgProcessor(ConsumerThread):
                     
                     self.log.info("Monitor BAIL")
                     continue
-                total_drx_bw = {i:0 for i in range(NPIPE_PER_SERVER*NSERVER)}
-                total_drx_inactive = {i:0 for i in range(NPIPE_PER_SERVER*NSERVER)}
+                total_drx_bw = {i:0 for i in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])}
+                total_drx_inactive = {i:0 for i in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])}
                 for host,name,side,loss,txbw,cact,flg in found['drx']:
                     total_drx_bw[side] += txbw
                     total_drx_inactive[side] += (1 if txbw == 0 else 0)
@@ -1512,7 +1524,7 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
-                for side in range(NPIPE_PER_SERVER*NSERVER):
+                for side in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
                     if total_drx_inactive[side] > 0:
                         problems_found = True
                         msg = "DRX-%i -- TX rate of %.1f MB/s" % (side, total_drx_bw[side]/1024.0**2)
@@ -1520,15 +1532,15 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                if len(found['drx']) != NPIPE_PER_SERVER*NSERVER:
+                if len(found['drx']) != self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']:
                     problems_found = True
-                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), NPIPE_PER_SERVER*NSERVER)
+                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])
                     new_status = 'WARNING'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.warning(msg)
                     
-                ## Check the zcu boards
+                ## Check the FPGA boards
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
                     force_recheck = True
@@ -1737,23 +1749,23 @@ class MsgProcessor(ConsumerThread):
                 status, info = self._combine_status(status, info, new_status, new_info)
                     
             # Note: Actually just flattening lists, not summing
-            zcu_temps  = sum([list(v) for v in self.fpgas.get_temperatures(slot).values()], [])
+            fpgas_temp = sum([list(v) for v in self.fpgas.get_temperatures(slot).values()], [])
             # Remove error values before reducing
-            zcu_temps  = [val for val in zcu_temps  if not math.isnan(val)]
-            if len(zcu_temps) == 0: # If all values were nan (exceptional!)
-                zcu_temps = [float('nan')]
-            zcu_temps_max  = np.max(zcu_temps)
-            if zcu_temps_max > self.config['fpga']['temperature_shutdown']:
+            fpgas_temp = [val for val in fpgas_temp  if not math.isnan(val)]
+            if len(fpgas_temp) == 0: # If all values were nan (exceptional!)
+                fpgas_temp = [float('nan')]
+            fpgas_temp_max = np.max(fpgas_temp)
+            if fpgas_temp_max > self.config['fpga']['temperature_shutdown']:
                 msg = 'Temperature shutdown -- fpga'
                 new_status = 'ERROR'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
                                                  'Board temperature shutdown')
                 status, info = self._combine_status(status, info, new_status, new_info)
-                if zcu_temps_max > self.config['fpga']['temperature_scram']:
+                if fpgas_temp_max > self.config['fpga']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
-            elif zcu_temps_max > self.config['fpga']['temperature_warning']:
+            elif fpgas_temp_max > self.config['fpga']['temperature_warning']:
                 msg = 'Temperature warning -- fpga'
                 new_status = 'WARNING'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
@@ -1836,7 +1848,7 @@ class MsgProcessor(ConsumerThread):
         self.fir_idx %= NINPUT
         return idx
         
-    def _get_zcu_config(self):
+    def _get_fpga_config(self):
         sub_config = {}
         for key in ('firmware', 'fft_shift', 'equalizer_coeffs', 'bypass_pfb'):
             sub_config[key] = self.config['fpga'][key]
@@ -1874,13 +1886,13 @@ class MsgProcessor(ConsumerThread):
         if key == 'SUBSYSTEM':         return SUBSYSTEM
         if key == 'SERIALNO':          return self.serial_number
         if key == 'VERSION':           return self.version
-        if key == 'SNAP_CONFIG':       return self._get_zcu_config()
+        if key == 'SNAP_CONFIG':       return self._get_fpga_config()
         if key == 'TENGINE_CONFIG':    return self._get_tengine_config()
         # TODO: TBT_STATUS
         #       TBT_TUNING_MASK
-        if key == 'NUM_STANDS':        return NSTAND
-        if key == 'NUM_SERVERS':       return NSERVER
-        if key == 'NUM_BOARDS':        return NBOARD
+        if key == 'NUM_STANDS':        return self.computed['NSTAND']
+        if key == 'NUM_SERVERS':       return self.computed['NSERVER']
+        if key == 'NUM_BOARDS':        return self.computed['NBOARD']
         if key == 'NUM_BEAMS':         return self.drx.nbeam
         # TODO: T_NOM
         if key == 'NUM_DRX_TUNINGS':   return self.drx.ntuning
@@ -1931,7 +1943,7 @@ class MsgProcessor(ConsumerThread):
                 spectra = spectra.astype(np.float32)
                 
                 checkname = t_now.strftime("%y%m%d_%H%M%S")
-                checkname = "/tmp/"+checkname+"_zcuspecs.dat"
+                checkname = "/tmp/"+checkname+"_fpgaspecs.dat"
                 with open(checkname, 'wb') as fh:
                     fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
                     spectra.tofile(fh)
@@ -1940,7 +1952,7 @@ class MsgProcessor(ConsumerThread):
                  self.health_check_lock.release()
         if args[0] == 'BOARD':
             board = args[1]-1
-            if not (0 <= board < NBOARD):
+            if not (0 <= board < self.computed['NBOARD']):
                 raise ValueError("Unknown board number %i"%(board+1))
             if args[2] == 'STAT': return self.fpgas[board].get_board_status(return_json=True)
             if args[2] == 'INFO': return self.fpgas[board].get_board_info(return_json=True)
@@ -1953,7 +1965,7 @@ class MsgProcessor(ConsumerThread):
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
-            if not (-1 <= svr < NSERVER):
+            if not (-1 <= svr < self.computed['NSERVER']):
                 raise ValueError("Unknown server number %i"%(svr+1))
             if svr == -1:
                 sobj = self.headnode[0]
