@@ -547,7 +547,7 @@ class ZCU102MonitorClient(object):
         
         self.equalizer_coeffs = None
         try:
-            self.equalizer_coeffs = np.loadtxt(self.config['zcu']['equalizer_coeffs'])
+            self.equalizer_coeffs = np.loadtxt(self.config['fpga']['equalizer_coeffs'])
         except Exception as e:
             self.log.warning("Failed to load equalizer coefficients: %s", str(e))
             
@@ -558,8 +558,8 @@ class ZCU102MonitorClient(object):
         """Helper to keep a missing board from killing everything at startup"""
         if getattr(self, '_zcu', None) is None:
             try:
-                username = self.config['zcu']['username']
-                password = self.config['zcu']['password']
+                username = self.config['fpga']['username']
+                password = self.config['fpga']['password']
                 self._zcu   = zcu102_fengine.ZCU102Fengine(self.host,
                                                            username=username,
                                                            password=password)
@@ -628,22 +628,19 @@ class ZCU102MonitorClient(object):
         # Program with NDP firmware
         
         ## Firmware
-        firmware = self.config['zcu']['firmware']
+        firmware = self.config['fpga']['firmware']
         
         # Go!
         success = False
         with self.access_lock:
             if self.zcu.is_connected():
-                for i in range(self.config['zcu']['max_program_attempts']):
+                for i in range(self.config['fpga']['max_program_attempts']):
                     try:
                         success = self.zcu.program(firmware)
                         
-                        ## This seems to be necessary
-                        username = self.config['zcu']['username']
-                        password = self.config['zcu']['password']
-                        self.zcu = zcu102_fengine.ZCU102Fengine(self.host,
-                                                                username=username,
-                                                                password=password)
+                        ## This (creating a new connection) seems to be necessary
+                        self._zcu = None
+                        
                         success = self.zcu.program(firmware)
                         
                         break
@@ -702,9 +699,9 @@ class ZCU102MonitorClient(object):
         
         ## Configuration
         ### Overall structure + base F-engine config.
-        sconf = {'fengines': {'enable_pfb': not self.config['zcu']['bypass_pfb'],
-                              'fft_shift': self.config['zcu']['fft_shift'],
-                              'chans_per_packet': self.config['zcu']['nchan_packet'],
+        sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
+                              'fft_shift': self.config['fpga']['fft_shift'],
+                              'chans_per_packet': self.config['fpga']['nchan_packet'],
                               'adc_clocksource': 0},
                  'xengines': {'arp': {},
                               'chans': {}}}
@@ -718,11 +715,11 @@ class ZCU102MonitorClient(object):
             sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
             
         ### Antenna and IP source
-        for i,zcu in enumerate(self.config['host']['zcus']):
+        for i,zcu in enumerate(self.config['host']['fpgas']):
             sconf['fengines'][zcu] = {}
             sconf['fengines'][zcu]['ants'] = f"[{i*16}, {(i+1)*16}]"
-            sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['zcu']['data_ip_base']) + i)
-            sconf['fengines'][zcu]['source_port'] = self.config['zcu']['data_port_base']
+            sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
+            sconf['fengines'][zcu]['source_port'] = self.config['fpga']['data_port_base']
             
         ### X-engine MAC addresses
         macs = load_ethers()
@@ -769,7 +766,7 @@ class ZCU102MonitorClient(object):
         success = False
         with self.access_lock:
             if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
-                for i in range(self.config['zcu']['max_program_attempts']):
+                for i in range(self.config['fpga']['max_program_attempts']):
                     try:
                         self.zcu.cold_start_from_config(configname)
                         
@@ -897,11 +894,14 @@ class MsgProcessor(ConsumerThread):
         self.headnode = ObjectPool([NdpServerMonitorClient(config, log, 'ndp'),])
         self.servers = ObjectPool([NdpServerMonitorClient(config, log, host)
                                 for host in self.config['host']['servers']])
-        nzcu = NBOARD
-        self.zcus = ObjectPool([ZCU102MonitorClient(config, log, num+1)
-                                for num in range(nzcu)])
-        self._head_zcus = self.zcus[:1]
-        self._rest_zcus = self.zcus[1:]
+        nfpga = NBOARD
+        if firmware2type(self.config['fpga']['firmware']) == 'zcu102':
+            self.fpgas = ObjectPool([ZCU102MonitorClient(config, log, num+1)
+                                    for num in range(nfpga)])
+        else:
+            raise RuntimeError("Unknown FPGA board based on firmware name")
+        self._head_fpgas = self.fpgas[:1]
+        self._rest_fpgas = self.fpgas[1:]
         
         self.drx = Drx(config, log, self.messageServer, self.servers)
         self.tbs = Tbs(config, log, self.messageServer, self.servers)
@@ -1119,10 +1119,10 @@ class MsgProcessor(ConsumerThread):
                         
         # Bring up the FPGAs
         if 'NOREPROGRAM' not in arg: # Note: This is for debugging, not in spec
-            self.log.info("Programming FPGAs with '%s'", self.config['zcu']['firmware'])
-            if not self.check_success(lambda: self.zcus.program(),
+            self.log.info("Programming FPGAs with '%s'", self.config['fpga']['firmware'])
+            if not self.check_success(lambda: self.fpgas.program(),
                                       'Programming FPGAs',
-                                      self.zcus.host):
+                                      self.fpgas.host):
                 if 'FORCE' not in arg: # Note: Also not in spec
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
@@ -1136,21 +1136,21 @@ class MsgProcessor(ConsumerThread):
                     self.log.info("Setting first channel to %i (%.3f MHz)", requested_start_chan0, requested_start_chan0*CHAN_BW)
                 except Exception as e:
                     self.log.warning("Failed to parse INI STARTFREQ request with '%s', ignoring", str(e))
-        if not self.check_success(lambda: self._head_zcus.configure(requested_start_chan0=requested_start_chan0),
+        if not self.check_success(lambda: self._head_fpgas.configure(requested_start_chan0=requested_start_chan0),
                                   'Configuring master FPGA',
-                                  self._head_zcus.host):
+                                  self._head_fpgas.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: self._rest_zcus.configure(requested_start_chan0=requested_start_chan0),
+        if not self.check_success(lambda: self._rest_fpgas.configure(requested_start_chan0=requested_start_chan0),
                                   'Configuring remaining FPGAs',
-                                  self._rest_zcus.host):
+                                  self._rest_fpgas.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
         self.log.info("  Finished configuring FPGAs")
         
         try:
-            self.utc_start     = self.zcus[0].get_tt_of_sync()
+            self.utc_start     = self.fpgas[0].get_tt_of_sync()
         except RuntimeError:
             return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
         self.utc_start_str = str(self.utc_start)
@@ -1207,14 +1207,14 @@ class MsgProcessor(ConsumerThread):
                 if exception_in(self.servers.do_power('reset')):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                if exception_in(self.zcus.unprogram(do_reboot)):
+                if exception_in(self.fpgas.unprogram(do_reboot)):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
             else:
                 if exception_in(self.servers.do_power('off')):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                if exception_in(self.zcus.unprogram(do_reboot)):
+                if exception_in(self.fpgas.unprogram(do_reboot)):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
             self.log.info("SHT SCRAM finished in %.3f s", time.time() - start_time)
@@ -1230,7 +1230,7 @@ class MsgProcessor(ConsumerThread):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
                     self.log.info('Unprogramming zcus')
-                    if exception_in(self.zcus.unprogram(do_reboot)):
+                    if exception_in(self.fpgas.unprogram(do_reboot)):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
                     self.log.info('Waiting for servers to power off')
@@ -1262,7 +1262,7 @@ class MsgProcessor(ConsumerThread):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
                     self.log.info('Unprogramming zcus')
-                    if exception_in(self.zcus.unprogram(do_reboot)):
+                    if exception_in(self.fpgas.unprogram(do_reboot)):
                         if 'FORCE' not in arg:
                             return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
                     self.log.info('Waiting for servers to power off')
@@ -1535,46 +1535,46 @@ class MsgProcessor(ConsumerThread):
                     
                     self.log.info("Monitor BAIL")
                     continue
-                zcus_programmed = self.zcus.is_programmed()
-                if not all(zcus_programmed):
+                fpgas_programmed = self.fpgas.is_programmed()
+                if not all(fpgas_programmed):
                     problems_found = True
-                    msg = "Found %s ZCU102 board(s) not programmed" % (len(zcus_programmed) - sum(zcus_programmed),)
+                    msg = "Found %s FPGA board(s) not programmed" % (len(fpgas_programmed) - sum(fpgas_programmed),)
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
                     ext_msg = []
-                    for z,p in zip(self.zcus, zcus_programmed):
+                    for z,p in zip(self.fpgas, fpgas_programmed):
                         if not p:
                             ext_msg.append(z.host)
                     ext_msg = ' '.join(ext_msg)
                     self.log.error('Board(s) are: %s', ext_msg)
                 else:
-                    zcus_ok = self.zcus.is_ok()
-                    if not all(zcus_ok):
+                    fpgas_ok = self.fpgas.is_ok()
+                    if not all(fpgas_ok):
                         problems_found = True
-                        msg = "Found %s ZCU102 board(s) with internal error conditions" % (len(zcus_ok) - sum(zcus_ok),)
+                        msg = "Found %s FPGA board(s) with internal error conditions" % (len(fpgas_ok) - sum(fpgas_ok),)
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
                         ext_msg = []
-                        for z,o in zip(self.zcus, zcus_ok):
+                        for z,o in zip(self.fpgas, fpgas_ok):
                             if not o:
                                 ext_msg.append(z.host)
                         ext_msg = ' '.join(ext_msg)
                         self.log.error('Board(s) are: %s', ext_msg)
                     else:
-                        zcus_sending = self.zcus.is_sending()
-                        if not all(zcus_sending):
+                        fpgas_sending = self.fpgas.is_sending()
+                        if not all(fpgas_sending):
                             problems_found = True
-                            msg = "Found %s ZCU102 board(s) not sending data" % (len(zcus_sending) - sum(zcus_sending),)
+                            msg = "Found %s FPGA board(s) not sending data" % (len(fpgas_sending) - sum(fpgas_sending),)
                             new_status = 'ERROR'
                             new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                             status, info = self._combine_status(status, info, new_status, new_info)
                             self.log.error(msg)
                             ext_msg = []
-                            for z,s in zip(self.zcus, zcus_sending):
+                            for z,s in zip(self.fpgas, fpgas_sending):
                                 if not s:
                                     ext_msg.append(z.host)
                             ext_msg = ' '.join(ext_msg)
@@ -1737,24 +1737,24 @@ class MsgProcessor(ConsumerThread):
                 status, info = self._combine_status(status, info, new_status, new_info)
                     
             # Note: Actually just flattening lists, not summing
-            zcu_temps  = sum([list(v) for v in self.zcus.get_temperatures(slot).values()], [])
+            zcu_temps  = sum([list(v) for v in self.fpgas.get_temperatures(slot).values()], [])
             # Remove error values before reducing
             zcu_temps  = [val for val in zcu_temps  if not math.isnan(val)]
             if len(zcu_temps) == 0: # If all values were nan (exceptional!)
                 zcu_temps = [float('nan')]
             zcu_temps_max  = np.max(zcu_temps)
-            if zcu_temps_max > self.config['zcu']['temperature_shutdown']:
-                msg = 'Temperature shutdown -- zcu'
+            if zcu_temps_max > self.config['fpga']['temperature_shutdown']:
+                msg = 'Temperature shutdown -- fpga'
                 new_status = 'ERROR'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
                                                  'Board temperature shutdown')
                 status, info = self._combine_status(status, info, new_status, new_info)
-                if zcu_temps_max > self.config['zcu']['temperature_scram']:
+                if zcu_temps_max > self.config['fpga']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
-            elif zcu_temps_max > self.config['zcu']['temperature_warning']:
-                msg = 'Temperature warning -- zcu'
+            elif zcu_temps_max > self.config['fpga']['temperature_warning']:
+                msg = 'Temperature warning -- fpga'
                 new_status = 'WARNING'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
                                                  'Board temperature warning')
@@ -1839,7 +1839,7 @@ class MsgProcessor(ConsumerThread):
     def _get_zcu_config(self):
         sub_config = {}
         for key in ('firmware', 'fft_shift', 'equalizer_coeffs', 'bypass_pfb'):
-            sub_config[key] = self.config['zcu'][key]
+            sub_config[key] = self.config['fpga'][key]
         sub_config['equalizer_coeffs_md5'] = ''
         
         try:
@@ -1909,7 +1909,7 @@ class MsgProcessor(ConsumerThread):
             if not (0 <= inp < NINPUT):
                 raise ValueError("Unknown input number %i"%(inp+1))
             board,stand,pol = input2boardstandpol(inp)
-            samples = self.zcus[board].get_samples(slot, stand, pol,
+            samples = self.fpgas[board].get_samples(slot, stand, pol,
                                                     STAT_SAMP_SIZE)
             # Convert from int8 --> float32 before reducing
             samples = samples.astype(np.float32)
@@ -1925,7 +1925,7 @@ class MsgProcessor(ConsumerThread):
                 raise RuntimeError("HEALTH_CHECK already in progress")
             try:
                 t_now = datetime.datetime.utcnow()
-                spectra = self.zcus.get_spectra()
+                spectra = self.fpgas.get_spectra()
                 spectra = np.array(list(spectra))
                 spectra = spectra.reshape(-1, spectra.shape[-1])
                 spectra = spectra.astype(np.float32)
@@ -1942,14 +1942,14 @@ class MsgProcessor(ConsumerThread):
             board = args[1]-1
             if not (0 <= board < NBOARD):
                 raise ValueError("Unknown board number %i"%(board+1))
-            if args[2] == 'STAT': return self.zcus[board].get_board_status(return_json=True)
-            if args[2] == 'INFO': return self.zcus[board].get_board_info(return_json=True)
+            if args[2] == 'STAT': return self.fpgas[board].get_board_status(return_json=True)
+            if args[2] == 'INFO': return self.fpgas[board].get_board_info(return_json=True)
             if args[2] == 'TEMP':
-                temps = list(self.zcus[board].get_temperatures(slot).values())
+                temps = list(self.fpgas[board].get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
-            if args[2] == 'FIRMWARE': return self.config['zcu']['firmware']
-            if args[2] == 'HOSTNAME': return self.zcus[board].host
+            if args[2] == 'FIRMWARE': return self.config['fpga']['firmware']
+            if args[2] == 'HOSTNAME': return self.fpgas[board].host
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
@@ -1976,7 +1976,7 @@ class MsgProcessor(ConsumerThread):
                 # Note: Actually just flattening lists, not summing
                 temps += sum([list(v) for v in self.headnode.get_temperatures(slot).values()], [])
                 temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
-                temps += sum([list(v) for v in self.zcus.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.fpgas.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
                 temps = [val for val in temps if not math.isnan(val)]
                 if len(temps) == 0: # If all values were nan (exceptional!)

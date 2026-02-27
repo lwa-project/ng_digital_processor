@@ -17,10 +17,10 @@
     },
     "host": {
         "servers": ["ndp1", "ndp2", "ndp3", "ndp4"],
-        "zcus": ["zcu01", "zcu02", "zcu03", "zcu04",
-                 "zcu05", "zcu06", "zcu07", "zcu08",
-                 "zcu09", "zcu10", "zcu11", "zcu12",
-                 "zcu13", "zcu14", "zcu15", "zcu16"],
+        "fpgas": ["zcu01", "zcu02", "zcu03", "zcu04",
+                  "zcu05", "zcu06", "zcu07", "zcu08",
+                  "zcu09", "zcu10", "zcu11", "zcu12",
+                  "zcu13", "zcu14", "zcu15", "zcu16"],
         "servers-data": ["mcg40s1-data1", "mcg40s1-data2", "mcg40s1-data1", "mcg40s1-data2",
                          "mcg40s2-data1", "mcg40s2-data2", "mcg40s2-data1", "mcg40s2-data2",
                          "mcg40s3-data1", "mcg40s3-data2", "mcg40s3-data1", "mcg40s3-data2",
@@ -259,7 +259,7 @@
         "temperature_shutdown": 85.0,
         "temperature_scram":    90.0
     },
-    "zcu": {
+    "fpga": {
         "username":             "casper",
         "password":             "casper",
         "data_ip_base":         "192.168.40.101",

@@ -42,6 +42,23 @@ NFRAME_PER_SPECTRUM = int(FS) // int(CHAN_BW) # 7840
 #SERVER_HOSTS     = ['ndp%i' % (i+1) for i in xrange(NSERVER)]
 TRIGGERING_ACTIVE_FILE = '/home/ndp/triggering_active'
 
+def firmware2type(filename):
+    firmware = os.path.basename(filename)
+    if firmware.find('zcu102') != -1:
+        return 'zcu102'
+    elif firmware.find('snap2') != -1:
+        return 'snap2'
+    return ''
+def firmware2ninput(filename):
+    btype = firmware2type(filename)
+    if btype == 'zcu102':
+        return 32
+    elif btype == 'snap2':
+        return 64
+    return 0
+def firmware2nstand(filename):
+    return firmware2ninput // NPOL
+
 def input2standpol(i):
     stand = i // NPOL
     pol   = i % NPOL
