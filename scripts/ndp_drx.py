@@ -638,11 +638,12 @@ def time_tag_to_seq_float(time_tag):
     return time_tag*CHAN_BW/FS
 
 class TriggeredDumpOp(object):
-    def __init__(self, log, osock, iring, ntime_gulp, ntime_buf, tuning=0, nchan_max=768, nfpga=16, nstand_per_fpga=16, core=-1, max_bytes_per_sec=None):
+    def __init__(self, log, osock, iring, ntime_gulp, ntime_buf, tuning=0, ntuning=16, nchan_max=768, nfpga=16, nstand_per_fpga=16, core=-1, max_bytes_per_sec=None):
         self.log = log
         self.sock = osock
         self.iring = iring
         self.tuning = tuning
+        self.ntuning = ntuning
         self.nchan_max = nchan_max
         self.ninput_max = nfpga*nstand_per_fpga
         self.core  = core
@@ -673,7 +674,6 @@ class TriggeredDumpOp(object):
         self.udt = UDPTransmit(f"tbx{self.ninput_max}_{TBT_NCHAN_PER_PKT}", sock=self.sock, core=self.core)
         self.desc = HeaderInfo()
         self.desc.set_nchan(TBT_NCHAN_PER_PKT)
-        self.npipe_max = NPIPE_PER_SERVER*NSERVER
         while not self.iring.writing_ended():
             config = self.configMessage(block=False)
             if not config:
@@ -692,11 +692,11 @@ class TriggeredDumpOp(object):
         
     def dump(self, samples, time_tag=0, mask=None, local=False):
         if mask is None:
-            mask = 2**(self.npipe_max)-1
+            mask = 2**(self.ntuning)-1
         if (mask >> self.tuning) & 1 == 0:
             self.log.info('Not for us: %i -> %i @ %i', mask, (mask >> self.tuning) & 1, self.tuning)
             return False
-        speed_factor = self.npipe_max // sum([mask>>i&1 for i in range(self.npipe_max)])        # TODO: Slightly hacky
+        speed_factor = self.ntuning // sum([mask>>i&1 for i in range(self.ntuning)])        # TODO: Slightly hacky
         
         ntime_pkt = 1 # TODO: Should be TBT_NTIME_PER_PKT?
         
@@ -1994,7 +1994,8 @@ def main(argv):
                             guarantee=False, core=cores.pop(0)))
     ops.append(TriggeredDumpOp(log=log, osock=osock, iring=tbt_ring,
                                ntime_gulp=GSIZE, ntime_buf=int(25000*tbt_buffer_secs/2500)*2500,
-                               tuning=tuning, nfpga=nfpga, nstand_per_fpga=nstand_per_fpga,
+                               tuning=tuning, ntuning=ntuning,
+                               nfpga=nfpga, nstand_per_fpga=nstand_per_fpga,
                                nchan_max=nchan_max,
                                core=cores.pop(0),
                                max_bytes_per_sec=tbt_bw_max))

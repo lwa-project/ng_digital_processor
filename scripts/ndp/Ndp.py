@@ -13,7 +13,16 @@ from .iptools    import *
 
 from . import ISC
 
-from lwa_f import zcu102_fengine
+try:
+    from lwa_f import zcu102_fengine
+    ZCU102_SUPPORT = True
+except ImportError:
+    ZCU102_SUPPORT = False
+try:
+    from lwa_f import snap2_fengine
+    SNAP2_SUPPORT = True
+except ImportError:
+    SNAP2_SUPPORT = False
 from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
 from .FileLock import FileLock
 
@@ -556,6 +565,7 @@ class ZCU102MonitorClient(object):
         self.nserver = len(self.config['host']['servers'])
         self.npipe_per_server = len(self.config['host']['servers-data']) \
                                  // self.nserver
+        
     @property
     def zcu(self):
         """Helper to keep a missing board from killing everything at startup"""
@@ -854,6 +864,304 @@ class ZCU102MonitorClient(object):
             info = json.dumps(info)
         return info
 
+
+class Snap2MonitorClient(object):
+    def __init__(self, config, log, num):
+        # Note: num is 1-based index of the snap
+        self.config = config
+        self.log    = log
+        self.num    = num
+        self.host   = f"snap{self.num:02d}"
+        
+        self.equalizer_coeffs = None
+        try:
+            self.equalizer_coeffs = np.loadtxt(self.config['fpga']['equalizer_coeffs'])
+        except Exception as e:
+            self.log.warning("Failed to load equalizer coefficients: %s", str(e))
+            
+        self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
+        
+        self.nserver = len(self.config['host']['servers'])
+        self.npipe_per_server = len(self.config['host']['servers-data']) \
+                                 // self.nserver
+        
+    @property
+    def snap(self):
+        """Helper to keep a missing board from killing everything at startup"""
+        if getattr(self, '_snap', None) is None:
+            try:
+                self._snap   = snap2_fengine.Snap2Fengine(self.host)
+            except Exception as e:
+                self._snap = None
+                self.log.error("Cannot connect to %s: %s", self.host, str(e))
+                
+        return self._snap
+        
+    def unprogram(self, reboot=False):
+        with self.access_lock:
+            if self.snap.is_connected():
+                self.snap.deprogram()
+                
+    def get_samples(self, slot, stand, pol, nsamps=None):
+        with self.access_lock:
+            return self.get_samples_all(slot, nsamps)[stand,pol]
+            
+    @lru_cache(maxsize=4)
+    def get_samples_all(self, slot, nsamps=None):
+        """Returns an NDArray of shape (stand,pol,sample)"""
+        samps = np.zeros((32,2,STAT_SAMP_SIZE))
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                samps0 = self.snap.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
+                samps1 = self.snap.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
+                samps = np.vstack([samps0, samps1])
+                
+        return samps.reshape(32,2,-1)
+        
+    @lru_cache(maxsize=4)
+    def get_temperatures(self, slot):
+        # Return a dictionary of temperatures on the Snap2 board
+        temp = {'error': float('nan')}
+        with self.access_lock:
+            if self.snap.is_connected():
+                try:
+                    summary, flags = self.snap.fpga.get_status()
+                    temp = {'fpga': summary['temp']}
+                except Exception as e:
+                    pass
+        return temp
+        
+    @lru_cache(maxsize=4)
+    def get_clock_rate(self):
+        # Estimate the FPGA clock rate in MHz
+        rate = float('nan')
+        with self.access_lock:
+            if self.snap.is_connected():
+                try:
+                    rate = self.snap.fpga.get_fpga_clock()
+                except Exception as e:
+                    pass
+        return rate
+        
+    def get_tt_of_sync(self, wait_for_sync=True):
+        # Return the timetag corresponding to a sync pulse.
+        tt = None
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                tt = self.snap.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
+                tt = tt[0]
+        return tt
+        
+    def program(self):
+        # Program with NDP firmware
+        
+        ## Firmware
+        firmware = self.config['fpga']['firmware']
+        
+        # Go!
+        success = False
+        with self.access_lock:
+            if self.snap.is_connected():
+                for i in range(self.config['fpga']['max_program_attempts']):
+                    try:
+                        self.snap.program(firmware)
+                        success = True
+                        break
+                    except Exception as e:
+                        pass
+                        
+        return success
+        
+    def is_programmed(self):
+        # Has the FPGA been programmed?
+        
+        status = False
+        with self.access_lock:
+            if self.snap.is_connected():
+                try:
+                    status = self.snap.fpga.is_programmed()
+                except Exception as e:
+                    pass
+        return status
+        
+    def is_ok(self):
+        # Is there an error condition on the FPGA?
+        
+        status = True
+        with self.access_lock:
+            if self.snap.is_connected():
+                try:
+                    summary, flags = self.snap.fpga.get_status()
+                    for key in flags.keys():
+                        if flags[key] == FENG_ERROR_CODE:
+                            status = False
+                except Exception as e:
+                    pass
+        return status
+        
+    def is_sending(self):
+        # Is the FPGA sending data out?
+        
+        status = True
+        with self.access_lock:
+            if self.snap.is_connected():
+                try:
+                    summary, flags = self.snap.eth.get_status()
+                    if summary['gpbs'] == 0:
+                        status = False
+                    for key in flags.keys():
+                        if flags[key] == FENG_ERROR_CODE:
+                            status = False
+                except Exception as e:
+                    pass
+        return status
+        
+    def configure(self, requested_start_chan0=None):
+        # Configure the FPGA and start data flowing
+        
+        ## Configuration
+        ### Overall structure + base F-engine config.
+        sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
+                              'fft_shift': self.config['fpga']['fft_shift'],
+                              'chans_per_packet': self.config['fpga']['nchan_packet'],
+                              'adc_clocksource': 0},
+                 'xengines': {'arp': {},
+                              'chans': {}}}
+                 
+        ### Toggle FFT shift schedule on/off
+        if sconf['fengines']['fft_shift'] in ('', 0):
+            del sconf['fengines']['fft_shift']
+            
+        ### Equalizer coefficints (global)
+        if self.equalizer_coeffs is not None:
+            sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
+            
+        ### Antenna and IP source
+        for i,snap in enumerate(self.config['host']['fpgas']):
+            sconf['fengines'][snap] = {}
+            sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
+            sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
+            sconf['fengines'][snap]['source_port'] = self.config['fpga']['data_port_base']
+            
+        ### X-engine MAC addresses
+        macs = load_ethers()
+        for ip,mac in macs.items():
+            sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
+            
+        ### X-engine channel mapping
+        #### Pass 1 - Find the lowest start channel in the config. file
+        i = 0
+        start_chan0 = NCHAN*2
+        for host in self.config['host']['servers-data']:
+            if i >= len(self.config['drx']):
+                break
+            ip = host2ip(host)
+            chan0 = self.config['drx'][i]['first_channel']
+            if chan0 < start_chan0:
+                start_chan0 = chan0
+            i += 1
+        #### Pass 2 - Figure out the new channel mapping
+        if requested_start_chan0 is None:
+            requested_start_chan0 = start_chan0
+        #### Pass 3 - Make it happen
+        i = 0
+        for host in self.config['host']['servers-data']:
+            if i >= len(self.config['drx']):
+                break
+            ip = host2ip(host)
+            chan0 = self.config['drx'][i]['first_channel']
+            nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
+            port = self.config['server']['data_ports'][i]
+            
+            chan0 = chan0 - start_chan0 + requested_start_chan0
+            
+            sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
+            i += 1
+            
+        ### Save
+        sconf = yaml.dump(sconf)
+        configname = '/tmp/snap_config.yaml'
+        with open(configname, 'w') as fh:
+            fh.write(sconf.replace("'", ''))
+            
+        # Go!
+        success = False
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                for i in range(self.config['fpga']['max_program_attempts']):
+                    try:
+                        self.snap.cold_start_from_config(configname)
+                        
+                        self.log.info(f"{self.host} configuration succeeded") 
+                        success = True
+                        break
+                        
+                    except Exception as e:
+                        self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
+                        pass
+                        
+        return success
+        
+    def get_spectra(self, t_int=0.1):
+        # Return a 2-D array of auto-correlation spectra
+        
+        acc_len = int(round(CHAN_BW * t_int))
+        
+        spectra = []
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                self.snap.autocorr.set_acc_len(acc_len)
+                time.sleep(t_int+0.1)
+                
+                for i in range(4):
+                    spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
+        spectra = np.array(spectra)
+        spectra = spectra.reshape(-1, spectra.shape[-1])
+        return spectra
+        
+    def get_board_status(self, return_json=False):
+        status = {'fft_overflows': -1, 'clip_count': -1,
+                  'tx_overflow': -1, 'tx_full': -1}
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                status['fft_overflows'] = self.snap.pfb.get_overflow_count()
+                status['clip_count'] = self.snap.eq.clip_count()
+                estat = self.snap.eth.get_status()[0]
+                status['tx_overflow'] = estat['tx_of']
+                status['tx_full'] = estat['tx_full']
+        if return_json:
+            status = json.dumps(status)
+        return status
+        
+    def get_board_info(self, return_json=False):
+        info = {'fft_shift': -1, 'pfb_enabled': False, 'inputs': 'unknown',
+                'eq_tvg_enabled': False,
+                'fw_version': 'unknown', 'sw_version': 'unknown',
+                'fw_supported': False, 'flash_md5': 'unknown'}
+        with self.access_lock:
+            if self.snap.is_connected() and self.snap.fpga.is_programmed():
+                info['fft_shift'] = self.snap.pfb.get_fft_shift()
+                info['pfb_enabled'] = self.snap.pfb.fir_is_enabled()
+                info['inputs'] = self.snap.input.get_switch_positions()
+                info['eq_tvg_enabled'] = self.snap.eqtvg.get_status()[0]['tvg_enabled']
+                fstat = self.snap.fpga.get_status()[0]
+                info['fw_version'] = fstat['fw_version']
+                info['sw_version'] = fstat['sw_version']
+                info['fw_supported'] = fstat['fw_supported']
+                info['flash_md5'] = fstat['flash_firmware_md5']
+        if info['inputs'] != 'unknown':
+            spos = {}
+            for i in info['inputs']:
+                try:
+                    spos[i] += 1
+                except KeyError:
+                    spos[i] = 1
+            info['inputs'] = spos
+        if return_json:
+            info = json.dumps(info)
+        return info
+
+
     # TODO: Configure channel selection (based on FST)
     # TODO: start/stop data flow (remember to call zcu.reset() before start)
 
@@ -879,10 +1187,10 @@ class MsgProcessor(ConsumerThread):
         self.utc_start_str = "NULL"
         
         self.computed = {}
-        self.computed['NBOARD'] = len(self.config['host']['fpags'])
+        self.computed['NBOARD'] = len(self.config['host']['fpgas'])
         self.computed['NINPUT_PER_BOARD'] = firmware2ninput(self.config['fpga']['firmware'])
-        self.computed['NSTAND'] = self.computed['NBOARD'] * self.computed['NINPUT_PER_BOARD'] \
-                                   // NPOL
+        self.computed['NINPUT'] = self.computed['NBOARD'] * self.computed['NINPUT_PER_BOARD']
+        self.computed['NSTAND'] = self.computed['NINPUT'] // NPOL
         self.computed['NSERVER'] = len(self.config['host']['servers'])
         self.computed['NPIPE_PER_SERVER'] = len(self.config['host']['servers-data']) \
                                              // self.computed['NSERVER']
@@ -907,11 +1215,14 @@ class MsgProcessor(ConsumerThread):
         self.servers = ObjectPool([NdpServerMonitorClient(config, log, host)
                                 for host in self.config['host']['servers']])
         nfpga = self.computed['NBOARD']
-        if firmware2type(self.config['fpga']['firmware']) == 'zcu102':
+        if ZCU102_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'zcu102':
             self.fpgas = ObjectPool([ZCU102MonitorClient(config, log, num+1)
                                     for num in range(nfpga)])
+        elif SNAP2_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'snap2':
+            self.fpgas = ObjectPool([Snap2MonitorClient(config, log, num+1)
+                                    for num in range(nfpga)])
         else:
-            raise RuntimeError("Unknown FPGA board based on firmware name")
+            self.fpgas = []
         self._head_fpgas = self.fpgas[:1]
         self._rest_fpgas = self.fpgas[1:]
         
@@ -993,16 +1304,17 @@ class MsgProcessor(ConsumerThread):
         
     def raise_error_state(self, cmd, state):
         # TODO: Need new codes? Need to document them?
-        state_map = {'BOARD_SHUTDOWN_FAILED':      (0x08,'Board-level shutdown failed'),
-                     'BOARD_PROGRAMMING_FAILED':   (0x04,'Board programming failed'),
-                     'BOARD_CONFIGURATION_FAILED': (0x05,'Board configuration failed'),
-                     'SERVER_STARTUP_FAILED':      (0x09,'Server startup failed'),
-                     'SERVER_SHUTDOWN_FAILED':     (0x0A,'Server shutdown failed'), 
-                     'PIPELINE_STARTUP_FAILED':    (0x0B,'Pipeline startup failed'),
-                     'SNAP2_CALIBRATION_FAILED':   (0x0C,'ADC calibration failed'),
-                     'SNAP2_INTERNAL_ERROR':       (0x0D,'Internal SNAP2 error condition'),
-                     'PIPLINE_PROCESSING_ERROR':   (0x0E,'Pipeline processing error'),
-                     'OTHER_INTERAL_ERROR':        (0x0F,'Other internal error')}
+        state_map = {'INVALID_SYSTEM_CONFIGURATION': (0x01,'Invalid configuration file values'),
+                     'BOARD_SHUTDOWN_FAILED':        (0x08,'Board-level shutdown failed'),
+                     'BOARD_PROGRAMMING_FAILED':     (0x04,'Board programming failed'),
+                     'BOARD_CONFIGURATION_FAILED':   (0x05,'Board configuration failed'),
+                     'SERVER_STARTUP_FAILED':        (0x09,'Server startup failed'),
+                     'SERVER_SHUTDOWN_FAILED':       (0x0A,'Server shutdown failed'), 
+                     'PIPELINE_STARTUP_FAILED':      (0x0B,'Pipeline startup failed'),
+                     'SNAP2_CALIBRATION_FAILED':     (0x0C,'ADC calibration failed'),
+                     'SNAP2_INTERNAL_ERROR':         (0x0D,'Internal SNAP2 error condition'),
+                     'PIPLINE_PROCESSING_ERROR':     (0x0E,'Pipeline processing error'),
+                     'OTHER_INTERAL_ERROR':          (0x0F,'Other internal error')}
         code, msg = state_map[state]
         self.state['lastlog'] = '%s: Finished with error' % cmd
         self.state['status']  = 'ERROR'
@@ -1010,7 +1322,7 @@ class MsgProcessor(ConsumerThread):
         self.state['activeProcess'].pop()
         return code
         
-    def check_success(self, func, description, names):
+    def check_success(self, func, description, names, false_ok=True):
         self.state['info'] = description
         rets = func()
         #self.log.info("check_success rets: "+' '.join([str(r) for r in rets]))
@@ -1019,6 +1331,8 @@ class MsgProcessor(ConsumerThread):
             if isinstance(ret, Exception):
                 oks[i] = False
                 self.log.error("%s: %s" % (name, str(ret)))
+            elif (not false_ok) and (not ret):
+                oks[i] = False
         all_ok = all(oks)
         if not all_ok:
             symbols = ''.join(['.' if ok else 'x' for ok in oks])
@@ -1037,6 +1351,17 @@ class MsgProcessor(ConsumerThread):
         self.state['info']   = 'Running INI sequence'
         self.log.info("Running INI sequence")
         
+        # Basic config. validation
+        if not self.check_success(lambda: [self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'] \
+                                            == len(self.config['drx']),],
+                                  'Pipeline validation',
+                                  ['Valid configuation'], false_ok=False):
+            return self.raise_error_state('INI', 'INVALID_SYSTEM_CONFIGURATION')
+        if not self.check_success(lambda: [self.computed['NBOARD'] == len(self.fpgas),],
+                                  'FPGA validation',
+                                  ['Valid configuation'], false_ok=False):
+            return self.raise_error_state('INI', 'INVALID_SYSTEM_CONFIGURATION')
+            
         # Figure out if the servers are up or not
         if not all(self.servers.can_ssh()):
             ## Down, power them on
@@ -1845,7 +2170,7 @@ class MsgProcessor(ConsumerThread):
     def _get_next_fir_index(self):
         idx = self.fir_idx
         self.fir_idx += 1
-        self.fir_idx %= NINPUT
+        self.fir_idx %= self.computed['NINPUT']
         return idx
         
     def _get_fpga_config(self):
@@ -1918,9 +2243,11 @@ class MsgProcessor(ConsumerThread):
         if key == 'STAT_SAMPLE_SIZE':  return STAT_SAMP_SIZE
         if args[0] == 'ANT':
             inp = args[1]-1
-            if not (0 <= inp < NINPUT):
+            if not (0 <= inp < self.computed['NINPUT']):
                 raise ValueError("Unknown input number %i"%(inp+1))
-            board,stand,pol = input2boardstandpol(inp)
+            board,stand,pol = input2boardstandpol(inp,
+                                                  ninput_per_board=self.computed['NINPUT_PER_BOARD']
+                                                 )
             samples = self.fpgas[board].get_samples(slot, stand, pol,
                                                     STAT_SAMP_SIZE)
             # Convert from int8 --> float32 before reducing

@@ -15,16 +15,15 @@ CHAN_BW          = CLOCK / (2*NCHAN)
 NCHAN_GUARD      = 4
 NCHAN_SELECT_MAX = 1920 # 48 MHz ** TODO: Check what the pipeline limit is!
 NTUNING_MAX      = 32
-NBOARD           = 16
-NINPUT_PER_BOARD = 32
-NINPUT           = NBOARD*NINPUT_PER_BOARD
+#NBOARD           = 16                        # Now computed in Ndp.py
+#NINPUT_PER_BOARD = 32                        # Now computed in Ndp.py
+#NINPUT           = NBOARD*NINPUT_PER_BOARD   # Now computed in Ndp.py
 NPOL             = 2
-NSTAND           = NINPUT//NPOL
+#NSTAND           = NINPUT//NPOL              # Now computed in Ndp.py
 NBEAM            = 4
 NSUBSLOT_PER_SEC = 100
-#NPIPELINE        = 12
-NSERVER          = 4
-NPIPE_PER_SERVER = 4
+#NSERVER          = 4                         # Now computed in Ndp.py
+#NPIPE_PER_SERVER = 4                         # Now computed in Ndp.py
 STAT_SAMP_SIZE   = 512 # The ADC limit is 512 (TODO: Allow > via multiples)
 MAX_MSGS_PER_SEC = 20
 ADC_BITS         = 8
@@ -57,15 +56,15 @@ def firmware2ninput(filename):
         return 64
     return 0
 def firmware2nstand(filename):
-    return firmware2ninput // NPOL
+    return firmware2ninput(filename) // NPOL
 
 def input2standpol(i):
     stand = i // NPOL
     pol   = i % NPOL
     return stand, pol
-def input2boardstandpol(i):
-    board = i // NINPUT_PER_BOARD
-    i -= board*NINPUT_PER_BOARD
+def input2boardstandpol(i, ninput_per_board=16):
+    board = i // ninput_per_board
+    i -= board*ninput_per_board
     stand = i // NPOL
     i -= stand*NPOL
     pol = i
