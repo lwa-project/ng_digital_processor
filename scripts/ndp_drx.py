@@ -96,8 +96,10 @@ class CaptureOp(object):
         return 0
     def main(self):
         seq_callback = PacketCaptureCallback()
-        seq_callback.set_zcu102(self.seq_callback)
-        seq_callback.set_snap2(self.seq_callback)
+        if self.kwargs['fmt'] == 'zcu102':
+            seq_callback.set_zcu102(self.seq_callback)
+        elif self.kwargs['fmt'] == 'snap2':
+            seq_callback.set_snap2(self.seq_callback)
         with UDPCapture(*self.args,
                         sequence_callback=seq_callback,
                         **self.kwargs) as capture:
@@ -1667,6 +1669,7 @@ class PacketizeOp(object):
         if self.nchan_send == 0:
             raise RuntimeError("Cannot subdivide bandwidth")
         nstand, npol = nfpga*nstand_per_fpga, 2
+        self.loop_sleep = 0.007 * (256/nstand)**2
         
         # Output packet rate
         ## nchan_send + npol^2 -> samples per packet
@@ -1765,7 +1768,7 @@ class PacketizeOp(object):
                                 udt.send(desc[j], time_tag_cur, ticksPerFrame, i, 1, odata[j,[0],i:i+nsend,:])
                             i += nsend
                             npkt -= nsend
-                            time.sleep(0.007)
+                            time.sleep(self.loop_sleep)
                             
                         time_tag += ticksPerFrame
                         
@@ -1989,7 +1992,7 @@ def main(argv):
     
     ops.append(CaptureOp(log, fmt=fpga_format, sock=isock, ring=capture_ring,
                          nsrc=nsrc, nfpga=nfpga, nstand_per_fpga=nstand_per_fpga,
-                         src0=fpga0, max_payload_size=4500,
+                         src0=fpga0, max_payload_size=4500 if fpga_format == 'zcu102' else 6500,
                          buffer_ntime=GSIZE, slot_ntime=25000, core=cores.pop(0)))
     ops.append(BufferCopyOp(log, capture_ring, tbt_ring,
                             tuning=tuning, ntime_gulp=GSIZE, #ntime_buf=25000*tbt_buffer_secs,
