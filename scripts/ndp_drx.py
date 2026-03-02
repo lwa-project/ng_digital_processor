@@ -1939,6 +1939,8 @@ def main(argv):
     for taddr,tport in zip(taddrs, tports):
         log.info("TNG address:  %s:%i", taddr, tport)
     log.info("FPGAs:        %i-%i", fpga0+1, fpga0+nfpga)
+    log.info("FPGA Format:  %s", fpga_format)
+    log.info("Stands/FPGA:  %i", nstand_per_fpga)
     log.info("Tunings:      %i (of %i)", tuning+1, ntuning)
     log.info("CPUs:         %s", ' '.join([str(v) for v in cores]))
     log.info("GPUs:         %s", ' '.join([str(v) for v in gpus]))
