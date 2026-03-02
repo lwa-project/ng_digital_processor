@@ -2270,7 +2270,7 @@ class MsgProcessor(ConsumerThread):
                 spectra = spectra.astype(np.float32)
                 
                 checkname = t_now.strftime("%y%m%d_%H%M%S")
-                checkname = "/tmp/"+checkname+"_fpgaspecs.dat"
+                checkname = "/tmp/"+checkname+"_snapspecs.dat"
                 with open(checkname, 'wb') as fh:
                     fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
                     spectra.tofile(fh)
