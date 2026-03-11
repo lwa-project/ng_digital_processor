@@ -59,10 +59,10 @@ __status__     = "Development"
 _g_zmqctx      = zmq.Context()
 
 def wait_until_utc_sec(utcstr):
-    cur_time = datetime.datetime.utcnow().strftime(DATE_FORMAT)
+    cur_time = datetime.datetime.now(tz=datetime.timezone.utc).strftime(DATE_FORMAT)
     while cur_time != utcstr:
         time.sleep(0.01)
-        cur_time = datetime.datetime.utcnow().strftime(DATE_FORMAT)
+        cur_time = datetime.datetime.now(tz=datetime.timezone.utc).strftime(DATE_FORMAT)
 
 class SlotCommandProcessor(object):
     def __init__(self, cmd_code, cmd_parser, exec_delay=2):
@@ -1299,7 +1299,9 @@ class MsgProcessor(ConsumerThread):
         # Returns no. secs since data processing began (during INI)
         if self.utc_start is None:
             return 0
-        secs = (datetime.datetime.utcnow() - self.utc_start).total_seconds()
+        secs = (datetime.datetime.now(tz=datetime.timezone.utc) \
+                - datetime.datetime.fromtimestamp(self.utc_start / FS, tz=datetime.timezone.utc)
+               ).total_seconds()
         return secs
         
     def raise_error_state(self, cmd, state):
@@ -2263,7 +2265,7 @@ class MsgProcessor(ConsumerThread):
             if not acquired:
                 raise RuntimeError("HEALTH_CHECK already in progress")
             try:
-                t_now = datetime.datetime.utcnow()
+                t_now = datetime.datetime.now(tz=datetime.timezone.utc)
                 spectra = self.fpgas.get_spectra()
                 spectra = np.array(list(spectra))
                 spectra = spectra.reshape(-1, spectra.shape[-1])

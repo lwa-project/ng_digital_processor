@@ -29,8 +29,8 @@ MAX_MSGS_PER_SEC = 20
 ADC_BITS         = 8
 ADC_MAXVAL       = (1<<(ADC_BITS-1))-1
 DATE_FORMAT      = "%Y_%m_%dT%H_%M_%S"
-NDP_EPOCH        = datetime.datetime(1970, 1, 1)
-M5C_EPOCH        = datetime.datetime(1990, 1, 1)
+NDP_EPOCH        = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+M5C_EPOCH        = datetime.datetime(1990, 1, 1, tzinfo=datetime.timezone.utc)
 #M5C_OFFSET = int((M5C_EPOCH - NDP_EPOCH).total_seconds())
 M5C_OFFSET = 0 # LWA convention re-defines this to use the 1970 epoch too
 DRX_NSAMPLE_PER_PKT = 4096

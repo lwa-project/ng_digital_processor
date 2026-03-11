@@ -630,7 +630,7 @@ class PowerLineFlaggerOp(object):
                 except NameError:
                     pass
 
-def get_time_tag(dt=datetime.datetime.utcnow(), seq_offset=0):
+def get_time_tag(dt=datetime.datetime.now(tz=datetime.timezone.utc), seq_offset=0):
     timestamp = int((dt - NDP_EPOCH).total_seconds())
     time_tag  = timestamp*int(FS) + seq_offset*(int(FS)//int(CHAN_BW))
     return time_tag
@@ -710,7 +710,7 @@ class TriggeredDumpOp(object):
             time_offset_us = int(round((time_offset-time_offset_s)*1e6))
             time_offset    = datetime.timedelta(seconds=time_offset_s, microseconds=time_offset_us)
             
-            utc_now = datetime.datetime.utcnow()
+            utc_now = datetime.datetime.now(tz=datetime.timezone.utc)
             dump_time_tag = get_time_tag(utc_now + time_offset)
         #print("********* dump_time_tag =", dump_time_tag)
         #time.sleep(3)
@@ -727,7 +727,7 @@ class TriggeredDumpOp(object):
                 max_bytes_per_sec = 104857600 # Limit to 100 MB/s
                 speed_factor = 1
                 
-        print("TBT DUMPING %f secs at time_tag = %i (%s)%s" % (samples/FS, dump_time_tag, datetime.datetime.utcfromtimestamp(dump_time_tag/FS), (' locally' if local else '')))
+        print("TBT DUMPING %f secs at time_tag = %i (%s)%s" % (samples/FS, dump_time_tag, datetime.datetime.fromtimestamp(dump_time_tag/FS, tz=datetime.timezone.utc), (' locally' if local else '')))
         if not local:
             self.tbxLock.set()
         with self.iring.open_sequence_at(dump_time_tag, guarantee=True) as iseq:
@@ -1885,7 +1885,7 @@ def main(argv):
         
     log.info('Waiting to get correlator UTC_START timetag')
     utc_start_tt = get_utc_start(shutdown_event)
-    utc_start_dt = datetime.datetime.utcfromtimestamp(utc_start_tt/FS)
+    utc_start_dt = datetime.datetime.fromtimestamp(utc_start_tt/FS, tz=datetime.timezone.utc)
     log.info("UTC_START: %i = %s", utc_start_tt, utc_start_dt.strftime(DATE_FORMAT))
     
     hostname = socket.gethostname()
