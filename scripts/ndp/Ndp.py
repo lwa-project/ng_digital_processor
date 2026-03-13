@@ -707,74 +707,76 @@ class ZCU102MonitorClient(object):
                     pass
         return status
         
-    def configure(self, requested_start_chan0=None):
+    def configure(self, requested_start_chan0=None, update_config=True):
         # Configure the FPGA and start data flowing
-        
-        ## Configuration
-        ### Overall structure + base F-engine config.
-        sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
-                              'fft_shift': self.config['fpga']['fft_shift'],
-                              'chans_per_packet': self.config['fpga']['nchan_packet'],
-                              'adc_clocksource': 0},
-                 'xengines': {'arp': {},
-                              'chans': {}}}
-                 
-        ### Toggle FFT shift schedule on/off
-        if sconf['fengines']['fft_shift'] in ('', 0):
-            del sconf['fengines']['fft_shift']
-            
-        ### Equalizer coefficints (global)
-        if self.equalizer_coeffs is not None:
-            sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
-            
-        ### Antenna and IP source
-        for i,zcu in enumerate(self.config['host']['fpgas']):
-            sconf['fengines'][zcu] = {}
-            sconf['fengines'][zcu]['ants'] = f"[{i*16}, {(i+1)*16}]"
-            sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
-            sconf['fengines'][zcu]['source_port'] = self.config['fpga']['data_port_base']
-            
-        ### X-engine MAC addresses
-        macs = load_ethers()
-        for ip,mac in macs.items():
-            sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
-            
-        ### X-engine channel mapping
-        #### Pass 1 - Find the lowest start channel in the config. file
-        i = 0
-        start_chan0 = NCHAN*2
-        for host in self.config['host']['servers-data']:
-            if i >= len(self.config['drx']):
-                break
-            ip = host2ip(host)
-            chan0 = self.config['drx'][i]['first_channel']
-            if chan0 < start_chan0:
-                start_chan0 = chan0
-            i += 1
-        #### Pass 2 - Figure out the new channel mapping
-        if requested_start_chan0 is None:
-            requested_start_chan0 = start_chan0
-        #### Pass 3 - Make it happen
-        i = 0
-        for host in self.config['host']['servers-data']:
-            if i >= len(self.config['drx']):
-                break
-            ip = host2ip(host)
-            chan0 = self.config['drx'][i]['first_channel']
-            nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = self.config['server']['data_ports'][i % self.npipe_per_server]
-            
-            chan0 = chan0 - start_chan0 + requested_start_chan0
-            
-            sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
-            i += 1
-            
-        ### Save
-        sconf = yaml.dump(sconf)
+
         configname = '/tmp/zcu_config.yaml'
-        with open(configname, 'w') as fh:
-            fh.write(sconf.replace("'", ''))
-            
+
+        if update_config or not os.path.exists(configname):
+            ## Configuration
+            ### Overall structure + base F-engine config.
+            sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
+                                  'fft_shift': self.config['fpga']['fft_shift'],
+                                  'chans_per_packet': self.config['fpga']['nchan_packet'],
+                                  'adc_clocksource': 0},
+                     'xengines': {'arp': {},
+                                  'chans': {}}}
+
+            ### Toggle FFT shift schedule on/off
+            if sconf['fengines']['fft_shift'] in ('', 0):
+                del sconf['fengines']['fft_shift']
+
+            ### Equalizer coefficints (global)
+            if self.equalizer_coeffs is not None:
+                sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
+
+            ### Antenna and IP source
+            for i,zcu in enumerate(self.config['host']['fpgas']):
+                sconf['fengines'][zcu] = {}
+                sconf['fengines'][zcu]['ants'] = f"[{i*16}, {(i+1)*16}]"
+                sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
+                sconf['fengines'][zcu]['source_port'] = self.config['fpga']['data_port_base']
+
+            ### X-engine MAC addresses
+            macs = load_ethers()
+            for ip,mac in macs.items():
+                sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
+
+            ### X-engine channel mapping
+            #### Pass 1 - Find the lowest start channel in the config. file
+            i = 0
+            start_chan0 = NCHAN*2
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                if chan0 < start_chan0:
+                    start_chan0 = chan0
+                i += 1
+            #### Pass 2 - Figure out the new channel mapping
+            if requested_start_chan0 is None:
+                requested_start_chan0 = start_chan0
+            #### Pass 3 - Make it happen
+            i = 0
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
+                port = self.config['server']['data_ports'][i % self.npipe_per_server]
+
+                chan0 = chan0 - start_chan0 + requested_start_chan0
+
+                sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
+                i += 1
+
+            ### Save
+            sconf = yaml.dump(sconf)
+            with open(configname, 'w') as fh:
+                fh.write(sconf.replace("'", ''))
+
         # Go!
         success = False
         with self.access_lock:
@@ -1016,74 +1018,76 @@ class Snap2MonitorClient(object):
                     pass
         return status
         
-    def configure(self, requested_start_chan0=None):
+    def configure(self, requested_start_chan0=None, update_config=True):
         # Configure the FPGA and start data flowing
-        
-        ## Configuration
-        ### Overall structure + base F-engine config.
-        sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
-                              'fft_shift': self.config['fpga']['fft_shift'],
-                              'chans_per_packet': self.config['fpga']['nchan_packet'],
-                              'adc_clocksource': 0},
-                 'xengines': {'arp': {},
-                              'chans': {}}}
-                 
-        ### Toggle FFT shift schedule on/off
-        if sconf['fengines']['fft_shift'] in ('', 0):
-            del sconf['fengines']['fft_shift']
-            
-        ### Equalizer coefficints (global)
-        if self.equalizer_coeffs is not None:
-            sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
-            
-        ### Antenna and IP source
-        for i,snap in enumerate(self.config['host']['fpgas']):
-            sconf['fengines'][snap] = {}
-            sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
-            sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
-            sconf['fengines'][snap]['source_port'] = self.config['fpga']['data_port_base']
-            
-        ### X-engine MAC addresses
-        macs = load_ethers()
-        for ip,mac in macs.items():
-            sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
-            
-        ### X-engine channel mapping
-        #### Pass 1 - Find the lowest start channel in the config. file
-        i = 0
-        start_chan0 = NCHAN*2
-        for host in self.config['host']['servers-data']:
-            if i >= len(self.config['drx']):
-                break
-            ip = host2ip(host)
-            chan0 = self.config['drx'][i]['first_channel']
-            if chan0 < start_chan0:
-                start_chan0 = chan0
-            i += 1
-        #### Pass 2 - Figure out the new channel mapping
-        if requested_start_chan0 is None:
-            requested_start_chan0 = start_chan0
-        #### Pass 3 - Make it happen
-        i = 0
-        for host in self.config['host']['servers-data']:
-            if i >= len(self.config['drx']):
-                break
-            ip = host2ip(host)
-            chan0 = self.config['drx'][i]['first_channel']
-            nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = self.config['server']['data_ports'][i]
-            
-            chan0 = chan0 - start_chan0 + requested_start_chan0
-            
-            sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
-            i += 1
-            
-        ### Save
-        sconf = yaml.dump(sconf)
+
         configname = '/tmp/snap_config.yaml'
-        with open(configname, 'w') as fh:
-            fh.write(sconf.replace("'", ''))
-            
+
+        if update_config or not os.path.exists(configname):
+            ## Configuration
+            ### Overall structure + base F-engine config.
+            sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
+                                  'fft_shift': self.config['fpga']['fft_shift'],
+                                  'chans_per_packet': self.config['fpga']['nchan_packet'],
+                                  'adc_clocksource': 0},
+                     'xengines': {'arp': {},
+                                  'chans': {}}}
+
+            ### Toggle FFT shift schedule on/off
+            if sconf['fengines']['fft_shift'] in ('', 0):
+                del sconf['fengines']['fft_shift']
+
+            ### Equalizer coefficints (global)
+            if self.equalizer_coeffs is not None:
+                sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
+
+            ### Antenna and IP source
+            for i,snap in enumerate(self.config['host']['fpgas']):
+                sconf['fengines'][snap] = {}
+                sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
+                sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
+                sconf['fengines'][snap]['source_port'] = self.config['fpga']['data_port_base']
+
+            ### X-engine MAC addresses
+            macs = load_ethers()
+            for ip,mac in macs.items():
+                sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
+
+            ### X-engine channel mapping
+            #### Pass 1 - Find the lowest start channel in the config. file
+            i = 0
+            start_chan0 = NCHAN*2
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                if chan0 < start_chan0:
+                    start_chan0 = chan0
+                i += 1
+            #### Pass 2 - Figure out the new channel mapping
+            if requested_start_chan0 is None:
+                requested_start_chan0 = start_chan0
+            #### Pass 3 - Make it happen
+            i = 0
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
+                port = self.config['server']['data_ports'][i]
+
+                chan0 = chan0 - start_chan0 + requested_start_chan0
+
+                sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
+                i += 1
+
+            ### Save
+            sconf = yaml.dump(sconf)
+            with open(configname, 'w') as fh:
+                fh.write(sconf.replace("'", ''))
+
         # Go!
         success = False
         with self.access_lock:
@@ -1480,7 +1484,7 @@ class MsgProcessor(ConsumerThread):
                                   self._head_fpgas.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: self._rest_fpgas.configure(requested_start_chan0=requested_start_chan0),
+        if not self.check_success(lambda: self._rest_fpgas.configure(requested_start_chan0=requested_start_chan0, update_config=False),
                                   'Configuring remaining FPGAs',
                                   self._rest_fpgas.host):
             if 'FORCE' not in arg:

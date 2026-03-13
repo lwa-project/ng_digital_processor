@@ -145,12 +145,14 @@ class ObjectPool(list):
               objs2.val = [-1, -2, -3]
               print(objs2.val       # --> [-1, -2, -3])
     """
-    def __init__(self, objs=[], future_pool=None):
+    def __init__(self, objs=[], future_pool=None, future_pool_size=-1):
         list.__init__(self, objs)
         if future_pool is not None:
             list.__setattr__(self, 'future_pool', future_pool)
         else:
-            list.__setattr__(self, 'future_pool', FuturePool(len(self)))
+            if future_pool_size <= 0:
+                future_pool_size = len(self)
+            list.__setattr__(self, 'future_pool', FuturePool(future_pool_size))
     def __getattr__(self, item):
         for obj in self:
             if not hasattr(obj, item):
