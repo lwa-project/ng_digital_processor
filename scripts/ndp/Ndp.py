@@ -575,7 +575,8 @@ class ZCU102MonitorClient(object):
                 password = self.config['fpga']['password']
                 self._zcu   = zcu102_fengine.ZCU102Fengine(self.host,
                                                            username=username,
-                                                           password=password)
+                                                           password=password,
+                                                           logger=self.log)
             except Exception as e:
                 self._zcu = None
                 self.log.error("Cannot connect to %s: %s", self.host, str(e))
@@ -892,7 +893,8 @@ class Snap2MonitorClient(object):
         """Helper to keep a missing board from killing everything at startup"""
         if getattr(self, '_snap', None) is None:
             try:
-                self._snap   = snap2_fengine.Snap2Fengine(self.host)
+                self._snap   = snap2_fengine.Snap2Fengine(self.host,
+                                                          logger=self.log)
             except Exception as e:
                 self._snap = None
                 self.log.error("Cannot connect to %s: %s", self.host, str(e))
