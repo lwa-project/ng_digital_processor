@@ -15,9 +15,9 @@ def print_synth(synth, which):
     print("  RF enabled:  ", synth.get_valon_rf_enabled(which))
     try:
         sdn = synth.get_valon_spur_mode(which)
-        print("  Spur mode:  ", sdn.name)
+        print("  Spur mode:   ", sdn.name)
     except RuntimeError:
-         print("  Spur mode:  ", "unknown")
+        print("  Spur mode:   ", "unknown")
 
 if __name__ == "__main__":
     import sys
