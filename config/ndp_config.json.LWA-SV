@@ -171,7 +171,7 @@
         "fft_shift":            8191,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer.txt",
         "bypass_pfb":           false,
-        "nchan_packet":         112,
+        "nchan_packet":         96,
         "temperatures":         ["ambient", "ppc", "fpga", "inlet", "outlet"],
         "temperature_warning":  80.0,
         "temperature_shutdown": 85.0,
