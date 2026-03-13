@@ -249,7 +249,7 @@
         "cpu_ids":         [0, 1],
         "gpu_ids":         [0, 1],
         "disk_ids":        ["/"],
-        "data_ports":      [10000, 10000, 10000, 10000],
+        "data_ports":      [10000, 10000, 11000, 11000],
         "data_ifaces":     ["ens1np0", "ens8np0", "ens1np0", "ens8np0"],
         "startup_timeout": 240,
         "temperatures": ["P0_Tctl_Value",  "P1_Tctl_Value",
