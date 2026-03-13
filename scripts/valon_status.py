@@ -13,11 +13,8 @@ def print_synth(synth, which):
     print("  Freq:        ", synth.get_valon_freq(which), "MHz")
     print("  Phase locked:", synth.get_valon_lock(which))
     print("  RF enabled:  ", synth.get_valon_rf_enabled(which))
-    try:
-        sdn = synth.get_valon_spur_mode(which)
-        print("  Spur mode:   ", sdn.name)
-    except RuntimeError:
-        print("  Spur mode:   ", "unknown")
+    sdn = synth.get_valon_spur_mode(which)
+    print("  Spur mode:   ", sdn.name)
 
 if __name__ == "__main__":
     import sys
