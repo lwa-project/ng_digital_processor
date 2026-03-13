@@ -136,7 +136,7 @@ if [[ $nfailed == 0 ]]; then
 	echo "  OK"
 fi
 
-mods=("numpy" "scipy" "simplejson" "ctypesgen" "zmq" "lwa_f" "yaml" "progressbar" "termcolor" "bifrost" "serial")
+mods=("numpy" "scipy" "simplejson" "ctypesgen" "zmq" "lwa_f" "yaml" "progressbar" "termcolor" "graphviz" "pint" "bifrost" "serial")
 
 echo "Testing for Python modules"
 nfailed=0
@@ -154,7 +154,22 @@ if [[ $nfailed == 0 ]]; then
 fi
 
 
-# Part 5 - systemd logind changes
+# Part 5 - bifrost's mapcache dir
+
+echo "Testing bifrost's mapcache dir in /opt/.bifrost"
+nfailed=0
+for sname in ${snames}; do
+  found=$(timeout 10 ssh ndp@${sname} "ls -l /opt/.bifrost | grep ndp")
+  if [[ $? != 0 ]]; then
+    nfailed=$((nfailed + 1))
+    echo "  /opt/.bifrost not created or owned by 'ndp' on ${sname}"
+  fi
+done
+if [[ $nfailed == 0 ]]; then
+  echo "  OK"
+fi
+
+# Part 6 - systemd logind changes
 
 echo "Testing systemd's logind options"
 nfailed=0
