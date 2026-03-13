@@ -323,10 +323,13 @@ class TimingMonitor:
         resp = self._valon_command(b'sdn?')
         resp = resp.decode()
         
-        _mod = re.compile(r'SDN (?P<mode>\d+);')
+        _mod = re.compile(r'SDN (?P<mode>(\d+|L[NS][12]));')
         mtch = _mod.search(resp)
         if mtch is not None:
-            resp = ValonSpurModes(int(mtch.group('mode'), 10))
+            mode = mtch.group('mode')
+            mode = mode.replace('LN1', '0').replace('LN2', '1')
+            mode = mode.replace('LS1', '2').replace('LS2', '3')
+            resp = ValonSpurModes(int(mode, 10))
         else:
             raise RuntimeError(f"Failed to determine spur mitigation mode for source {source}")
         return resp
