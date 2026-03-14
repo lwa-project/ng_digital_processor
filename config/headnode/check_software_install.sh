@@ -183,3 +183,26 @@ done
 if [[ $nfailed == 0 ]]; then
   echo "  OK"
 fi
+
+# Part 7 - Kernel mitigations disabled on compute nodes
+
+echo "Testing kernel mitigations on compute nodes"
+nwarned=0
+for sname in ${snames}; do
+  if [[ "${sname}" == "ndp0" ]]; then
+    continue
+  fi
+  cmdline=$(timeout 10 ssh ndp@${sname} "cat /proc/cmdline")
+  if [[ $? != 0 ]]; then
+    nwarned=$((nwarned + 1))
+    echo "  WARNING: Cannot read /proc/cmdline on ${sname}"
+  else
+    if ! echo "${cmdline}" | grep -q "mitigations=off"; then
+      nwarned=$((nwarned + 1))
+      echo "  WARNING: Kernel mitigations are not disabled on ${sname}"
+    fi
+  fi
+done
+if [[ $nwarned == 0 ]]; then
+  echo "  OK"
+fi

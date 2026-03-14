@@ -157,7 +157,29 @@ done
 if [[ ${nfailed} == 0 ]]; then
         echo "  OK"
 fi
-        
+echo "Checking /etc/ethers on headnode"
+nfailed=0
+if [[ ! -f /etc/ethers ]]; then
+        nfailed=$((nfailed + 1))
+        echo "  /etc/ethers does not exist"
+else
+        scriptdir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+        expected=$(bash "${scriptdir}/gather_ethers.sh" "${filename}" 2>/dev/null | sort)
+        if [[ $? != 0 || -z "${expected}" ]]; then
+                echo "  WARNING: Could not generate expected ethers (nodes may be down or interfaces misconfigured)"
+        else
+                actual=$(sort /etc/ethers | grep -v '^$')
+                if [[ "${expected}" != "${actual}" ]]; then
+                        nfailed=$((nfailed + 1))
+                        echo "  /etc/ethers does not match expected contents from gather_ethers.sh"
+                        diff <(echo "${actual}") <(echo "${expected}") | sed 's/^/    /'
+                fi
+        fi
+fi
+if [[ ${nfailed} == 0 ]]; then
+        echo "  OK"
+fi
+
 # Part 2 - The IPMI interfaces
 
 snames=$(grep ndp ${filename} | grep ipmi | awk '{print $2}' | sort)
