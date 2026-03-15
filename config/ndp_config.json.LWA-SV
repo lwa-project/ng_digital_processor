@@ -40,7 +40,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [0, 2, 3, 4, 5, 6],
+                "cpus":              [0, 1, 2, 2, 3, 3],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -52,7 +52,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [8, 10, 11, 12, 13, 14],
+                "cpus":              [8, 9, 10, 10, 11, 11],
                 "gpus":              [1],
                 "powerline_flagger": true
             },
@@ -64,7 +64,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [1, 2, 3, 4, 5, 6],
+                "cpus":              [4, 5, 6, 6, 7, 7],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -76,7 +76,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [9, 10, 11, 12, 13, 14],
+                "cpus":              [12, 13, 14, 14, 15, 15],
                 "gpus":              [1],
                 "powerline_flagger": true
             },
@@ -88,7 +88,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [0, 2, 3, 4, 5, 6],
+                "cpus":              [0, 1, 2, 2, 3, 3],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -100,7 +100,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [8, 10, 11, 12, 13, 14],
+                "cpus":              [8, 9, 10, 10, 11, 11],
                 "gpus":              [1],
                 "powerline_flagger": true
             },
@@ -112,7 +112,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [1, 2, 3, 4, 5, 6],
+                "cpus":              [4, 5, 6, 6, 7, 7],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -124,7 +124,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [9, 10, 11, 12, 13, 14],
+                "cpus":              [12, 13, 14, 14, 15, 15],
                 "gpus":              [1],
                 "powerline_flagger": true
             },
@@ -136,7 +136,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [0, 2, 3, 4, 5, 6],
+                "cpus":              [0, 1, 2, 2, 3, 3],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -148,7 +148,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [8, 10, 11, 12, 13, 14],
+                "cpus":              [8, 9, 10, 10, 11, 11],
                 "gpus":              [1],
                 "powerline_flagger": true
             },
@@ -160,7 +160,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [1, 2, 3, 4, 5, 6],
+                "cpus":              [4, 5, 6, 6, 7, 7],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -172,7 +172,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [9, 10, 11, 12, 13, 14],
+                "cpus":              [12, 13, 14, 14, 15, 15],
                 "gpus":              [1],
                 "powerline_flagger": true
             },
@@ -184,7 +184,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [0, 2, 3, 4, 5, 6],
+                "cpus":              [0, 1, 2, 2, 3, 3],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -196,7 +196,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [8, 10, 11, 12, 13, 14],
+                "cpus":              [8, 9, 10, 10, 11, 11],
                 "gpus":              [1],
                 "powerline_flagger": true
             },
@@ -208,7 +208,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [1, 2, 3, 4, 5, 6],
+                "cpus":              [4, 5, 6, 6, 7, 7],
                 "gpus":              [0],
                 "powerline_flagger": true
             },
@@ -220,7 +220,7 @@
                 "tengine_idx":       [0, 1, 2, 3],
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
-                "cpus":              [9, 10, 11, 12, 13, 14],
+                "cpus":              [12, 13, 14, 14, 15, 15],
                 "gpus":              [1],
                 "powerline_flagger": true
             }
@@ -279,28 +279,28 @@
                 {
                     "pipeline_idx":      0,
                     "recorder_idx":      0,
-                    "cpus":              [0, 1, 2, 3, 4],
+                    "cpus":              [0, 2, 2, 3, 3],
                     "gpus":              [0],
                     "pfb_inverter":      true
                 },
                 {
                     "pipeline_idx":      1,
                     "recorder_idx":      1,
-                    "cpus":              [8, 9, 10, 11, 12],
+                    "cpus":              [8, 10, 10, 11, 11],
                     "gpus":              [1],
                     "pfb_inverter":      true
                 },
                 {
                     "pipeline_idx":      2,
                     "recorder_idx":      2,
-                    "cpus":              [5, 6, 7, 1, 2],
+                    "cpus":              [4, 5, 5, 6, 6],
                     "gpus":              [0],
                     "pfb_inverter":      true
                 },
                 {
                     "pipeline_idx":      3,
                     "recorder_idx":      3,
-                    "cpus":              [13, 14, 15, 9, 10],
+                    "cpus":              [12, 14, 14, 15, 15],
                     "gpus":              [1],
                     "pfb_inverter":      true
                 }
