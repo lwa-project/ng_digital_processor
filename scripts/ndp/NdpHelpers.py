@@ -6,24 +6,6 @@ from .NdpConfig import parse_config_file
 from .NdpCommon import compute_constants
 
 
-def pipeline_setup(config_file, server, pipeline):
-    """
-    Compute and print shell-evaluable pipeline configuration for use
-    in systemd service files.
-    """
-
-    config = parse_config_file(config_file)
-    computed = compute_constants(config)
-    npipe = computed['NPIPE_PER_SERVER']
-
-    print(f"npipe={npipe}")
-    if pipeline < npipe:
-        tuning = (server - 1) * npipe + pipeline
-        binding = cores_to_numa_binding(config['drx'][tuning]['cpus'])
-        print(f"tuning={tuning}")
-        print(f"binding={binding}")
-
-
 def cores_to_numa_binding(cores):
     """
     Given a list of core numbers, return a string suitable for passing to
@@ -54,3 +36,21 @@ def cores_to_numa_binding(cores):
             binding += f"{ns[0]}-{ns[1]},"
     binding = binding[:-1]
     return binding
+
+
+def pipeline_setup(config_file, server, pipeline):
+    """
+    Compute and print shell-evaluable pipeline configuration for use
+    in systemd service files.
+    """
+
+    config = parse_config_file(config_file)
+    computed = compute_constants(config)
+    npipe = computed['NPIPE_PER_SERVER']
+
+    print(f"npipe={npipe}")
+    if pipeline < npipe:
+        tuning = (server - 1) * npipe + pipeline
+        binding = cores_to_numa_binding(config['drx'][tuning]['cpus'])
+        print(f"tuning={tuning}")
+        print(f"binding={binding}")
