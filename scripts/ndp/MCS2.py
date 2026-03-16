@@ -7,7 +7,7 @@ def data_to_hex(data):
             
 import queue
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import socket
 from .ConsumerThread import ConsumerThread
 from .SocketThread import UDPRecvThread
@@ -26,7 +26,7 @@ def get_current_slot():
     return int(time.time())
 def get_current_mpm():
     # Returns current milliseconds past midnight as an integer
-    dt = datetime.utcnow()
+    dt = datetime.now(tz=timezone.utc)
     ms = int(dt.microsecond / 1000.)
     return ((dt.hour*60 + dt.minute)*60 + dt.second)*1000 + ms
 def slot2utc(slot=None):
