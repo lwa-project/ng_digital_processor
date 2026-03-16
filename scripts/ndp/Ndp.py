@@ -1562,59 +1562,57 @@ class MsgProcessor(ConsumerThread):
             self.state['activeProcess'].pop()
         else:
             if 'RESTART' in arg:
-                def soft_reboot():
-                    self.log.info('Shutting down servers')
-                    if exception_in(self.servers.do_power('soft')):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming FPGAs')
-                    if exception_in(self.fpgas.unprogram(do_reboot)):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
-                    self.log.info('Waiting for servers to power off')
-                    try:
-                        self._wait_until_servers_power('off', max_wait=180)
-                    except RuntimeError:
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Powering on servers')
-                    if exception_in(self.servers.do_power('on')):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
-                    self.log.info('Waiting for servers to power on')
-                    try:
-                        self._wait_until_servers_power('on')
-                    except RuntimeError:
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
-                    self.log.info("SHT RESTART finished in %.3f s", time.time() - start_time)
-                    self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
-                    self.state['status']  = 'SHUTDWN'
-                    self.state['info']    = 'System has been shut down'
-                    self.state['activeProcess'].pop()
-                self.thread_pool.add_task(soft_reboot)
+                self.log.info('Shutting down servers')
+                if exception_in(self.servers.do_power('soft')):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info('Unprogramming FPGAs')
+                if exception_in(self.fpgas.unprogram(do_reboot)):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
+                self.log.info('Waiting for servers to power off')
+                try:
+                    self._wait_until_servers_power('off', max_wait=240)
+                except RuntimeError:
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info('Powering on servers')
+                if exception_in(self.servers.do_power('on')):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
+                self.log.info('Waiting for servers to power on')
+                try:
+                    self._wait_until_servers_power('on')
+                except RuntimeError:
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
+                self.log.info("SHT RESTART finished in %.3f s", time.time() - start_time)
+                self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
+                self.state['status']  = 'SHUTDWN'
+                self.state['info']    = 'System has been shut down'
+                self.state['activeProcess'].pop()
+                
             else:
-                def soft_power_off():
-                    self.log.info('Shutting down servers')
-                    if exception_in(self.servers.do_power('soft')):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming FPGAs')
-                    if exception_in(self.fpgas.unprogram(do_reboot)):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
-                    self.log.info('Waiting for servers to power off')
-                    try:
-                        self._wait_until_servers_power('off', max_wait=180)
-                    except RuntimeError:
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info("SHT finished in %.3f s", time.time() - start_time)
-                    self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
-                    self.state['status']  = 'SHUTDWN'
-                    self.state['info']    = 'System has been shut down'
-                    self.state['activeProcess'].pop()
-                self.thread_pool.add_task(soft_power_off)
+                self.log.info('Shutting down servers')
+                if exception_in(self.servers.do_power('soft')):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info('Unprogramming FPGAs')
+                if exception_in(self.fpgas.unprogram(do_reboot)):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
+                self.log.info('Waiting for servers to power off')
+                try:
+                    self._wait_until_servers_power('off', max_wait=240)
+                except RuntimeError:
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info("SHT finished in %.3f s", time.time() - start_time)
+                self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
+                self.state['status']  = 'SHUTDWN'
+                self.state['info']    = 'System has been shut down'
+                self.state['activeProcess'].pop()
+                
         return 0
         
     def _wait_until_servers_power(self, target_state, max_wait=60):
