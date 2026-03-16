@@ -71,11 +71,9 @@ from ndp import MCS2, Ndp
 
 import signal
 import logging
-from logging.handlers import QueueHandler, QueueListener
 import time
 import os
 import argparse
-from queue import Queue
 from threading import Event
 
 __version__    = "0.2"
@@ -122,11 +120,7 @@ def main(argv):
 	else:
 		logHandler = Ndp.NdpFileHandler(config, args.logfile)
 	logHandler.setFormatter(logFormat)
-	logQueue = Queue(-1)
-	logQueueHandler = QueueHandler(logQueue)
-	logQueueListener = QueueListener(logQueue, logHandler, respect_handler_level=True)
-	logQueueListener.start()
-	log.addHandler(logQueueHandler)
+	log.addHandler(logHandler)
 	verbosity = args.verbose - args.quiet
 	if   verbosity >  0: log.setLevel(logging.DEBUG)
 	elif verbosity == 0: log.setLevel(logging.INFO)
@@ -210,7 +204,6 @@ def main(argv):
 			            " and will be killed" % name)#service.name)
 	
 	log.info("All done, exiting")
-	logQueueListener.stop()
 	return 0
 
 
