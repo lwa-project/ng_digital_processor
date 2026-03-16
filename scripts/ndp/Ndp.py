@@ -562,9 +562,9 @@ class ZCU102MonitorClient(object):
             
         self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
         
-        self.nserver = len(self.config['host']['servers'])
-        self.npipe_per_server = len(self.config['host']['servers-data']) \
-                                 // self.nserver
+        computed = compute_constants(self.config)
+        self.nserver = computed['NSERVER']
+        self.npipe_per_server = computed['NPIPE_PER_SERVER']
         
     @property
     def zcu(self):
@@ -884,9 +884,9 @@ class Snap2MonitorClient(object):
             
         self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
         
-        self.nserver = len(self.config['host']['servers'])
-        self.npipe_per_server = len(self.config['host']['servers-data']) \
-                                 // self.nserver
+        computed = compute_constants(self.config)
+        self.nserver = computed['NSERVER']
+        self.npipe_per_server = computed['NPIPE_PER_SERVER']
         
     @property
     def snap(self):
@@ -1192,14 +1192,7 @@ class MsgProcessor(ConsumerThread):
         self.utc_start     = None
         self.utc_start_str = "NULL"
         
-        self.computed = {}
-        self.computed['NBOARD'] = len(self.config['host']['fpgas'])
-        self.computed['NINPUT_PER_BOARD'] = firmware2ninput(self.config['fpga']['firmware'])
-        self.computed['NINPUT'] = self.computed['NBOARD'] * self.computed['NINPUT_PER_BOARD']
-        self.computed['NSTAND'] = self.computed['NINPUT'] // NPOL
-        self.computed['NSERVER'] = len(self.config['host']['servers'])
-        self.computed['NPIPE_PER_SERVER'] = len(self.config['host']['servers-data']) \
-                                             // self.computed['NSERVER']
+        self.computed = compute_constants(self.config)
         
         self.messageServer = ISC.PipelineMessageServer(addr=('ndp',5832))
         

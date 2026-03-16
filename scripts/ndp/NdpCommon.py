@@ -3,7 +3,6 @@ import os
 import sys
 import numpy as np
 import datetime
-
 SUBSYSTEM        = "NDP"
 FS               = 196.0e6
 CLOCK            = 196.0e6
@@ -96,6 +95,23 @@ def get_freq_domain_filter(fir_coefs):
     weights = weights[...,:-1]
     # weights: [..., chan] complex64
     return weights
+
+
+def compute_constants(config):
+    """
+    Helper function to deal with how we abstract away differences in the FPGA
+    board (SNAP2 vs ZCU102) and server/pipeline setup.
+    """
+    
+    computed = {}
+    computed['NBOARD'] = len(config['host']['fpgas'])
+    computed['NINPUT_PER_BOARD'] = firmware2ninput(config['fpga']['firmware'])
+    computed['NINPUT'] = computed['NBOARD'] * computed['NINPUT_PER_BOARD']
+    computed['NSTAND'] = computed['NINPUT'] // NPOL
+    computed['NSERVER'] = len(config['host']['servers'])
+    computed['NPIPE_PER_SERVER'] = len(config['host']['servers-data']) \
+                                    // computed['NSERVER']
+    return computed
 
 """
 This module is used to fork the current process into a daemon.
