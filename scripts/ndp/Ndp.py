@@ -10,6 +10,7 @@ from .SequenceDict import SequenceDict
 from .ThreadPool import ThreadPool
 from .ThreadPool import ObjectPool
 from .iptools    import *
+from .NdpFpga import get_lockfile as get_fpga_lockfile
 
 from . import ISC
 
@@ -44,6 +45,7 @@ import yaml
 import hashlib
 import os
 import re
+import sys
 
 __version__    = "0.3"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
@@ -560,7 +562,7 @@ class ZCU102MonitorClient(object):
         except Exception as e:
             self.log.warning("Failed to load equalizer coefficients: %s", str(e))
             
-        self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
+        self.access_lock = FileLock(get_fpga_lockfile(self.host))
         
         computed = compute_constants(self.config)
         self.nserver = computed['NSERVER']
@@ -645,21 +647,24 @@ class ZCU102MonitorClient(object):
         
         # Go!
         success = False
-        with self.access_lock:
-            if self.zcu.is_connected():
-                for i in range(self.config['fpga']['max_program_attempts']):
-                    try:
-                        success = self.zcu.program(firmware)
-                        
-                        ## This (creating a new connection) seems to be necessary
-                        self._zcu = None
-                        
-                        success = self.zcu.program(firmware)
-                        
-                        break
-                    except Exception as e:
-                        pass
-                        
+        if self.zcu.is_connected():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
+                                           'program', self.host, firmware],
+                                          text=True)
+                    
+                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
+                                           'program', self.host, firmware],
+                                          text=True)
+                    success = True
+                    break
+                except Exception as e:
+                    pass
+                    
+        ## Force a new connection instance
+        self._zcu = None
+        
         return success
         
     def is_programmed(self):
@@ -786,29 +791,33 @@ class ZCU102MonitorClient(object):
 
         # Go!
         success = False
-        with self.access_lock:
-            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
-                for i in range(self.config['fpga']['max_program_attempts']):
-                    try:
-                        self.zcu.cold_start_from_config(configname)
+        if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
+                                           'configure', self.host, configname],
+                                          text=True)
+                    
+                    ## Force a new connection instance
+                    self._zcu = None
+                    
+                    ## At LWA1 the ZCU102's have a non-zero chance of coming up
+                    ## in a state where everything looks ok but no packets come
+                    ## out.  We can check for this by looking for massive overflows
+                    ## of the packet transmission buffer.
+                    time.sleep(1)
+                    
+                    if self.zcu.eth.get_status()[0]['tx_of'] > 100:
+                        raise RuntimeError("Non-zero packet transmission buffer overflow counter")
                         
-                        ## At LWA1 the ZCU102's have a non-zero chance of coming up
-                        ## in a state where everything looks ok but no packets come
-                        ## out.  We can check for this by looking for massive overflows
-                        ## of the packet transmission buffer.
-                        time.sleep(1)
-                        
-                        if self.zcu.eth.get_status()[0]['tx_of'] > 100:
-                            raise RuntimeError("Non-zero packet transmission buffer overflow counter")
-                            
-                        self.log.info(f"{self.host} configuration succeeded")
-                        success = True
-                        break
-                        
-                    except Exception as e:
-                        self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
-                        pass
-                        
+                    self.log.info(f"{self.host} configuration succeeded")
+                    success = True
+                    break
+                    
+                except Exception as e:
+                    self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
+                    pass
+                    
         return success
         
     def get_spectra(self, t_int=0.1):
@@ -888,7 +897,7 @@ class Snap2MonitorClient(object):
         except Exception as e:
             self.log.warning("Failed to load equalizer coefficients: %s", str(e))
             
-        self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
+        self.access_lock = FileLock(get_fpga_lockfile(self.host))
         
         computed = compute_constants(self.config)
         self.nserver = computed['NSERVER']
@@ -969,16 +978,19 @@ class Snap2MonitorClient(object):
         
         # Go!
         success = False
-        with self.access_lock:
-            if self.snap.is_connected():
-                for i in range(self.config['fpga']['max_program_attempts']):
-                    try:
-                        self.snap.program(firmware)
-                        success = True
-                        break
-                    except Exception as e:
-                        pass
-                        
+        if self.snap.is_connected():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga', 'program', self.host, firmware],
+                                          text=True)
+                    success = True
+                    break
+                except Exception as e:
+                    pass
+                    
+        ## Force a new connection instance
+        self._snap = None
+        
         return success
         
     def is_programmed(self):
@@ -1104,20 +1116,24 @@ class Snap2MonitorClient(object):
 
         # Go!
         success = False
-        with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                for i in range(self.config['fpga']['max_program_attempts']):
-                    try:
-                        self.snap.cold_start_from_config(configname)
-                        
-                        self.log.info(f"{self.host} configuration succeeded") 
-                        success = True
-                        break
-                        
-                    except Exception as e:
-                        self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
-                        pass
-                        
+        if self.snap.is_connected() and self.snap.fpga.is_programmed():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
+                                           'configure', self.host, configname],
+                                          text=True)
+                    
+                    self.log.info(f"{self.host} configuration succeeded") 
+                    success = True
+                    break
+                    
+                except Exception as e:
+                    self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
+                    pass
+                    
+        ## Force a new connection instance
+        self._snap = None
+        
         return success
         
     def get_spectra(self, t_int=0.1):
