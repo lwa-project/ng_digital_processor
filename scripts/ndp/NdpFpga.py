@@ -33,9 +33,7 @@ def program(hostname, filename):
         else:
             raise RuntimeError(f"Cannot determine FPGA board type from hostname '{hostname}'")
             
-        status = f.program(filename)
-        if not status:
-            raise RuntimeError(f"Failed to program '{hostname}' with '{filename}'")
+        f.program(filename)
 
 def configure(hostname, filename):
     lock_file = get_lockfile(hostname)
