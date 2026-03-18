@@ -96,7 +96,7 @@ class FuturePool(object):
     count = 0
     def __init__(self, max_workers, name=None):
         self.tasks   = Queue(max_workers)
-        self.results = Queue(max_workers)
+        self.results = Queue()
         self.workers = []
         self.ntask   = 0
         self.name    = name
