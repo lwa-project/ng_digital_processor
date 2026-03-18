@@ -10,7 +10,7 @@ from .SequenceDict import SequenceDict
 from .ThreadPool import ThreadPool
 from .ThreadPool import ObjectPool
 from .iptools    import *
-from .NdpFpga import get_lockfile as get_fpga_lockfile
+from .NdpFpga import get_lockfile as get_fpga_lockfile, SCRIPTS_PATH as FPGA_SCRIPTS_PATH
 
 from . import ISC
 
@@ -652,11 +652,11 @@ class ZCU102MonitorClient(object):
                 try:
                     subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
                                            'program', self.host, firmware],
-                                          text=True)
-                    
+                                          cwd=FPGA_SCRIPTS_PATH, text=True)
+
                     subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
                                            'program', self.host, firmware],
-                                          text=True)
+                                          cwd=FPGA_SCRIPTS_PATH, text=True)
                     success = True
                     break
                 except Exception as e:
@@ -796,8 +796,8 @@ class ZCU102MonitorClient(object):
                 try:
                     subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
                                            'configure', self.host, configname],
-                                          text=True)
-                    
+                                          cwd=FPGA_SCRIPTS_PATH, text=True)
+
                     ## Force a new connection instance
                     self._zcu = None
                     
@@ -982,7 +982,7 @@ class Snap2MonitorClient(object):
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
                     subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga', 'program', self.host, firmware],
-                                          text=True)
+                                          cwd=FPGA_SCRIPTS_PATH, text=True)
                     success = True
                     break
                 except Exception as e:
@@ -1121,8 +1121,8 @@ class Snap2MonitorClient(object):
                 try:
                     subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
                                            'configure', self.host, configname],
-                                          text=True)
-                    
+                                          cwd=FPGA_SCRIPTS_PATH, text=True)
+
                     self.log.info(f"{self.host} configuration succeeded") 
                     success = True
                     break

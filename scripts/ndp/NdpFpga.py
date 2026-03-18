@@ -1,3 +1,4 @@
+import os
 import argparse
 
 try:
@@ -13,7 +14,9 @@ except ImportError:
 from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
 from .FileLock import FileLock
 
-__all__ = ['get_lockfile', 'program', 'configure']
+__all__ = ['SCRIPTS_PATH', 'get_lockfile', 'program', 'configure']
+
+SCRIPTS_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def get_lockfile(hostname):
     return f"/dev/shm/{hostname}_access"
