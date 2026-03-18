@@ -1,6 +1,7 @@
 import os
 import json
 import argparse
+import contextlib
 
 try:
     from lwa_f import zcu102_fengine
@@ -98,7 +99,7 @@ def check(hostname, check_style):
         else:
             raise RuntimeError(f"Invalid check style mode '{check_style}'")
             
-        print(json.dumps(ret))
+    return ret
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -111,11 +112,17 @@ if __name__ == '__main__':
     parser.add_argument('oparg', type=str,
                         help='filename to pass to the operation; e.g. firmware for "program", configuration file for "configure"')
     args = parser.parse_args()
-    if args.operation == 'program':
-        program(args.hostname, args.oparg)
-    elif args.operation == 'configure':
-        configure(args.hostname, args.oparg)
-    elif args.operation == 'check':
-        check(args.hostname, args.oparg)
-    else:
-        raise RuntimeError(f"Invalid operation mode '{args.operation}'")
+    
+    ret = None
+    with contextlib.redirect_stdout(sys.stderr):
+        if args.operation == 'program':
+            program(args.hostname, args.oparg)
+        elif args.operation == 'configure':
+            configure(args.hostname, args.oparg)
+        elif args.operation == 'check':
+            ret = check(args.hostname, args.oparg)
+        else:
+            raise RuntimeError(f"Invalid operation mode '{args.operation}'")
+            
+    if ret is not None:
+        print(json.dumps(ret))
