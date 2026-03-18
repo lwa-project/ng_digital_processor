@@ -1224,14 +1224,14 @@ class MsgProcessor(ConsumerThread):
         
         self.headnode = ObjectPool([NdpServerMonitorClient(config, log, 'ndp'),])
         self.servers = ObjectPool([NdpServerMonitorClient(config, log, host)
-                                for host in self.config['host']['servers']])
+                                  for host in self.config['host']['servers']])
         nfpga = self.computed['NBOARD']
         if ZCU102_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'zcu102':
             self.fpgas = ObjectPool([ZCU102MonitorClient(config, log, num+1)
-                                    for num in range(nfpga)])
+                                    for num in range(nfpga)], future_pool_size=4)
         elif SNAP2_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'snap2':
             self.fpgas = ObjectPool([Snap2MonitorClient(config, log, num+1)
-                                    for num in range(nfpga)])
+                                    for num in range(nfpga)], future_pool_size=4)
         else:
             self.fpgas = []
         self._head_fpgas = self.fpgas[:1]
