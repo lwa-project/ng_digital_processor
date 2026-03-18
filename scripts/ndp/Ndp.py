@@ -548,6 +548,21 @@ class NdpServerMonitorClient(object):
             return False
 
 
+def _run_fpga_helper(operation, hostname, oparg):
+    """
+    Run ndp.NdpFpga as a subprocess and return parsed JSON (or None for non-JSON ops).
+    """
+    
+    output = subprocess.check_output([sys.executable, '-m', 'ndp.NdpFpga',
+                                      operation, hostname, str(oparg)],
+                                     cwd=FPGA_SCRIPTS_PATH, text=True,
+                                     stderr=subprocess.DEVNULL)
+    output = output.strip()
+    if output:
+        return json.loads(output)
+    return None
+
+
 class ZCU102MonitorClient(object):
     def __init__(self, config, log, num):
         # Note: num is 1-based index of the snap
@@ -607,15 +622,12 @@ class ZCU102MonitorClient(object):
         
     @lru_cache(maxsize=4)
     def get_temperatures(self, slot):
-        # Return a dictionary of temperatures on the Snap2 board
+        # Return a dictionary of temperatures on the board
         temp = {'error': float('nan')}
-        with self.access_lock:
-            if self.zcu.is_connected():
-                try:
-                    summary, flags = self.zcu.fpga.get_status()
-                    temp = {'fpga': summary['temp']}
-                except Exception as e:
-                    pass
+        try:
+            temp = _run_fpga_helper('check', self.host, 'temperature')
+        except Exception as e:
+            pass
         return temp
         
     @lru_cache(maxsize=4)
@@ -650,13 +662,8 @@ class ZCU102MonitorClient(object):
         if self.zcu.is_connected():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
-                                           'program', self.host, firmware],
-                                          cwd=FPGA_SCRIPTS_PATH, text=True)
-
-                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
-                                           'program', self.host, firmware],
-                                          cwd=FPGA_SCRIPTS_PATH, text=True)
+                    _run_fpga_helper('program', self.host, firmware)
+                    _run_fpga_helper('program', self.host, firmware)
                     success = True
                     break
                 except Exception as e:
@@ -683,47 +690,31 @@ class ZCU102MonitorClient(object):
         # Is there an error condition on the FPGA?
         
         status = True
-        with self.access_lock:
-            if self.zcu.is_connected():
-                try:
-                    summary, flags = self.zcu.fpga.get_status()
-                    for key in flags.keys():
-                        if flags[key] == FENG_ERROR_CODE:
-                            self.log.error("%s reports '%s' in error, value is %s", self.host, key, summary[key])
-                            status = False
-                            
-                    if status:
-                        oflows = self.zcu.eth.get_status()[0]['tx_of']
-                        if oflows > 1000:
-                            self.log.error("%s reports '%i' transmission buffer overflows", self.host, oflows)
-                            status = False
-                            
-                except Exception as e:
-                    pass
+        try:
+            ret = _run_fpga_helper('check', self.host, 'operational')
+            status = ret['is_ok']
+            for msg in ret.get('errors', []):
+                self.log.error("%s %s", self.host, msg)
+        except Exception as e:
+            pass
         return status
         
     def is_sending(self):
         # Is the FPGA sending data out?
         
         status = True
-        with self.access_lock:
-            if self.zcu.is_connected():
-                try:
-                    summary, flags = self.zcu.eth.get_status()
-                    if summary['gpbs'] == 0:
-                        status = False
-                    for key in flags.keys():
-                        if flags[key] == FENG_ERROR_CODE:
-                            status = False
-                except Exception as e:
-                    pass
+        try:
+            ret = _run_fpga_helper('check', self.host, 'throughput')
+            status = ret['is_ok']
+        except Exception as e:
+            pass
         return status
         
     def configure(self, requested_start_chan0=None, update_config=True):
         # Configure the FPGA and start data flowing
-
+        
         configname = '/tmp/zcu_config.yaml'
-
+        
         if update_config or not os.path.exists(configname):
             ## Configuration
             ### Overall structure + base F-engine config.
@@ -733,27 +724,27 @@ class ZCU102MonitorClient(object):
                                   'adc_clocksource': 0},
                      'xengines': {'arp': {},
                                   'chans': {}}}
-
+            
             ### Toggle FFT shift schedule on/off
             if sconf['fengines']['fft_shift'] in ('', 0):
                 del sconf['fengines']['fft_shift']
-
+                
             ### Equalizer coefficints (global)
             if self.equalizer_coeffs is not None:
                 sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
-
+                
             ### Antenna and IP source
             for i,zcu in enumerate(self.config['host']['fpgas']):
                 sconf['fengines'][zcu] = {}
                 sconf['fengines'][zcu]['ants'] = f"[{i*16}, {(i+1)*16}]"
                 sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
                 sconf['fengines'][zcu]['source_port'] = self.config['fpga']['data_port_base']
-
+                
             ### X-engine MAC addresses
             macs = load_ethers()
             for ip,mac in macs.items():
                 sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
-
+                
             ### X-engine channel mapping
             #### Pass 1 - Find the lowest start channel in the config. file
             i = 0
@@ -783,21 +774,19 @@ class ZCU102MonitorClient(object):
 
                 sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
                 i += 1
-
+                
             ### Save
             sconf = yaml.dump(sconf)
             with open(configname, 'w') as fh:
                 fh.write(sconf.replace("'", ''))
-
+                
         # Go!
         success = False
         if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
-                                           'configure', self.host, configname],
-                                          cwd=FPGA_SCRIPTS_PATH, text=True)
-
+                    _run_fpga_helper('configure', self.host, configname)
+                    
                     ## Force a new connection instance
                     self._zcu = None
                     
@@ -823,18 +812,12 @@ class ZCU102MonitorClient(object):
     def get_spectra(self, t_int=0.1):
         # Return a 2-D array of auto-correlation spectra
         
-        acc_len = int(round(CHAN_BW * t_int))
-        
-        spectra = []
-        with self.access_lock:
-            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
-                self.zcu.autocorr.set_acc_len(acc_len)
-                time.sleep(t_int+0.1)
-                
-                for i in range(2):
-                    spectra.append( self.zcu.autocorr.get_new_spectra(signal_block=i) )
-        spectra = np.array(spectra)
-        spectra = spectra.reshape(-1, spectra.shape[-1])
+        try:
+            ret = _run_fpga_helper('spectra', self.host, t_int)
+            spectra = np.load(ret['filename'])
+            os.unlink(ret['filename'])
+        except Exception as e:
+            spectra = np.zeros((0, 0))
         return spectra
         
     def get_board_status(self, return_json=False):
@@ -938,15 +921,12 @@ class Snap2MonitorClient(object):
         
     @lru_cache(maxsize=4)
     def get_temperatures(self, slot):
-        # Return a dictionary of temperatures on the Snap2 board
+        # Return a dictionary of temperatures on the board
         temp = {'error': float('nan')}
-        with self.access_lock:
-            if self.snap.is_connected():
-                try:
-                    summary, flags = self.snap.fpga.get_status()
-                    temp = {'fpga': summary['temp']}
-                except Exception as e:
-                    pass
+        try:
+            temp = _run_fpga_helper('check', self.host, 'temperature')
+        except Exception as e:
+            pass
         return temp
         
     @lru_cache(maxsize=4)
@@ -981,8 +961,7 @@ class Snap2MonitorClient(object):
         if self.snap.is_connected():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga', 'program', self.host, firmware],
-                                          cwd=FPGA_SCRIPTS_PATH, text=True)
+                    _run_fpga_helper('program', self.host, firmware)
                     success = True
                     break
                 except Exception as e:
@@ -1009,46 +988,31 @@ class Snap2MonitorClient(object):
         # Is there an error condition on the FPGA?
         
         status = True
-        with self.access_lock:
-            if self.snap.is_connected():
-                try:
-                    summary, flags = self.snap.fpga.get_status()
-                    for key in flags.keys():
-                        if flags[key] == FENG_ERROR_CODE:
-                            status = False
-                            
-                    if status:
-                        oflows = self.snap.eth.get_status()[0]['tx_of']
-                        if oflows > 1000:
-                            self.log.error("%s reports '%i' transmission buffer overflows", self.host, oflows)
-                            status = False
-                            
-                except Exception as e:
-                    pass
+        try:
+            ret = _run_fpga_helper('check', self.host, 'operational')
+            status = ret['is_ok']
+            for msg in ret.get('errors', []):
+                self.log.error("%s %s", self.host, msg)
+        except Exception as e:
+            pass
         return status
         
     def is_sending(self):
         # Is the FPGA sending data out?
         
         status = True
-        with self.access_lock:
-            if self.snap.is_connected():
-                try:
-                    summary, flags = self.snap.eth.get_status()
-                    if summary['gpbs'] == 0:
-                        status = False
-                    for key in flags.keys():
-                        if flags[key] == FENG_ERROR_CODE:
-                            status = False
-                except Exception as e:
-                    pass
+        try:
+            ret = _run_fpga_helper('check', self.host, 'throughput')
+            status = ret['is_ok']
+        except Exception as e:
+            pass
         return status
         
     def configure(self, requested_start_chan0=None, update_config=True):
         # Configure the FPGA and start data flowing
-
+        
         configname = '/tmp/snap_config.yaml'
-
+        
         if update_config or not os.path.exists(configname):
             ## Configuration
             ### Overall structure + base F-engine config.
@@ -1058,27 +1022,27 @@ class Snap2MonitorClient(object):
                                   'adc_clocksource': 0},
                      'xengines': {'arp': {},
                                   'chans': {}}}
-
+            
             ### Toggle FFT shift schedule on/off
             if sconf['fengines']['fft_shift'] in ('', 0):
                 del sconf['fengines']['fft_shift']
-
+                
             ### Equalizer coefficints (global)
             if self.equalizer_coeffs is not None:
                 sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
-
+                
             ### Antenna and IP source
             for i,snap in enumerate(self.config['host']['fpgas']):
                 sconf['fengines'][snap] = {}
                 sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
                 sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
                 sconf['fengines'][snap]['source_port'] = self.config['fpga']['data_port_base']
-
+                
             ### X-engine MAC addresses
             macs = load_ethers()
             for ip,mac in macs.items():
                 sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
-
+                
             ### X-engine channel mapping
             #### Pass 1 - Find the lowest start channel in the config. file
             i = 0
@@ -1108,21 +1072,19 @@ class Snap2MonitorClient(object):
 
                 sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
                 i += 1
-
+                
             ### Save
             sconf = yaml.dump(sconf)
             with open(configname, 'w') as fh:
                 fh.write(sconf.replace("'", ''))
-
+                
         # Go!
         success = False
         if self.snap.is_connected() and self.snap.fpga.is_programmed():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    subprocess.check_call([sys.executable, '-m', 'ndp.NdpFpga',
-                                           'configure', self.host, configname],
-                                          cwd=FPGA_SCRIPTS_PATH, text=True)
-
+                    _run_fpga_helper('configure', self.host, configname)
+                    
                     self.log.info(f"{self.host} configuration succeeded") 
                     success = True
                     break
@@ -1139,18 +1101,12 @@ class Snap2MonitorClient(object):
     def get_spectra(self, t_int=0.1):
         # Return a 2-D array of auto-correlation spectra
         
-        acc_len = int(round(CHAN_BW * t_int))
-        
-        spectra = []
-        with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                self.snap.autocorr.set_acc_len(acc_len)
-                time.sleep(t_int+0.1)
-                
-                for i in range(4):
-                    spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
-        spectra = np.array(spectra)
-        spectra = spectra.reshape(-1, spectra.shape[-1])
+        try:
+            ret = _run_fpga_helper('spectra', self.host, t_int)
+            spectra = np.load(ret['filename'])
+            os.unlink(ret['filename'])
+        except Exception as e:
+            spectra = np.zeros((0, 0))
         return spectra
         
     def get_board_status(self, return_json=False):

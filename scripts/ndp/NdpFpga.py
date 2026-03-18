@@ -1,6 +1,8 @@
 import os
 import sys
 import json
+import time
+import numpy as np
 import argparse
 import contextlib
 
@@ -18,7 +20,9 @@ from lwa_f.error_levels import FENG_ERROR, FENG_WARNING
 
 from filelock import FileLock
 
-__all__ = ['SCRIPTS_PATH', 'get_lockfile', 'program', 'configure', 'check']
+from .NdpCommon import CHAN_BW
+
+__all__ = ['SCRIPTS_PATH', 'get_lockfile', 'program', 'configure', 'spectra', 'check']
 
 SCRIPTS_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -50,6 +54,30 @@ def configure(hostname, filename):
         status = f.cold_start_from_config(filename)
         if not status:
             raise RuntimeError(f"Failed to configure '{hostname}'")
+
+def spectra(hostname, t_int):
+    lock_file = get_lockfile(hostname)
+    access_lock = FileLock(lock_file)
+
+    acc_len = int(round(CHAN_BW * t_int))
+    with access_lock:
+        f = _get_control_obj(hostname)
+        
+        spectra = []
+        f.autocorr.set_acc_len(acc_len)
+        time.sleep(t_int + 0.1)
+        
+        for i in range(f.autocorr._n_cores):
+            spectra.append(f.autocorr.get_new_spectra(signal_block=i))
+            
+    spectra = np.array(spectra)
+    spectra = spectra.reshape(-1, spectra.shape[-1])
+
+    filename = f"/dev/shm/{hostname}_spectra_{os.getpid()}.npy"
+    np.save(filename, spectra)
+    return {'filename': filename,
+            'shape': list(spectra.shape),
+            'dtype': str(spectra.dtype)}
 
 def check(hostname, check_style):
     lock_file = get_lockfile(hostname)
@@ -120,6 +148,8 @@ if __name__ == '__main__':
             program(args.hostname, args.oparg)
         elif args.operation == 'configure':
             configure(args.hostname, args.oparg)
+        elif args.operation == 'spectra':
+            ret = spectra(args.hostname, float(args.oparg))
         elif args.operation == 'check':
             ret = check(args.hostname, args.oparg)
         else:
