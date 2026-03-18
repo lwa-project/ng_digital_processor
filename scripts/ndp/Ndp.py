@@ -1228,10 +1228,10 @@ class MsgProcessor(ConsumerThread):
         nfpga = self.computed['NBOARD']
         if ZCU102_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'zcu102':
             self.fpgas = ObjectPool([ZCU102MonitorClient(config, log, num+1)
-                                    for num in range(nfpga)], future_pool_size=4)
+                                    for num in range(nfpga)])
         elif SNAP2_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'snap2':
             self.fpgas = ObjectPool([Snap2MonitorClient(config, log, num+1)
-                                    for num in range(nfpga)], future_pool_size=4)
+                                    for num in range(nfpga)])
         else:
             self.fpgas = []
         self._head_fpgas = self.fpgas[:1]
