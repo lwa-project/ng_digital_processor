@@ -78,14 +78,14 @@ def check(hostname, check_style):
                     
         elif check_style == 'throughput':
             ret = {'is_ok': True,
-                   'gpbs': 0.0,
+                   'gbps': 0.0,
                    'warnings': [],
                    'errors': []
                   }
             
             summary, flags = f.eth.get_status()
-            ret['gpbs'] = summary.get('gpbs', 0.0)
-            if ret['gpbs'] == 0:
+            ret['gbps'] = summary.get('gbps', 0.0)
+            if ret['gbps'] == 0:
                 ret['errors'].append("no data being sent (0 Gbps)")
                 ret['is_ok'] = False
             for key in flags.keys():
