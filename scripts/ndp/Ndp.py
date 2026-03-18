@@ -686,6 +686,13 @@ class ZCU102MonitorClient(object):
                         if flags[key] == FENG_ERROR_CODE:
                             self.log.error("%s reports '%s' in error, value is %s", self.host, key, summary[key])
                             status = False
+                            
+                    if status:
+                        oflows = self.zcu.eth.get_status()[0]['tx_of']
+                        if oflows > 1000:
+                            self.log.error("%s reports '%i' transmission buffer overflows", self.host, oflows)
+                            status = False
+                            
                 except Exception as e:
                     pass
         return status
@@ -997,6 +1004,13 @@ class Snap2MonitorClient(object):
                     for key in flags.keys():
                         if flags[key] == FENG_ERROR_CODE:
                             status = False
+                            
+                    if status:
+                        oflows = self.snap.eth.get_status()[0]['tx_of']
+                        if oflows > 1000:
+                            self.log.error("%s reports '%i' transmission buffer overflows", self.host, oflows)
+                            status = False
+                            
                 except Exception as e:
                     pass
         return status
