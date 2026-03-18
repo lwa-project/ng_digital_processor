@@ -25,7 +25,7 @@ try:
 except ImportError:
     SNAP2_SUPPORT = False
 from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
-from .FileLock import FileLock
+from filelock import FileLock
 
 from queue import Queue
 import numpy as np

@@ -12,14 +12,14 @@ try:
 except ImportError:
     SNAP2_SUPPORT = False
 from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
-from .FileLock import FileLock
+from filelock import FileLock
 
 __all__ = ['SCRIPTS_PATH', 'get_lockfile', 'program', 'configure']
 
 SCRIPTS_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def get_lockfile(hostname):
-    return f"/dev/shm/{hostname}_access"
+    return f"/dev/shm/{hostname}_access.lock"
 
 def program(hostname, filename):
     lock_file = get_lockfile(hostname)

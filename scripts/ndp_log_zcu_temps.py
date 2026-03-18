@@ -6,7 +6,7 @@ sys.path.append('/usr/local/bin')
 import time
 
 from ndp import NdpConfig
-from ndp.FileLock import FileLock
+from filelock import FileLock
 
 from lwa_f import zcu102_fengine
 
@@ -24,7 +24,7 @@ if __name__ == "__main__":
         zcu = zcu102_fengine.ZCU102Fengine(s,
                                            username=config['zcu']['username'],
                                            password=config['zcu']['password'])
-        lock = FileLock(f"/dev/shm/{s}_access")
+        lock = FileLock(f"/dev/shm/{s}_access.lock")
         
         try:
             temps = [-1.,]
