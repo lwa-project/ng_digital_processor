@@ -37,7 +37,7 @@ WorkingDirectory=/usr/local/bin
 ExecStart=/bin/bash -ec '\
 server=$(hostname | sed -e "s/ndp//") && \
 eval $(python3 -c "from ndp.NdpHelpers import pipeline_setup; \
-                    pipeline_setup('/usr/local/share/ndp/ndp_config.json', $server, 0)") && \
+                    pipeline_setup('"'"'/usr/local/share/ndp/ndp_config.json'"'"', $server, 0)") && \
 numactl --cpunodebind=$binding --membind=$binding -- \
 python3 /usr/local/bin/ndp_drx.py \
     --tuning     $tuning \
