@@ -1964,11 +1964,11 @@ class MsgProcessor(ConsumerThread):
                     ext_msg = []
                     for k,s in tm_state.items():
                         n = k+' out-of-range'
-                        if n == 'comm':
+                        if k == 'comm':
                             n = 'Communication error'
-                        elif n == 'lock':
+                        elif k == 'lock':
                             n = 'Valon not locked'
-                        elif n == 'sync':
+                        elif k == 'sync':
                             n = 'No recent sync pulse'
                             
                         if not s:
