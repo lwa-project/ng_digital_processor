@@ -22,9 +22,10 @@ from filelock import FileLock
 
 from .NdpCommon import CHAN_BW
 
-__all__ = ['SCRIPTS_PATH', 'get_lockfile', 'program', 'configure', 'spectra', 'check']
+__all__ = ['SCRIPTS_PATH', 'LOCK_TIMEOUT', 'get_lockfile', 'program', 'configure', 'spectra', 'check']
 
 SCRIPTS_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOCK_TIMEOUT = 30  # seconds
 
 def get_lockfile(hostname):
     return f"/dev/shm/{hostname}_access.lock"
@@ -39,7 +40,7 @@ def _get_control_obj(hostname):
 
 def program(hostname, filename):
     lock_file = get_lockfile(hostname)
-    access_lock = FileLock(lock_file)
+    access_lock = FileLock(lock_file, timeout=LOCK_TIMEOUT)
     
     with access_lock:
         f = _get_control_obj(hostname)
@@ -47,7 +48,7 @@ def program(hostname, filename):
 
 def configure(hostname, filename):
     lock_file = get_lockfile(hostname)
-    access_lock = FileLock(lock_file)
+    access_lock = FileLock(lock_file, timeout=LOCK_TIMEOUT)
     
     with access_lock:
         f = _get_control_obj(hostname)
@@ -57,8 +58,8 @@ def configure(hostname, filename):
 
 def spectra(hostname, t_int):
     lock_file = get_lockfile(hostname)
-    access_lock = FileLock(lock_file)
-
+    access_lock = FileLock(lock_file, timeout=LOCK_TIMEOUT)
+    
     acc_len = int(round(CHAN_BW * t_int))
     with access_lock:
         f = _get_control_obj(hostname)
@@ -72,7 +73,7 @@ def spectra(hostname, t_int):
             
     spectra = np.array(spectra)
     spectra = spectra.reshape(-1, spectra.shape[-1])
-
+    
     filename = f"/dev/shm/{hostname}_spectra_{os.getpid()}.npy"
     np.save(filename, spectra)
     return {'filename': filename,
@@ -81,7 +82,7 @@ def spectra(hostname, t_int):
 
 def check(hostname, check_style):
     lock_file = get_lockfile(hostname)
-    access_lock = FileLock(lock_file)
+    access_lock = FileLock(lock_file, timeout=LOCK_TIMEOUT)
     
     with access_lock:
         f = _get_control_obj(hostname)

@@ -552,10 +552,11 @@ def _run_fpga_helper(operation, hostname, oparg):
     """
     Run ndp.NdpFpga as a subprocess and return parsed JSON (or None for non-JSON ops).
     """
-    
+
     output = subprocess.check_output([sys.executable, '-m', 'ndp.NdpFpga',
                                       operation, hostname, str(oparg)],
-                                     cwd=FPGA_SCRIPTS_PATH, text=True)
+                                     cwd=FPGA_SCRIPTS_PATH, text=True,
+                                     timeout=180)
     output = output.strip()
     if output:
         return json.loads(output)
