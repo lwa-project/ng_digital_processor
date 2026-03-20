@@ -30,7 +30,7 @@ if __name__ == "__main__":
         try:
             temps = [-1.,]
             ret = fpga_check(s, 'temperature')
-            temps = [ret.get('fpga', -99.),]
+            temps = [round(ret.get('fpga', -99.), 2),]
         except Exception as e:
             print("WARNING: Failed to poll %s: %s" % (s, str(e)))
             
