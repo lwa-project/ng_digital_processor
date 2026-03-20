@@ -2247,13 +2247,30 @@ class MsgProcessor(ConsumerThread):
                 raise RuntimeError("HEALTH_CHECK already in progress")
             try:
                 t_now = datetime.datetime.now(tz=datetime.timezone.utc)
-                spectra = self.fpgas.get_spectra()
-                spectra = np.array(list(spectra))
-                spectra = spectra.reshape(-1, spectra.shape[-1])
-                spectra = spectra.astype(np.float32)
+                spectra = list(self.fpgas.get_spectra())
                 
                 checkname = t_now.strftime("%y%m%d_%H%M%S")
                 checkname = "/tmp/"+checkname+"_snapspecs.dat"
+                
+                good_shape = None
+                for s in spectra:
+                    if isinstance(s, np.ndarray) and s.size > 0:
+                        good_shape = s.shape
+                        break
+                if good_shape is None:
+                    # All boards failed - write a zero-length file
+                    with open(checkname, 'wb') as fh:
+                        fh.write(struct.pack('ll', 0, 0))
+                    return checkname
+                    
+                for i in range(len(spectra)):
+                    s = spectra[i]
+                    if not isinstance(s, np.ndarray) or s.size == 0:
+                        # Replace bad entries with nan arrays of the correct shape
+                        spectra[i] = np.full(good_shape, np.nan)
+                spectra = np.array(spectra)
+                spectra = spectra.reshape(-1, spectra.shape[-1])
+                spectra = spectra.astype(np.float32)
                 with open(checkname, 'wb') as fh:
                     fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
                     spectra.tofile(fh)
