@@ -240,7 +240,7 @@
         "date_format":    "%Y-%m-%d %H:%M:%S",
         "files": {
             "server_temps": "/home/ndp/log/server_temps.log",
-            "roach_temps":  "/home/ndp/log/snap_temps.log"
+            "fpga_temps":   "/home/ndp/log/fpga_temps.log"
         }
     },
     "server": {
