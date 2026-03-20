@@ -13,7 +13,7 @@ def find_script_pids(filename):
     Find all PIDs of Python processes running the given script.
     """
 
-    filename = os.path.abspath(filename)
+    filename = os.path.realpath(filename)
 
     pids = []
     for proc in psutil.process_iter(['pid','cmdline','cwd']):
@@ -25,7 +25,7 @@ def find_script_pids(filename):
             if not os.path.isabs(script):
                 if cwd is not None:
                     script = os.path.join(cwd, script)
-                script = os.path.abspath(script)
+            script = os.path.realpath(script)
             if script == filename:
                 pids.append(pid)
         except IndexError:
