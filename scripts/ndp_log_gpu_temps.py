@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 sys.path.append('/usr/local/bin')
 
@@ -7,13 +8,20 @@ import time
 import subprocess
 
 from ndp import NdpConfig
+from ndp.NdpHelpers import find_script_pids
 
 
 if __name__ == "__main__":
     if len(sys.argv) <= 1:
         print("Usage:", sys.argv[0], "config_file")
         sys.exit(-1)
-        
+
+    pids = find_script_pids(__file__)
+    pids = list(filter(lambda x: x != os.getpid(), pids))
+    if len(pids) > 0:
+        print("Found another %s process running, aborting" % os.path.basename(__file__))
+        sys.exit(1)
+
     config_filename = sys.argv[1]
     config = NdpConfig.parse_config_file(config_filename)
     

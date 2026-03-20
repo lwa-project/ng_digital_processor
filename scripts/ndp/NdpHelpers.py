@@ -2,8 +2,35 @@
 import os
 import glob
 
+import psutil
+
 from .NdpConfig import parse_config_file
 from .NdpCommon import compute_constants
+
+
+def find_script_pids(filename):
+    """
+    Find all PIDs of Python processes running the given script.
+    """
+
+    filename = os.path.abspath(filename)
+
+    pids = []
+    for proc in psutil.process_iter(['pid','cmdline','cwd']):
+        pid, cmdline, cwd = proc.pid, proc.info['cmdline'], proc.info['cwd']
+        try:
+            if cmdline[0] not in ('python', 'python3'):
+                continue
+            script = cmdline[1]
+            if not os.path.isabs(script):
+                if cwd is not None:
+                    script = os.path.join(cwd, script)
+                script = os.path.abspath(script)
+            if script == filename:
+                pids.append(pid)
+        except IndexError:
+            continue
+    return pids
 
 
 def cores_to_numa_binding(cores):
