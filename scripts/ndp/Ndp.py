@@ -548,15 +548,18 @@ class NdpServerMonitorClient(object):
             return False
 
 
-def _run_fpga_helper(operation, hostname, oparg):
+def _run_fpga_helper(operation, hostname, oparg, log_stderr=False):
     """
     Run ndp.NdpFpga as a subprocess and return parsed JSON (or None for non-JSON ops).
     """
 
+    se_out = subprocess.DEVNULL
+    if log_stderr:
+        se_out = None
     output = subprocess.check_output([sys.executable, '-m', 'ndp.NdpFpga',
                                       operation, hostname, str(oparg)],
-                                     cwd=FPGA_SCRIPTS_PATH, text=True,
-                                     timeout=180)
+                                     cwd=FPGA_SCRIPTS_PATH, stderr=se_out,
+                                     text=True, timeout=180)
     output = output.strip()
     if output:
         return json.loads(output)
@@ -662,8 +665,8 @@ class ZCU102MonitorClient(object):
         if self.zcu.is_connected():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    _run_fpga_helper('program', self.host, firmware)
-                    _run_fpga_helper('program', self.host, firmware)
+                    _run_fpga_helper('program', self.host, firmware, log_stderr=True)
+                    _run_fpga_helper('program', self.host, firmware, log_stderr=True)
                     success = True
                     break
                 except Exception as e:
@@ -785,7 +788,7 @@ class ZCU102MonitorClient(object):
         if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    _run_fpga_helper('configure', self.host, configname)
+                    _run_fpga_helper('configure', self.host, configname, log_stderr=True)
                     
                     ## Force a new connection instance
                     self._zcu = None
@@ -961,7 +964,7 @@ class Snap2MonitorClient(object):
         if self.snap.is_connected():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    _run_fpga_helper('program', self.host, firmware)
+                    _run_fpga_helper('program', self.host, firmware, log_stderr=True)
                     success = True
                     break
                 except Exception as e:
@@ -1083,7 +1086,7 @@ class Snap2MonitorClient(object):
         if self.snap.is_connected() and self.snap.fpga.is_programmed():
             for i in range(self.config['fpga']['max_program_attempts']):
                 try:
-                    _run_fpga_helper('configure', self.host, configname)
+                    _run_fpga_helper('configure', self.host, configname, log_stderr=True)
                     
                     self.log.info(f"{self.host} configuration succeeded") 
                     success = True
