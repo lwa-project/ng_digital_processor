@@ -27,3 +27,13 @@
         copytruncate
         ifempty
 }
+
+# Keep three weeks worth of temperature logs
+/home/ndp/log/*_temps.log {
+        daily
+        rotate 21
+        compress
+        delaycompress
+        copytruncate
+        ifempty
+}
