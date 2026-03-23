@@ -19,7 +19,7 @@
 }
 
 # Keep three weeks worth of ndp-tengine logs
-/home/ndp/log/ndp-tengine-*.ndp.log {
+/home/ndp/log/ndp-tengine-*.*ndp.log {
         daily
         rotate 21
         compress
