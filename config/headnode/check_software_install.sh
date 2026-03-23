@@ -136,7 +136,7 @@ if [[ $nfailed == 0 ]]; then
 	echo "  OK"
 fi
 
-mods=("numpy" "scipy" "simplejson" "ctypesgen" "zmq" "lwa_f" "yaml" "progressbar" "termcolor" "graphviz" "pint" "bifrost" "serial")
+mods=("numpy" "scipy" "simplejson" "ctypesgen" "zmq" "lwa_f" "yaml" "progressbar" "termcolor" "graphviz" "pint" "bifrost" "serial" "filelock" "psutil")
 
 echo "Testing for Python modules"
 nfailed=0
