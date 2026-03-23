@@ -33,9 +33,13 @@ Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_zcu102/python
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-numactl --cpunodebind=6-7 --membind=6-7 -- \
+binding=$(python3 -c "from ndp.NdpConfig import parse_config_file; \
+                       from ndp.NdpHelpers import cores_to_numa_binding; \
+                       config = parse_config_file('"'"'/usr/local/share/ndp/ndp_config.json'"'"'); \
+                       print(cores_to_numa_binding(config['"'"'tengine'"'"'][3]['"'"'cpus'"'"']))") && \
+numactl --cpunodebind=$binding --membind=$binding -- \
 python3 /usr/local/bin/ndp_tengine.py \
-	 --beam 3 \
+	 --beam       3 \
 	 --configfile /usr/local/share/ndp/ndp_config.json \
 	 --logfile    /home/ndp/log/ndp-tengine-3.%H.log'
 
