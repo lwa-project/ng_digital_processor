@@ -18,6 +18,8 @@
 
     \item \label{ref:sievers-pfb} J.~Sievers, ``Inverting a Polyphase Filter Bank,'' unpublished note, 2022.  Distributed via the CASPER mailing list.  Reference implementation at \texttt{https://github.com/dcxSt/pfb-mod}.
 
+    \item \label{ref:tcc} J.~W.~Romein, ``An Efficient GPU-Based Correlator X-Engine Implemented Using Tensor Cores,'' \emph{Astronomy \& Astrophysics}, vol.~656, A52, 2021.  DOI: \texttt{10.1051/0004-6361/202141896}.
+
 \end{enumerate}
 
 \section{Hardware References}
@@ -67,7 +69,7 @@ The X-engine and T-engine processing pipelines are implemented as sequences of p
         \texttt{GPUCopyOp} & Host-to-GPU data transfer \\
         \texttt{PowerLineFlaggerOp} & Power line interference flagging (Appendix~\ref{app:powerline}) \\
         \texttt{BeamformerOp} & GPU beamformer (delay, gain, and sum) \\
-        \texttt{CorrelatorOp} & GPU correlator (full visibility matrix) \\
+        \texttt{CorrelatorOp} & GPU correlator (full visibility matrix; Appendix~\ref{app:correlator}) \\
         \texttt{TriggeredDumpOp} & TBT triggered spectra dump \\
         \texttt{StreamingOp} & TBS continuous spectra streaming \\
         \texttt{RetransmitOp} & Beamformed data retransmission to T-engines \\
