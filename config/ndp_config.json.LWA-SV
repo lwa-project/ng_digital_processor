@@ -16,7 +16,7 @@
         }
     },
     "host": {
-        "servers": ["ndp1", "ndp2", "ndp3", "ndp4"],
+        "servers": ["ndp1", "ndp2", "ndp3", "ndp4", "ndp5", "ndp6", "ndp7", "ndp8"],
         "fpgas": ["zcu01", "zcu02", "zcu03", "zcu04",
                   "zcu05", "zcu06", "zcu07", "zcu08",
                   "zcu09", "zcu10", "zcu11", "zcu12",
@@ -24,12 +24,16 @@
         "servers-data": ["mcg40s1-data1", "mcg40s1-data2", "mcg40s1-data1", "mcg40s1-data2",
                          "mcg40s2-data1", "mcg40s2-data2", "mcg40s2-data1", "mcg40s2-data2",
                          "mcg40s3-data1", "mcg40s3-data2", "mcg40s3-data1", "mcg40s3-data2",
-                         "mcg40s4-data1", "mcg40s4-data2", "mcg40s4-data1", "mcg40s4-data2"],
+                         "mcg40s4-data1", "mcg40s4-data2", "mcg40s4-data1", "mcg40s4-data2",
+                         "mcg40s5-data1", "mcg40s5-data2", "mcg40s5-data1", "mcg40s4-data2",
+                         "mcg40s6-data1", "mcg40s6-data2", "mcg40s6-data1", "mcg40s6-data2",
+                         "mcg40s7-data1", "mcg40s7-data2", "mcg40s7-data1", "mcg40s7-data2",
+                         "mcg40s8-data1", "mcg40s8-data2", "mcg40s8-data1", "mcg40s8-data2"],
         "tengines": ["ndp-data1", "ndp-data2", "ndp-data1", "ndp-data2"]
     },
     "ipmi": {
         "username": "admin",
-        "password": "admin"
+        "password": "admin123"
     },
     "drx": [
             {
@@ -222,6 +226,198 @@
                 "cor_recorder_idx":  5,
                 "cpus":              [12, 13, 15, 14, 14],
                 "gpus":              [1],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2320,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 1, 2, 3, 4, 5],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2400,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [6, 7, 8, 9, 10, 11],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2480,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [12, 13, 14, 15, 16, 17],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2560,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [18, 19, 20, 21, 22, 23],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2640,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 1, 2, 3, 4, 5],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2720,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [6, 7, 8, 9, 10, 11],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2800,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [12, 13, 14, 15, 16, 17],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2880,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [18, 19, 20, 21, 22, 23],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     2960,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 1, 2, 3, 4, 5],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3040,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [6, 7, 8, 9, 10, 11],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3120,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [12, 13, 14, 15, 16, 17],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3200,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [18, 19, 20, 21, 22, 23],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3280,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [0, 1, 2, 3, 4, 5],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3360,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [6, 7, 8, 9, 10, 11],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3440,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [12, 13, 14, 15, 16, 17],
+                "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     3520,
+                "capture_bandwidth": 1.9140625e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [18, 19, 20, 21, 22, 23],
+                "gpus":              [0],
                 "powerline_flagger": true
             }
     ],
