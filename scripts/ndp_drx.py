@@ -2026,17 +2026,18 @@ def main(argv):
             pcore = cores.pop(0)
         except IndexError:
             pcore = ccore
+        cpgpu = ops[-2].gpu
         ops.append(CorrelatorOp(log=log, iring=plf_ring, oring=vis_ring, 
                                 tuning=tuning, ntime_gulp=GSIZE,
                                 nfpga=nfpga, nstand_per_fpga=nstand_per_fpga, 
                                 nchan_max=nchan_max,
                                 utc_start_tt=utc_start_tt,
-                                core=ccore, gpu=tuning % 2))
+                                core=ccore, gpu=cpgpu))
         ops.append(PacketizeOp(log=log, iring=vis_ring, osock=vsock,
                                tuning=tuning, nfpga=nfpga, nstand_per_fpga=nstand_per_fpga,
                                nchan_max=nchan_max//4,
                                ntuning=ntuning, npkt_gulp=1,
-                               core=pcore, gpu=tuning % 2,
+                               core=pcore, gpu=cpgpu,
                                max_bytes_per_sec=cor_bw_max))
         ops[-2].updatePacketizerPreferences(ops[-1])
         
