@@ -1948,7 +1948,7 @@ class MsgProcessor(ConsumerThread):
                                 if _lock is None:
                                     _lock = (line.find('True') != -1)
                                     if _lock != tm_state['lock']:
-                                        self.log.warning('Disagrement over Valon lock state: "lock" is %s but "phase locked" is %s', tm_state['lock'], _lock)
+                                        self.log.warning('Disagreement over Valon lock state: "lock" is %s but "phase locked" is %s', tm_state['lock'], _lock)
                                         
                         tm_poll = time.time()
                         tm_state['comm'] = True
