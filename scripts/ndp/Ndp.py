@@ -1908,6 +1908,7 @@ class MsgProcessor(ConsumerThread):
                     try:
                         output = subprocess.check_output(['/home/ndp/ng_digital_processor/scripts/valon_status.py'], text=True)
                         
+                        _lock = None
                         for line in output.split('\n'):
                             if line.startswith('12V:'):
                                 _, value = line.split(None, 1)
@@ -1943,7 +1944,12 @@ class MsgProcessor(ConsumerThread):
                                 tm_state['temp'] = False
                                 if value > 10 and value < 60:
                                     tm_state['temp'] = True
-                                    
+                            elif line.startswith('  Phase locked:'):
+                                if _lock is None:
+                                    _lock = (line.find('True') != -1)
+                                    if _lock != tm_state['lock']:
+                                        self.log.warning('Disagrement over Valon lock state: "lock" is %s but "phase locked" is %s', tm_state['lock'], _lock)
+                                        
                         tm_poll = time.time()
                         tm_state['comm'] = True
                         
