@@ -1481,7 +1481,7 @@ class MsgProcessor(ConsumerThread):
         self.utc_start_str = str(self.utc_start)
         self.state['lastlog'] = "Starting correlator processing at timetag "+self.utc_start_str
         self.log.info("Starting correlator processing at timetag "+self.utc_start_str)
-        time.sleep(3)
+        time.sleep(0.5)
         
         # Check and make sure that *all* of the pipelines started
         self.log.info("Checking pipeline processing")
