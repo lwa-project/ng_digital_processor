@@ -1342,11 +1342,11 @@ class MsgProcessor(ConsumerThread):
         # Basic config. validation
         if not self.check_success(lambda: [self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'] \
                                             == len(self.config['drx']),],
-                                  'Pipeline validation',
+                                  'Pipeline configuration validation',
                                   ['Valid configuation'], false_ok=False):
             return self.raise_error_state('INI', 'INVALID_SYSTEM_CONFIGURATION')
         if not self.check_success(lambda: [self.computed['NBOARD'] == len(self.fpgas),],
-                                  'FPGA validation',
+                                  'FPGA configuration validation',
                                   ['Valid configuation'], false_ok=False):
             return self.raise_error_state('INI', 'INVALID_SYSTEM_CONFIGURATION')
             
@@ -1481,7 +1481,7 @@ class MsgProcessor(ConsumerThread):
         self.utc_start_str = str(self.utc_start)
         self.state['lastlog'] = "Starting correlator processing at timetag "+self.utc_start_str
         self.log.info("Starting correlator processing at timetag "+self.utc_start_str)
-        time.sleep(0.5)
+        time.sleep(3)
         
         # Check and make sure that *all* of the pipelines started
         self.log.info("Checking pipeline processing")
