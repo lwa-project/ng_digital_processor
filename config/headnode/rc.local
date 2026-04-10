@@ -8,17 +8,17 @@ nvidia-smi -pm 1
 nvidia-smi -lgc 1300,1300
 
 # Set CPUs to performance mode
-is_amd=`grep -i amd /proc/cpuinfo`
+is_amd=`grep -i amd /proc/cpuinfo `
 if [ "${is_amd}" != "" ]; then
-        ## AMD - dual 16 core CPUs with hyperthreading
-        for i in `seq 0 1 63`; do
-                echo performance > /sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor
+        ## AMD
+        for sgf in `ls /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor `; do
+                echo performance > ${sgf}
         done
 else
-        ## Intel - dual 8 core CPUs with hyperthreading
+        ## Intel
         echo -n 100 >  /sys/devices/system/cpu/intel_pstate/min_perf_pct
-        for i in `seq 0 1 31`; do
-                echo -n performance > /sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor
+        for sgf in `ls /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor `; do
+                echo -n performance > ${sgf}
         done
 fi
 
