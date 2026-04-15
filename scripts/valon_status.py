@@ -1,34 +1,32 @@
 #!/usr/bin/env python3
 
-import valon_synth as valon
+import os
+import sys
+tm_path = os.path.dirname(os.path.abspath(__file__))
+if tm_path not in sys.path:
+    sys.path.insert(0, tm_path)
+    
+from timing_monitor import *
 
 def print_synth(synth, which):
-    print("Synth A" if which == valon.SYNTH_A else "Synth B")
-    print("  Label:       ", synth.get_label(     which))
-    print("  Freq:        ", synth.get_frequency( which), "MHz")
-    print("  Phase locked:", synth.get_phase_lock(which))
-    print("  RF level:    ", synth.get_rf_level(  which), "dBm")
-    # print("  VCO range:   ", synth.get_vco_range( which), "MHz")
-    options = synth.get_options(which)
-    doubled = options[0]
-    halved  = options[1]
-    print("  Scale:       ", ("unity"   if doubled==halved else
-                              "doubled" if doubled else
-                              "halved"))
-    print("  Divisor:     ", options[2])
-    print("  Mode:        ", ("minimize PLL spurs" if options[3] else
-                              "minimize phase noise"))
-    print("  RF enabled:  ", synth.get_rf_output_enabled(which))
+    print(which.name)
+    print("  Freq:        ", synth.get_valon_freq(which), "MHz")
+    print("  Phase locked:", synth.get_valon_lock(which))
+    print("  RF enabled:  ", synth.get_valon_rf_enabled(which))
+    sdn = synth.get_valon_spur_mode(which)
+    print("  Spur mode:   ", sdn.name)
 
 if __name__ == "__main__":
     import sys
-    device = "/dev/ttyUSB0"
+    device = "/dev/ttyACM0"
     if len(sys.argv) > 1:
         device = sys.argv[1]
-    synth = valon.Synthesizer(device)
-    ref_names = {valon.INT_REF: "internal",
-                 valon.EXT_REF: "external"}
-    print("Ref source:", ref_names[synth.get_ref_select()])
-    print("Ref freq:  ", synth.get_reference()/1e6, "MHz")
-    print_synth(synth, valon.SYNTH_A)
-    print_synth(synth, valon.SYNTH_B)
+    synth = TimingMonitor(device)
+    synth.print_status()
+    info = synth.get_valon_info()
+    print("Model:", info['model'])
+    ref = synth.get_valon_ref_source()
+    print("Ref source:", ref.name)
+    print("Ref freq:  ", synth.get_valon_ref_freq(), "MHz")
+    print_synth(synth, ValonOutputs.SYNTH_A)
+    print_synth(synth, ValonOutputs.SYNTH_B)

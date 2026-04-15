@@ -10,12 +10,22 @@ from .SequenceDict import SequenceDict
 from .ThreadPool import ThreadPool
 from .ThreadPool import ObjectPool
 from .iptools    import *
+from .NdpFpga import get_lockfile as get_fpga_lockfile, SCRIPTS_PATH as FPGA_SCRIPTS_PATH
 
 from . import ISC
 
-from lwa_f import snap2_fengine
+try:
+    from lwa_f import zcu102_fengine
+    ZCU102_SUPPORT = True
+except ImportError:
+    ZCU102_SUPPORT = False
+try:
+    from lwa_f import snap2_fengine
+    SNAP2_SUPPORT = True
+except ImportError:
+    SNAP2_SUPPORT = False
 from lwa_f.error_levels import FENG_ERROR as FENG_ERROR_CODE
-from .FileLock import FileLock
+from filelock import FileLock
 
 from queue import Queue
 import numpy as np
@@ -35,6 +45,7 @@ import yaml
 import hashlib
 import os
 import re
+import sys
 
 __version__    = "0.3"
 __author__     = "Ben Barsdell, Daniel Price, Jayce Dowell"
@@ -50,10 +61,10 @@ __status__     = "Development"
 _g_zmqctx      = zmq.Context()
 
 def wait_until_utc_sec(utcstr):
-    cur_time = datetime.datetime.utcnow().strftime(DATE_FORMAT)
+    cur_time = datetime.datetime.now(tz=datetime.timezone.utc).strftime(DATE_FORMAT)
     while cur_time != utcstr:
         time.sleep(0.01)
-        cur_time = datetime.datetime.utcnow().strftime(DATE_FORMAT)
+        cur_time = datetime.datetime.now(tz=datetime.timezone.utc).strftime(DATE_FORMAT)
 
 class SlotCommandProcessor(object):
     def __init__(self, cmd_code, cmd_parser, exec_delay=2):
@@ -82,11 +93,11 @@ class DrxCommand(object):
             msg.data = msg.data.encode()
         self.slot = msg.mjd*86400 + msg.mpm//1000 - 3506716800
         self.beam, self.tuning, self.freq, self.filt, self.gain, self.high_dr, self.subslot \
-            = struct.unpack('>BBfBhBB', msg.data)
-        assert( 1 <= self.beam <= 4 )
+            = struct.unpack('>BBdBhBB', msg.data)
+        assert( 1 <= self.beam <= NBEAM )
         assert( 1 <= self.tuning <= 2 )
         # TODO: Check allowed range of freq
-        assert( 0 <= self.filt    <= 8 )
+        assert( 0 <= self.filt    <= 7 )
         assert( 0 <= self.gain    <= 15 )
         assert( 0 <= self.high_dr <= 1 )
         assert( 0 <= self.subslot <= 99)
@@ -99,7 +110,7 @@ class Drx(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.nbeam = 4
+        self.nbeam = NBEAM
         self.ntuning = 2
         self.cur_freq = [0]*self.nbeam*self.ntuning
         self.cur_filt = [0]*self.nbeam*self.ntuning
@@ -154,36 +165,84 @@ class Drx(SlotCommandProcessor):
         return 0
 
 
-class TbfCommand(object):
+class TbsCommand(object):
     def __init__(self, msg):
         if isinstance(msg.data, str):
             msg.data = msg.data.encode()
-        self.bits, self.trigger, self.samples, self.mask \
-            = struct.unpack('>Biiq', msg.data)
+        self.frequency, self.filt \
+            = struct.unpack('>dB', msg.data)
+        assert( 7 <= self.filt    <= 9 )
 
 
-class Tbf(SlotCommandProcessor):
+class Tbs(SlotCommandProcessor):
     def __init__(self, config, log, messenger, servers):
-        SlotCommandProcessor.__init__(self, 'TBF', TbfCommand)
+        SlotCommandProcessor.__init__(self, 'TBS', TbsCommand)
         self.config  = config
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
+        self.cur_freq = 0.0
+        self.cur_filt = 0
         
     def _reset_state(self):
-        self.cur_bits = self.cur_trigger = self.cur_samples = self.cur_mask = 0
+        self.cur_freq = 0.0
+        self.curr_filt = 0
         
-    def start(self, bits, trigger, samples, mask):
-        self.log.info('Starting TBF: bits=%i, trigger=%i, samples=%i, mask=%i' % (bits, trigger, samples, mask))
+    def start(self, frequency, filt=8):
+        self.log.info('Starting TBS: frequency=%.3f, filter=%i' % (frequency, filt))
         
-        self.messenger.trigger(trigger, samples, mask)
+        self.messenger.stream(frequency, filt)
         
         return True
         
     def execute(self, cmds):
         for cmd in cmds:
-            self.start(cmd.bits, cmd.trigger, cmd.samples, cmd.mask)
+            self.start(cmd.frequency, cmd.filt)
+            
+    def stop(self):
+        self.log.info("Stopping TBS data")
+        self.start(0.0, 0.0)
+        self.cur_freq = 0.0
+        self.cur_filt = 0
+        self.log.info("TBS stopped")
+        return 0
+
+
+class TbtCommand(object):
+    def __init__(self, msg):
+        if isinstance(msg.data, str):
+            msg.data = msg.data.encode()
+        self.trigger, self.samples, self.mask \
+            = struct.unpack('>Qiq', msg.data)
+
+
+class Tbt(SlotCommandProcessor):
+    def __init__(self, config, log, messenger, servers):
+        SlotCommandProcessor.__init__(self, 'TBT', TbtCommand)
+        self.config  = config
+        self.log     = log
+        self.messenger = messenger
+        self.servers = servers
+        self.cur_trigger = self.cur_samples = self.cur_mask = 0
+        
+    def _reset_state(self):
+        self.cur_trigger = self.cur_samples = self.cur_mask = 0
+        
+    def start(self, trigger, samples, mask):
+        local = (mask < 0)
+        mask = abs(mask)
+        flg = ''
+        if local:
+            flg = ", 'local' flag is set"
+        self.log.info('Starting TBT: trigger=%i, samples=%i, mask=%i%s' % (trigger, samples, mask, flg))
+        
+        self.messenger.trigger(trigger, samples, mask, local=local)
+        
+        return True
+        
+    def execute(self, cmds):
+        for cmd in cmds:
+            self.start(cmd.trigger, cmd.samples, cmd.mask)
             
     def stop(self):
         return False
@@ -205,7 +264,7 @@ class Bam(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.nbeam = 4
+        self.nbeam = NBEAM
         self.cur_beam = [0]*self.nbeam
         self.cur_delays = [[0 for i in range(512)]]*self.nbeam
         self.cur_gains = [[0 for i in range(1024)]]*self.nbeam
@@ -246,7 +305,7 @@ class Cor(SlotCommandProcessor):
         self.log     = log
         self.messenger = messenger
         self.servers = servers
-        self.ntuning = 4
+        self.ntuning = len(self.config['host']['servers-data'])
         self.cur_navg = [0]*self.ntuning
         self.cur_gain = [0]*self.ntuning
         
@@ -269,106 +328,6 @@ class Cor(SlotCommandProcessor):
             
     def stop(self):
         return False
-
-
-"""
-class FstCommand(object):
-    def __init__(self, msg):
-        self.index = int(struct.unpack('>h', (msg.data[0:2]))[0])
-        self.coefs = np.ndarray((16,32), dtype='>h', buffer=msg.data[2:])
-class Fst(object):
-    def __init__(self, config, log,
-                nupdate_save=5):
-        self.config = config
-        self.log    = log
-        hosts = config['server_hosts']
-        ports = config['fst']['control_ports']
-        self.addrs = ['tcp://%s:%i'%(hosts[i//2],ports[i%2]) \
-                    for i in range(len(hosts)*len(ports))]
-        self.socks = ObjectPool([_g_zmqctx.socket(zmq.REQ) \
-                                for _ in self.addrs])
-        for sock,addr in zip(self.socks,self.addrs):
-            try: sock.connect(addr)
-            except zmq.error.ZMQError:
-                self.log.error("Invalid or non-existent address: %s" %
-                                addr)
-                # TODO: How to bail out?
-        self.exec_delay = 2
-        self.cmd_sequence = defaultdict(list)
-        self.fir_coefs = SequenceDict(lambda : np.ones((NSTAND,NPOL,
-                                                        FIR_NFINE,FIR_NCOEF),
-                                                    dtype=np.int16),
-                                    maxlen=nupdate_save)
-        self.fir_coefs[0][...] = self._load_default_fir_coefs()
-        #self.future_pool = FuturePool(len(self.socks))
-    def _load_default_fir_coefs(self):
-        nfine = self.fir_coefs[-1].shape[-2]
-        ncoef = self.fir_coefs[-1].shape[-1]
-        fir_coefs = np.fromfile(self.config['fst']['default_coeffs'],
-                                dtype='>h').reshape(nfine,ncoef)
-        return fir_coefs[None,None,:,:]
-    def process_command(self, msg):
-        assert( msg.cmd == 'FST' )
-        exec_slot = msg.slot + self.exec_delay
-        self.cmd_sequence[exec_slot].append(FstCommand(msg))
-    def execute_commands(self, slot):
-        try:
-            cmds = self.cmd_sequence.pop(slot)
-        except KeyError:
-            return
-        # Start with current coefs
-        self.fir_coefs[slot][...] = self.fir_coefs.at(slot-1)
-        # Merge updates into the set of coefficients
-        for cmd in cmds:
-            if cmd.index == -1:
-                self.fir_coefs[slot][...] = self._load_default_fir_coefs()
-            elif cmd.index == 0:
-                # Apply same coefs to all inputs
-                self.fir_coefs[slot][...] = cmd.coefs[None,None,:,:]
-            else:
-                stand = (cmd.index-1) // 2
-                pol   = (cmd.index-1) % 2
-                self.fir_coefs[slot][stand,pol] = cmd.coefs
-        self._send_update(slot)
-    def get_fir_coefs(self, slot):
-        # Access history of updates
-        return self.fir_coefs.at(slot)
-    def _send_update(self, slot):
-        weights = get_freq_domain_filter(self.fir_coefs[slot])
-        # weights: [stand,pol,chan] complex64
-        weights = weights.transpose(2,0,1)
-        # weights: [chan,stand,pol] complex64
-        weights /= weights.max() # Normalise to max DC gain of 1.0
-        # Send update to pipelines
-        # Note: We send all weights to all servers and let them extract
-        #         the channels they need, rather than trying to keep
-        #         track of which servers have which channels from here.
-        # TODO: If msg traffic ever becomes a problem, could probably
-        #         use fp16 instead of fp32 for these.
-        #hdr  = struct.pack('@iihc', slot, NCHAN, NSTAND, NPOL)
-        hdr = json.dumps({'slot':   slot,
-                        'nchan':  NCHAN,
-                        'nstand': NSTAND,
-                        'npol':   NPOL})
-        data = weights.astype(np.complex64).tobytes()
-        msg  = hdr+data
-
-        self.socks.send_multipart([hdr, data])
-        replies = self.socks.recv_json()
-        #def send_msg(sock):
-        #	sock.send_multipart([hdr, data])
-        #	# TODO: Add receive timeout
-        #	return sock.recv_json()
-        #for sock in self.socks:
-        #	self.future_pool.add_task(send_msg, sock)
-        #replies = self.future_pool.wait()
-
-        for reply,addr in zip(replies,self.addrs):
-            if reply['status'] < 0:
-                self.log.error("Gain update failed "
-                            "for address %s: (%i) %s" %
-                            addr, reply['status'], reply['info'])
-"""
 
 
 # Special response packing functions
@@ -481,8 +440,8 @@ class NdpServerMonitorClient(object):
         #try:
         ret = subprocess.check_output(['ipmitool', '-H', self.host_ipmi,
                                        '-U', username, '-P', password] +
-                                       cmd.split())
-        return ret.decode()
+                                       cmd.split(), text=True)
+        return ret
         
     def stop_tengine(self, beam=0):
         try:
@@ -547,7 +506,7 @@ class NdpServerMonitorClient(object):
             
     def pid_drx(self, tuning=0):
         try:
-            pids = self._shell_command("ps aux | grep ndp_drx | grep -- --tuning[=\ ]%i | grep -v grep | awk '{print $2}'"  % tuning)
+            pids = self._shell_command("ps aux | grep ndp_drx | grep -- \"--tuning[=\ ]%i \" | grep -v grep | awk '{print $2}'"  % tuning)
             pids = pids.split('\n')[:-1]
             pids = [int(pid, 10) for pid in pids]
             if len(pids) == 0:
@@ -573,12 +532,7 @@ class NdpServerMonitorClient(object):
         ret = subprocess.check_output(['sshpass', '-p', password,
                                        'ssh', '-o', 'StrictHostKeyChecking=no',
                                        'root@'+self.host,
-                                       cmd])
-        try:
-            ret = ret.decode()
-        except AttributeError:
-            # Python2 catch
-            pass
+                                       cmd], text=True)
         #self.log.info("SSHPASS DONE: " + ret)
         #self.log.info("Command executed: "+ret)
         return ret
@@ -594,6 +548,327 @@ class NdpServerMonitorClient(object):
             return False
 
 
+def _run_fpga_helper(operation, hostname, oparg, log_stderr=False):
+    """
+    Run ndp.NdpFpga as a subprocess and return parsed JSON (or None for non-JSON ops).
+    """
+
+    se_out = subprocess.DEVNULL
+    if log_stderr:
+        se_out = None
+    output = subprocess.check_output([sys.executable, '-m', 'ndp.NdpFpga',
+                                      operation, hostname, str(oparg)],
+                                     cwd=FPGA_SCRIPTS_PATH, stderr=se_out,
+                                     text=True, timeout=180)
+    output = output.strip()
+    if output:
+        return json.loads(output)
+    return None
+
+
+class ZCU102MonitorClient(object):
+    def __init__(self, config, log, num):
+        # Note: num is 1-based index of the snap
+        self.config = config
+        self.log    = log
+        self.num    = num
+        self.host   = f"zcu{self.num:02d}"
+        
+        self.equalizer_coeffs = None
+        try:
+            self.equalizer_coeffs = np.loadtxt(self.config['fpga']['equalizer_coeffs'])
+        except Exception as e:
+            self.log.warning("Failed to load equalizer coefficients: %s", str(e))
+            
+        self.access_lock = FileLock(get_fpga_lockfile(self.host))
+        
+        computed = compute_constants(self.config)
+        self.nserver = computed['NSERVER']
+        self.npipe_per_server = computed['NPIPE_PER_SERVER']
+        
+    @property
+    def zcu(self):
+        """Helper to keep a missing board from killing everything at startup"""
+        if getattr(self, '_zcu', None) is None:
+            try:
+                username = self.config['fpga']['username']
+                password = self.config['fpga']['password']
+                self._zcu   = zcu102_fengine.ZCU102Fengine(self.host,
+                                                           username=username,
+                                                           password=password)
+            except Exception as e:
+                self._zcu = None
+                self.log.error("Cannot connect to %s: %s", self.host, str(e))
+                
+        return self._zcu
+        
+    def unprogram(self, reboot=False):
+        with self.access_lock:
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                self.zcu.deprogram()
+                
+    def get_samples(self, slot, stand, pol, nsamps=None):
+        with self.access_lock:
+            return self.get_samples_all(slot, nsamps)[stand,pol]
+            
+    @lru_cache(maxsize=4)
+    def get_samples_all(self, slot, nsamps=None):
+        """Returns an NDArray of shape (stand,pol,sample)"""
+        samps = np.zeros((16,2,STAT_SAMP_SIZE))
+        with self.access_lock:
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                samps0 = self.zcu.adc.get_snapshot_interleaved(0, signed=True, trigger=True)
+                samps1 = self.zcu.adc.get_snapshot_interleaved(1, signed=True, trigger=False)
+                samps = np.vstack([samps0, samps1])
+                
+        return samps.reshape(16,2,-1)
+        
+    @lru_cache(maxsize=4)
+    def get_temperatures(self, slot):
+        # Return a dictionary of temperatures on the board
+        temp = {'error': float('nan')}
+        try:
+            temp = _run_fpga_helper('check', self.host, 'temperature')
+        except Exception as e:
+            pass
+        return temp
+        
+    @lru_cache(maxsize=4)
+    def get_clock_rate(self):
+        # Estimate the FPGA clock rate in MHz
+        rate = float('nan')
+        with self.access_lock:
+            if self.zcu.is_connected():
+                try:
+                    rate = self.zcu.fpga.get_fpga_clock()
+                except Exception as e:
+                    pass
+        return rate
+        
+    def get_tt_of_sync(self, wait_for_sync=True):
+        # Return the timetag corresponding to a sync pulse.
+        tt = None
+        with self.access_lock:
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                tt = self.zcu.sync.get_tt_of_sync(wait_for_sync=wait_for_sync)
+                tt = tt[0]
+        return tt
+        
+    def program(self):
+        # Program with NDP firmware
+        
+        ## Firmware
+        firmware = self.config['fpga']['firmware']
+        
+        # Go!
+        success = False
+        if self.zcu.is_connected():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    _run_fpga_helper('program', self.host, firmware, log_stderr=True)
+                    _run_fpga_helper('program', self.host, firmware, log_stderr=True)
+                    success = True
+                    break
+                except Exception as e:
+                    pass
+                    
+        ## Force a new connection instance
+        self._zcu = None
+        
+        return success
+        
+    def is_programmed(self):
+        # Has the FPGA been programmed?
+        
+        status = False
+        with self.access_lock:
+            if self.zcu.is_connected():
+                try:
+                    status = self.zcu.fpga.is_programmed()
+                except Exception as e:
+                    pass
+        return status
+        
+    def is_ok(self):
+        # Is there an error condition on the FPGA?
+        
+        status = True
+        try:
+            ret = _run_fpga_helper('check', self.host, 'operational')
+            status = ret['is_ok']
+            for msg in ret.get('errors', []):
+                self.log.error("%s %s", self.host, msg)
+        except Exception as e:
+            pass
+        return status
+        
+    def is_sending(self):
+        # Is the FPGA sending data out?
+        
+        status = True
+        try:
+            ret = _run_fpga_helper('check', self.host, 'throughput')
+            status = ret['is_ok']
+        except Exception as e:
+            pass
+        return status
+        
+    def configure(self, requested_start_chan0=None, update_config=True):
+        # Configure the FPGA and start data flowing
+        
+        configname = '/tmp/zcu_config.yaml'
+        
+        if update_config or not os.path.exists(configname):
+            ## Configuration
+            ### Overall structure + base F-engine config.
+            sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
+                                  'fft_shift': self.config['fpga']['fft_shift'],
+                                  'chans_per_packet': self.config['fpga']['nchan_packet'],
+                                  'adc_clocksource': 0},
+                     'xengines': {'arp': {},
+                                  'chans': {}}}
+            
+            ### Toggle FFT shift schedule on/off
+            if sconf['fengines']['fft_shift'] in ('', 0):
+                del sconf['fengines']['fft_shift']
+                
+            ### Equalizer coefficints (global)
+            if self.equalizer_coeffs is not None:
+                sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
+                
+            ### Antenna and IP source
+            for i,zcu in enumerate(self.config['host']['fpgas']):
+                sconf['fengines'][zcu] = {}
+                sconf['fengines'][zcu]['ants'] = f"[{i*16}, {(i+1)*16}]"
+                sconf['fengines'][zcu]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
+                sconf['fengines'][zcu]['source_port'] = self.config['fpga']['data_port_base']
+                
+            ### X-engine MAC addresses
+            macs = load_ethers()
+            for ip,mac in macs.items():
+                sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
+                
+            ### X-engine channel mapping
+            #### Pass 1 - Find the lowest start channel in the config. file
+            i = 0
+            start_chan0 = NCHAN*2
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                if chan0 < start_chan0:
+                    start_chan0 = chan0
+                i += 1
+            #### Pass 2 - Figure out the new channel mapping
+            if requested_start_chan0 is None:
+                requested_start_chan0 = start_chan0
+            #### Pass 3 - Make it happen
+            i = 0
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
+                port = self.config['server']['data_ports'][i % self.npipe_per_server]
+
+                chan0 = chan0 - start_chan0 + requested_start_chan0
+
+                sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
+                i += 1
+                
+            ### Save
+            sconf = yaml.dump(sconf)
+            with open(configname, 'w') as fh:
+                fh.write(sconf.replace("'", ''))
+                
+        # Go!
+        success = False
+        if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    _run_fpga_helper('configure', self.host, configname, log_stderr=True)
+                    
+                    ## Force a new connection instance
+                    self._zcu = None
+                    
+                    ## At LWA1 the ZCU102's have a non-zero chance of coming up
+                    ## in a state where everything looks ok but no packets come
+                    ## out.  We can check for this by looking for massive overflows
+                    ## of the packet transmission buffer.
+                    time.sleep(1)
+                    
+                    if self.zcu.eth.get_status()[0]['tx_of'] > 100:
+                        raise RuntimeError("Non-zero packet transmission buffer overflow counter")
+                        
+                    self.log.info(f"{self.host} configuration succeeded")
+                    success = True
+                    break
+                    
+                except Exception as e:
+                    self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
+                    pass
+                    
+        return success
+        
+    def get_spectra(self, t_int=0.1):
+        # Return a 2-D array of auto-correlation spectra
+        
+        try:
+            ret = _run_fpga_helper('spectra', self.host, t_int)
+            spectra = np.load(ret['filename'])
+            os.unlink(ret['filename'])
+        except Exception as e:
+            spectra = np.zeros((0, 0))
+        return spectra
+        
+    def get_board_status(self, return_json=False):
+        status = {'fft_overflows': -1, 'clip_count': -1,
+                  'tx_overflow': -1, 'tx_full': -1}
+        with self.access_lock:
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                status['fft_overflows'] = self.zcu.pfb.get_overflow_count()
+                status['clip_count'] = self.zcu.eq.clip_count()
+                estat = self.zcu.eth.get_status()[0]
+                status['tx_overflow'] = estat['tx_of']
+                status['tx_full'] = estat['tx_full']
+        if return_json:
+            status = json.dumps(status)
+        return status
+        
+    def get_board_info(self, return_json=False):
+        info = {'fft_shift': -1, 'pfb_enabled': False, 'inputs': 'unknown',
+                'eq_tvg_enabled': False,
+                'fw_version': 'unknown', 'sw_version': 'unknown',
+                'fw_supported': False, 'flash_md5': 'unknown'}
+        with self.access_lock:
+            if self.zcu.is_connected() and self.zcu.fpga.is_programmed():
+                info['fft_shift'] = self.zcu.pfb.get_fft_shift()
+                info['pfb_enabled'] = self.zcu.pfb.fir_is_enabled()
+                info['inputs'] = self.zcu.input.get_switch_positions()
+                info['eq_tvg_enabled'] = self.zcu.eqtvg.get_status()[0]['tvg_enabled']
+                try:
+                    fstat = self.zcu.fpga.get_status()[0]
+                    info['fw_version'] = fstat['fw_version']
+                    info['sw_version'] = fstat['sw_version']
+                    info['fw_supported'] = fstat['fw_supported']
+                    info['flash_md5'] = fstat['flash_firmware_md5']
+                except Exception as e:
+                    self.log.warning("Cannot poll FPGA status: %s", str(e))
+        if info['inputs'] != 'unknown':
+            spos = {}
+            for i in info['inputs']:
+                try:
+                    spos[i] += 1
+                except KeyError:
+                    spos[i] = 1
+            info['inputs'] = spos
+        if return_json:
+            info = json.dumps(info)
+        return info
+
+
 class Snap2MonitorClient(object):
     def __init__(self, config, log, num):
         # Note: num is 1-based index of the snap
@@ -601,15 +876,30 @@ class Snap2MonitorClient(object):
         self.log    = log
         self.num    = num
         self.host   = f"snap{self.num:02d}"
-        self.snap   = snap2_fengine.Snap2Fengine(self.host)
         
         self.equalizer_coeffs = None
         try:
-            self.equalizer_coeffs = np.loadtxt(self.config['snap']['equalizer_coeffs'])
+            self.equalizer_coeffs = np.loadtxt(self.config['fpga']['equalizer_coeffs'])
         except Exception as e:
             self.log.warning("Failed to load equalizer coefficients: %s", str(e))
             
-        self.access_lock = FileLock(f"/dev/shm/{self.host}_access")
+        self.access_lock = FileLock(get_fpga_lockfile(self.host))
+        
+        computed = compute_constants(self.config)
+        self.nserver = computed['NSERVER']
+        self.npipe_per_server = computed['NPIPE_PER_SERVER']
+        
+    @property
+    def snap(self):
+        """Helper to keep a missing board from killing everything at startup"""
+        if getattr(self, '_snap', None) is None:
+            try:
+                self._snap   = snap2_fengine.Snap2Fengine(self.host)
+            except Exception as e:
+                self._snap = None
+                self.log.error("Cannot connect to %s: %s", self.host, str(e))
+                
+        return self._snap
         
     def unprogram(self, reboot=False):
         with self.access_lock:
@@ -634,15 +924,12 @@ class Snap2MonitorClient(object):
         
     @lru_cache(maxsize=4)
     def get_temperatures(self, slot):
-        # Return a dictionary of temperatures on the Snap2 board
+        # Return a dictionary of temperatures on the board
         temp = {'error': float('nan')}
-        with self.access_lock:
-            if self.snap.is_connected():
-                try:
-                    summary, flags = self.snap.fpga.get_status()
-                    temp = {'fpga': summary['temp']}
-                except Exception as e:
-                    pass
+        try:
+            temp = _run_fpga_helper('check', self.host, 'temperature')
+        except Exception as e:
+            pass
         return temp
         
     @lru_cache(maxsize=4)
@@ -670,20 +957,22 @@ class Snap2MonitorClient(object):
         # Program with NDP firmware
         
         ## Firmware
-        firmware = self.config['snap']['firmware']
+        firmware = self.config['fpga']['firmware']
         
         # Go!
         success = False
-        with self.access_lock:
-            if self.snap.is_connected():
-                for i in range(self.config['snap']['max_program_attempts']):
-                    try:
-                        self.snap.program(firmware)
-                        sucesss = True
-                        break
-                    except Exception as e:
-                        pass
-                        
+        if self.snap.is_connected():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    _run_fpga_helper('program', self.host, firmware, log_stderr=True)
+                    success = True
+                    break
+                except Exception as e:
+                    pass
+                    
+        ## Force a new connection instance
+        self._snap = None
+        
         return success
         
     def is_programmed(self):
@@ -702,114 +991,125 @@ class Snap2MonitorClient(object):
         # Is there an error condition on the FPGA?
         
         status = True
-        with self.access_lock:
-            if self.snap.is_connected():
-                try:
-                    summary, flags = self.snap.fpga.get_status()
-                    for key in flags.keys():
-                        if flags[key] == FENG_ERROR_CODE:
-                            status = False
-                except Exception as e:
-                    pass
+        try:
+            ret = _run_fpga_helper('check', self.host, 'operational')
+            status = ret['is_ok']
+            for msg in ret.get('errors', []):
+                self.log.error("%s %s", self.host, msg)
+        except Exception as e:
+            pass
         return status
         
     def is_sending(self):
         # Is the FPGA sending data out?
         
         status = True
-        with self.access_lock:
-            if self.snap.is_connected():
-                try:
-                    summary, flags = self.snap.eth.get_status()
-                    if summary['gpbs'] == 0:
-                        status = False
-                    for key in flags.keys():
-                        if flags[key] == FENG_ERROR_CODE:
-                            status = False
-                except Exception as e:
-                    pass
+        try:
+            ret = _run_fpga_helper('check', self.host, 'throughput')
+            status = ret['is_ok']
+        except Exception as e:
+            pass
         return status
         
-    def configure(self):
+    def configure(self, requested_start_chan0=None, update_config=True):
         # Configure the FPGA and start data flowing
         
-        ## Configuration
-        ### Overall structure + base F-engine config.
-        sconf = {'fengines': {'enable_pfb': not self.config['snap']['bypass_pfb'],
-                              'fft_shift': self.config['snap']['fft_shift'],
-                              'chans_per_packet': self.config['snap']['nchan_packet'],
-                              'adc_clocksource': 0},
-                 'xengines': {'arp': {},
-                              'chans': {}}}
-                 
-        ### Toggle FFT shift schedule on/off
-        if sconf['fengines']['fft_shift'] in ('', 0):
-            del sconf['fengines']['fft_shift']
-            
-        ### Equalizer coefficints (global)
-        if self.equalizer_coeffs is not None:
-            sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
-            
-        ### Antenna and IP source
-        for i,snap in enumerate(self.config['host']['snaps']):
-            sconf['fengines'][snap] = {}
-            sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
-            sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['snap']['data_ip_base']) + i)
-            sconf['fengines'][snap]['source_port'] = self.config['snap']['data_port_base']
-            
-        ### X-engine MAC addresses
-        macs = load_ethers()
-        for ip,mac in macs.items():
-            sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
-            
-        ### X-engine channel mapping
-        i = 0
-        for host in self.config['host']['servers-data']:
-            if i >= len(self.config['drx']):
-                break
-            ip = host2ip(host)
-            chan0 = self.config['drx'][i]['first_channel']
-            nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
-            port = self.config['server']['data_ports'][i]
-        
-            sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
-            i += 1
-            
-        ### Save
-        sconf = yaml.dump(sconf)
         configname = '/tmp/snap_config.yaml'
-        with open(configname, 'w') as fh:
-            fh.write(sconf.replace("'", ''))
+        
+        if update_config or not os.path.exists(configname):
+            ## Configuration
+            ### Overall structure + base F-engine config.
+            sconf = {'fengines': {'enable_pfb': not self.config['fpga']['bypass_pfb'],
+                                  'fft_shift': self.config['fpga']['fft_shift'],
+                                  'chans_per_packet': self.config['fpga']['nchan_packet'],
+                                  'adc_clocksource': 0},
+                     'xengines': {'arp': {},
+                                  'chans': {}}}
             
+            ### Toggle FFT shift schedule on/off
+            if sconf['fengines']['fft_shift'] in ('', 0):
+                del sconf['fengines']['fft_shift']
+                
+            ### Equalizer coefficints (global)
+            if self.equalizer_coeffs is not None:
+                sconf['fengines']['eq_coeffs'] = str([float(eq) for eq in self.equalizer_coeffs])
+                
+            ### Antenna and IP source
+            for i,snap in enumerate(self.config['host']['fpgas']):
+                sconf['fengines'][snap] = {}
+                sconf['fengines'][snap]['ants'] = f"[{i*32}, {(i+1)*32}]"
+                sconf['fengines'][snap]['gbe'] = int2ip(ip2int(self.config['fpga']['data_ip_base']) + i)
+                sconf['fengines'][snap]['source_port'] = self.config['fpga']['data_port_base']
+                
+            ### X-engine MAC addresses
+            macs = load_ethers()
+            for ip,mac in macs.items():
+                sconf['xengines']['arp'][ip] = '0x'+mac.replace(':', '')
+                
+            ### X-engine channel mapping
+            #### Pass 1 - Find the lowest start channel in the config. file
+            i = 0
+            start_chan0 = NCHAN*2
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                if chan0 < start_chan0:
+                    start_chan0 = chan0
+                i += 1
+            #### Pass 2 - Figure out the new channel mapping
+            if requested_start_chan0 is None:
+                requested_start_chan0 = start_chan0
+            #### Pass 3 - Make it happen
+            i = 0
+            for host in self.config['host']['servers-data']:
+                if i >= len(self.config['drx']):
+                    break
+                ip = host2ip(host)
+                chan0 = self.config['drx'][i]['first_channel']
+                nchan = int(round(self.config['drx'][i]['capture_bandwidth'] / CHAN_BW))
+                port = self.config['server']['data_ports'][i]
+
+                chan0 = chan0 - start_chan0 + requested_start_chan0
+
+                sconf['xengines']['chans'][f"{ip}-{port}"] = f"[{chan0}, {chan0+nchan}]"
+                i += 1
+                
+            ### Save
+            sconf = yaml.dump(sconf)
+            with open(configname, 'w') as fh:
+                fh.write(sconf.replace("'", ''))
+                
         # Go!
         success = False
-        with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                for i in range(self.config['snap']['max_program_attempts']):
-                    try:
-                        self.snap.cold_start_from_config(configname) 
-                        sucesss = True
-                        break
-                    except Exception as e:
-                        pass
-                        
+        if self.snap.is_connected() and self.snap.fpga.is_programmed():
+            for i in range(self.config['fpga']['max_program_attempts']):
+                try:
+                    _run_fpga_helper('configure', self.host, configname, log_stderr=True)
+                    
+                    self.log.info(f"{self.host} configuration succeeded") 
+                    success = True
+                    break
+                    
+                except Exception as e:
+                    self.log.warning(f"{self.host} cold_start_from_config() failed with {str(e)}")
+                    pass
+                    
+        ## Force a new connection instance
+        self._snap = None
+        
         return success
         
     def get_spectra(self, t_int=0.1):
         # Return a 2-D array of auto-correlation spectra
         
-        acc_len = int(round(CHAN_BW * t_int))
-        
-        spectra = []
-        with self.access_lock:
-            if self.snap.is_connected() and self.snap.fpga.is_programmed():
-                self.snap.autocorr.set_acc_len(acc_len)
-                time.sleep(t_int+0.1)
-                
-                for i in range(4):
-                    spectra.append( self.snap.autocorr.get_new_spectra(signal_block=i) )
-        spectra = np.array(spectra)
-        spectra = spectra.reshape(-1, spectra.shape[-1])
+        try:
+            ret = _run_fpga_helper('spectra', self.host, t_int)
+            spectra = np.load(ret['filename'])
+            os.unlink(ret['filename'])
+        except Exception as e:
+            spectra = np.zeros((0, 0))
         return spectra
         
     def get_board_status(self, return_json=False):
@@ -854,8 +1154,9 @@ class Snap2MonitorClient(object):
             info = json.dumps(info)
         return info
 
+
     # TODO: Configure channel selection (based on FST)
-    # TODO: start/stop data flow (remember to call snap.reset() before start)
+    # TODO: start/stop data flow (remember to call zcu.reset() before start)
 
 
 def exception_in(vals, error_type=Exception):
@@ -878,6 +1179,8 @@ class MsgProcessor(ConsumerThread):
         self.utc_start     = None
         self.utc_start_str = "NULL"
         
+        self.computed = compute_constants(self.config)
+        
         self.messageServer = ISC.PipelineMessageServer(addr=('ndp',5832))
         
         mcs_local_host  = self.config['mcs']['headnode']['local_host']
@@ -896,14 +1199,22 @@ class MsgProcessor(ConsumerThread):
         
         self.headnode = ObjectPool([NdpServerMonitorClient(config, log, 'ndp'),])
         self.servers = ObjectPool([NdpServerMonitorClient(config, log, host)
-                                for host in self.config['host']['servers']])
-        nsnap = NBOARD
-        self.snaps = ObjectPool([Snap2MonitorClient(config, log, num+1)
-                                for num in range(nsnap)])
+                                  for host in self.config['host']['servers']])
+        nfpga = self.computed['NBOARD']
+        if ZCU102_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'zcu102':
+            self.fpgas = ObjectPool([ZCU102MonitorClient(config, log, num+1)
+                                    for num in range(nfpga)])
+        elif SNAP2_SUPPORT and firmware2type(self.config['fpga']['firmware']) == 'snap2':
+            self.fpgas = ObjectPool([Snap2MonitorClient(config, log, num+1)
+                                    for num in range(nfpga)])
+        else:
+            self.fpgas = []
+        self._head_fpgas = self.fpgas[:1]
+        self._rest_fpgas = self.fpgas[1:]
         
-        #self.fst = Fst(config, log)
         self.drx = Drx(config, log, self.messageServer, self.servers)
-        self.tbf = Tbf(config, log, self.messageServer, self.servers)
+        self.tbs = Tbs(config, log, self.messageServer, self.servers)
+        self.tbt = Tbt(config, log, self.messageServer, self.servers)
         self.bam = Bam(config, log, self.messageServer, self.servers)
         self.cor = Cor(config, log, self.messageServer, self.servers)
 
@@ -930,7 +1241,9 @@ class MsgProcessor(ConsumerThread):
         self.run_failsafe_thread = threading.Thread(target=self.run_failsafe)
         self.run_failsafe_thread.daemon = True
         self.run_failsafe_thread.start()
-        
+       
+        self.health_check_lock = threading.Lock()
+         
         self.start_lock_thread()
         self.start_internal_trigger_thread()
         
@@ -972,20 +1285,24 @@ class MsgProcessor(ConsumerThread):
         # Returns no. secs since data processing began (during INI)
         if self.utc_start is None:
             return 0
-        secs = (datetime.datetime.utcnow() - self.utc_start).total_seconds()
+        secs = (datetime.datetime.now(tz=datetime.timezone.utc) \
+                - datetime.datetime.fromtimestamp(self.utc_start / FS, tz=datetime.timezone.utc)
+               ).total_seconds()
         return secs
         
     def raise_error_state(self, cmd, state):
         # TODO: Need new codes? Need to document them?
-        state_map = {'BOARD_SHUTDOWN_FAILED':      (0x08,'Board-level shutdown failed'),
-                     'BOARD_PROGRAMMING_FAILED':   (0x04,'Board programming failed'),
-                     'BOARD_CONFIGURATION_FAILED': (0x05,'Board configuration failed'),
-                     'SERVER_STARTUP_FAILED':      (0x09,'Server startup failed'),
-                     'SERVER_SHUTDOWN_FAILED':     (0x0A,'Server shutdown failed'), 
-                     'PIPELINE_STARTUP_FAILED':    (0x0B,'Pipeline startup failed'),
-                     'SNAP2_CALIBRATION_FAILED':   (0x0C,'ADC calibration failed'),
-                     'SNAP2_INTERNAL_ERROR':       (0x0D,'Internal SNAP2 error condition'),
-                     'PIPLINE_PROCESSING_ERROR':   (0x0E,'Pipeline processing error')}
+        state_map = {'INVALID_SYSTEM_CONFIGURATION': (0x01,'Invalid configuration file values'),
+                     'BOARD_SHUTDOWN_FAILED':        (0x08,'Board-level shutdown failed'),
+                     'BOARD_PROGRAMMING_FAILED':     (0x04,'Board programming failed'),
+                     'BOARD_CONFIGURATION_FAILED':   (0x05,'Board configuration failed'),
+                     'SERVER_STARTUP_FAILED':        (0x09,'Server startup failed'),
+                     'SERVER_SHUTDOWN_FAILED':       (0x0A,'Server shutdown failed'), 
+                     'PIPELINE_STARTUP_FAILED':      (0x0B,'Pipeline startup failed'),
+                     'SNAP2_CALIBRATION_FAILED':     (0x0C,'ADC calibration failed'),
+                     'SNAP2_INTERNAL_ERROR':         (0x0D,'Internal SNAP2 error condition'),
+                     'PIPLINE_PROCESSING_ERROR':     (0x0E,'Pipeline processing error'),
+                     'OTHER_INTERAL_ERROR':          (0x0F,'Other internal error')}
         code, msg = state_map[state]
         self.state['lastlog'] = '%s: Finished with error' % cmd
         self.state['status']  = 'ERROR'
@@ -993,7 +1310,7 @@ class MsgProcessor(ConsumerThread):
         self.state['activeProcess'].pop()
         return code
         
-    def check_success(self, func, description, names):
+    def check_success(self, func, description, names, false_ok=True):
         self.state['info'] = description
         rets = func()
         #self.log.info("check_success rets: "+' '.join([str(r) for r in rets]))
@@ -1002,6 +1319,8 @@ class MsgProcessor(ConsumerThread):
             if isinstance(ret, Exception):
                 oks[i] = False
                 self.log.error("%s: %s" % (name, str(ret)))
+            elif (not false_ok) and (not ret):
+                oks[i] = False
         all_ok = all(oks)
         if not all_ok:
             symbols = ''.join(['.' if ok else 'x' for ok in oks])
@@ -1020,6 +1339,17 @@ class MsgProcessor(ConsumerThread):
         self.state['info']   = 'Running INI sequence'
         self.log.info("Running INI sequence")
         
+        # Basic config. validation
+        if not self.check_success(lambda: [self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'] \
+                                            == len(self.config['drx']),],
+                                  'Pipeline configuration validation',
+                                  ['Valid configuation'], false_ok=False):
+            return self.raise_error_state('INI', 'INVALID_SYSTEM_CONFIGURATION')
+        if not self.check_success(lambda: [self.computed['NBOARD'] == len(self.fpgas),],
+                                  'FPGA configuration validation',
+                                  ['Valid configuation'], false_ok=False):
+            return self.raise_error_state('INI', 'INVALID_SYSTEM_CONFIGURATION')
+            
         # Figure out if the servers are up or not
         if not all(self.servers.can_ssh()):
             ## Down, power them on
@@ -1040,7 +1370,7 @@ class MsgProcessor(ConsumerThread):
                     
         ## Stop the pipelines
         self.log.info('Stopping pipelines')
-        for tuning in range(len(self.config['drx'])):
+        for tuning in range(self.computed['NPIPE_PER_SERVER']):
             self.servers.stop_drx(tuning=tuning)
         for beam in range(self.config['drx'][0]['beam_count']):
             self.headnode.stop_tengine(beam=beam)
@@ -1056,7 +1386,7 @@ class MsgProcessor(ConsumerThread):
                     for pid in filter(lambda x: x > 0, pids):
                         self.log.warning('  Killing %s TEngine-%i, PID %i', server.host, beam, pid)
                         server.kill_pid(pid)
-            for tuning in range(len(self.config['drx'])):
+            for tuning in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
                 for server in self.servers:
                     pids = server.pid_drx(tuning=tuning)
                     for pid in filter(lambda x: x > 0, pids):
@@ -1089,7 +1419,8 @@ class MsgProcessor(ConsumerThread):
         
         # Reset the internal state for the various modes/commands 
         self.drx._reset_state()
-        self.tbf._reset_state()
+        self.tbs._reset_state()
+        self.tbt._reset_state()
         self.bam._reset_state()
         self.cor._reset_state()
         
@@ -1104,7 +1435,7 @@ class MsgProcessor(ConsumerThread):
                                           self.headnode.host):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('INI', 'SERVER_STARTUP_FAILED')
-            for tuning in range(len(self.config['drx'])):
+            for tuning in range(self.computed['NPIPE_PER_SERVER']):
                 if not self.check_success(lambda: self.servers.restart_drx(tuning=tuning),
                                           'Restarting pipelines - DRX',
                                           self.servers.host):
@@ -1113,28 +1444,40 @@ class MsgProcessor(ConsumerThread):
                         
         # Bring up the FPGAs
         if 'NOREPROGRAM' not in arg: # Note: This is for debugging, not in spec
-            self.log.info("Programming FPGAs with '%s'", self.config['snap']['firmware'])
-            if not self.check_success(lambda: self.snaps.program(),
+            self.log.info("Programming FPGAs with '%s'", self.config['fpga']['firmware'])
+            if not self.check_success(lambda: self.fpgas.program(),
                                       'Programming FPGAs',
-                                      self.snaps.host):
+                                      self.fpgas.host):
                 if 'FORCE' not in arg: # Note: Also not in spec
                     return self.raise_error_state('INI', 'BOARD_PROGRAMMING_FAILED')
                     
         self.log.info("Configuring FPGAs")
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i == 0],
+        requested_start_chan0 = None
+        for a in arg.split(None):
+            if a.startswith('STARTFREQ'):
+                try:
+                    requested_start_chan0 = float(a.split('_', 1)[-1])*1e6 / CHAN_BW
+                    requested_start_chan0 = int(round(requested_start_chan0/16))*16
+                    self.log.info("Setting first channel to %i (%.3f MHz)", requested_start_chan0, requested_start_chan0*CHAN_BW)
+                except Exception as e:
+                    self.log.warning("Failed to parse INI STARTFREQ request with '%s', ignoring", str(e))
+        if not self.check_success(lambda: self._head_fpgas.configure(requested_start_chan0=requested_start_chan0),
                                   'Configuring master FPGA',
-                                  [s.host for i,s in enumerate(self.snaps) if i == 0]):
+                                  self._head_fpgas.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
-        if not self.check_success(lambda: [s.configure() for i,s in enumerate(self.snaps) if i != 0],
+        if not self.check_success(lambda: self._rest_fpgas.configure(requested_start_chan0=requested_start_chan0, update_config=False),
                                   'Configuring remaining FPGAs',
-                                  [s.host for i,s in enumerate(self.snaps) if i != 0]):
+                                  self._rest_fpgas.host):
             if 'FORCE' not in arg:
                 return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
                 
         self.log.info("  Finished configuring FPGAs")
         
-        self.utc_start     = self.snaps[0].get_tt_of_sync()
+        try:
+            self.utc_start     = self.fpgas[0].get_tt_of_sync()
+        except RuntimeError:
+            return self.raise_error_state('INI', 'BOARD_CONFIGURATION_FAILED')
         self.utc_start_str = str(self.utc_start)
         self.state['lastlog'] = "Starting correlator processing at timetag "+self.utc_start_str
         self.log.info("Starting correlator processing at timetag "+self.utc_start_str)
@@ -1144,7 +1487,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Checking pipeline processing")
         ## DRX
         pipeline_pids = []
-        for tuning in range(len(self.config['drx'])):
+        for tuning in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
             pipeline_pids = [p for s in self.servers.pid_drx(tuning=tuning) for p in s]
             pipeline_pids = list(filter(lambda x: x>0, pipeline_pids))
             print('DRX-%i:' % tuning, len(pipeline_pids), pipeline_pids)
@@ -1189,14 +1532,14 @@ class MsgProcessor(ConsumerThread):
                 if exception_in(self.servers.do_power('reset')):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                if exception_in(self.snaps.unprogram(do_reboot)):
+                if exception_in(self.fpgas.unprogram(do_reboot)):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
             else:
                 if exception_in(self.servers.do_power('off')):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                if exception_in(self.snaps.unprogram(do_reboot)):
+                if exception_in(self.fpgas.unprogram(do_reboot)):
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
             self.log.info("SHT SCRAM finished in %.3f s", time.time() - start_time)
@@ -1206,59 +1549,57 @@ class MsgProcessor(ConsumerThread):
             self.state['activeProcess'].pop()
         else:
             if 'RESTART' in arg:
-                def soft_reboot():
-                    self.log.info('Shutting down servers')
-                    if exception_in(self.servers.do_power('soft')):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming snaps')
-                    if exception_in(self.snaps.unprogram(do_reboot)):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
-                    self.log.info('Waiting for servers to power off')
-                    try:
-                        self._wait_until_servers_power('off', max_wait=180)
-                    except RuntimeError:
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Powering on servers')
-                    if exception_in(self.servers.do_power('on')):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
-                    self.log.info('Waiting for servers to power on')
-                    try:
-                        self._wait_until_servers_power('on')
-                    except RuntimeError:
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
-                    self.log.info("SHT RESTART finished in %.3f s", time.time() - start_time)
-                    self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
-                    self.state['status']  = 'SHUTDWN'
-                    self.state['info']    = 'System has been shut down'
-                    self.state['activeProcess'].pop()
-                self.thread_pool.add_task(soft_reboot)
+                self.log.info('Shutting down servers')
+                if exception_in(self.servers.do_power('soft')):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info('Unprogramming FPGAs')
+                if exception_in(self.fpgas.unprogram(do_reboot)):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
+                self.log.info('Waiting for servers to power off')
+                try:
+                    self._wait_until_servers_power('off', max_wait=240)
+                except RuntimeError:
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info('Powering on servers')
+                if exception_in(self.servers.do_power('on')):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
+                self.log.info('Waiting for servers to power on')
+                try:
+                    self._wait_until_servers_power('on')
+                except RuntimeError:
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_STARTUP_FAILED')
+                self.log.info("SHT RESTART finished in %.3f s", time.time() - start_time)
+                self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
+                self.state['status']  = 'SHUTDWN'
+                self.state['info']    = 'System has been shut down'
+                self.state['activeProcess'].pop()
+                
             else:
-                def soft_power_off():
-                    self.log.info('Shutting down servers')
-                    if exception_in(self.servers.do_power('soft')):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info('Unprogramming snaps')
-                    if exception_in(self.snaps.unprogram(do_reboot)):
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
-                    self.log.info('Waiting for servers to power off')
-                    try:
-                        self._wait_until_servers_power('off', max_wait=180)
-                    except RuntimeError:
-                        if 'FORCE' not in arg:
-                            return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
-                    self.log.info("SHT finished in %.3f s", time.time() - start_time)
-                    self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
-                    self.state['status']  = 'SHUTDWN'
-                    self.state['info']    = 'System has been shut down'
-                    self.state['activeProcess'].pop()
-                self.thread_pool.add_task(soft_power_off)
+                self.log.info('Shutting down servers')
+                if exception_in(self.servers.do_power('soft')):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info('Unprogramming FPGAs')
+                if exception_in(self.fpgas.unprogram(do_reboot)):
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
+                self.log.info('Waiting for servers to power off')
+                try:
+                    self._wait_until_servers_power('off', max_wait=240)
+                except RuntimeError:
+                    if 'FORCE' not in arg:
+                        return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
+                self.log.info("SHT finished in %.3f s", time.time() - start_time)
+                self.state['lastlog'] = 'SHT finished in %.3f s' % (time.time() - start_time)
+                self.state['status']  = 'SHUTDWN'
+                self.state['info']    = 'System has been shut down'
+                self.state['activeProcess'].pop()
+                
         return 0
         
     def _wait_until_servers_power(self, target_state, max_wait=60):
@@ -1285,10 +1626,10 @@ class MsgProcessor(ConsumerThread):
         t0, t1 = time.time(), time.time()
         while nRunning > 0:
             pids = []
-            for tuning in range(4):
+            for tuning in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
                 for server in self.servers:
                     pids.extend( server.pid_drx(tuning=tuning) )
-            for beam in range(4):
+            for beam in range(NBEAM):
                 for server in self.headnode:
                     pids.extend( server.pid_tengine(beam=beam) )
             nRunning = len( list(filter(lambda x: x > 0, pids)) )
@@ -1302,7 +1643,7 @@ class MsgProcessor(ConsumerThread):
         self.log.info("Starting slot execution thread")
         slot = MCS2.get_current_slot()
         while not self.shutdown_event.is_set():
-            for cmd_processor in [self.drx, self.tbf, self.bam, self.cor]:#, self.fst]
+            for cmd_processor in [self.drx, self.tbs, self.tbt, self.bam, self.cor]:
                 self.thread_pool.add_task(cmd_processor.execute_commands,
                                         slot)
             while MCS2.get_current_slot() == slot:
@@ -1355,10 +1696,17 @@ class MsgProcessor(ConsumerThread):
         # A little state to see if we need to re-check hosts
         force_recheck = False if self.ready else True
         
+        # Regular expresion for parsing command lines to find tuning/beam info
+        tb_re = re.compile(r'--(?P<type>(tuning)|(beam))[= \t](?P<side>\d+)')
+        
+        # State variable for polling the timing monitor board
+        tm_poll = 0.0
+        tm_state = {'comm': False,
+                    '12V': False, '9V': False, '6V': False,
+                    'lock': False, 'sync': False,
+                    'temp': False}
+        
         # Go!
-        n_beams = self.config['drx'][0]['beam_count']
-        n_tunings = len(self.config['drx'])
-        n_servers = len(self.config['host']['servers-data'])
         while not self.shutdown_event.is_set():
             ## A little more state
             problems_found = False
@@ -1373,7 +1721,7 @@ class MsgProcessor(ConsumerThread):
                 found = {'drx':[], 'tengine':[]}
                 for host in list(pipelines.keys()):
                     ### Basic information about what to expect
-                    n_expected = n_beams if host == 'localhost' else n_tunings
+                    n_expected = NBEAM if host == 'localhost' else (self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])
                     
                     ### Check to see if our view of which pipelines are running has changed
                     refresh = False if len(pipelines[host]) == n_expected else True
@@ -1388,19 +1736,19 @@ class MsgProcessor(ConsumerThread):
                     ### Loop over the pipelines
                     for pipeline in pipelines[host]:
                         name = pipeline.command
-                        side = 0
-                        if name.find('--tuning 1') != -1 or name.find('--beam 1') != -1:
-                            side = 1
-                        elif name.find('--tuning 2') != -1 or name.find('--beam 2') != -1:
-                            side = 2
-                        elif name.find('--tuning 3') != -1 or name.find('--beam 3') != -1:
-                            side = 3
+                        mtch = tb_re.search(name)
+                        if mtch is not None:
+                            side = int(mtch.group('side'), 10)
+                        else:
+                            self.log.warning("Cannot determine tuning/beam for '%s'", name)
+                            continue
                         loss = pipeline.rx_loss()
                         txbw = pipeline.tx_rate()
                         cact = pipeline.is_corr_active()
+                        flg  = pipeline.get_flagging_stats(flag_type='move')
                         
                         if name.find('drx') != -1:
-                            found['drx'].append( (host,name,side,loss,txbw,cact) )
+                            found['drx'].append( (host,name,side,loss,txbw,cact,flg) )
                         elif name.find('tengine') != -1:
                             found['tengine'].append( (host,name,side,loss,txbw) )
                         else:
@@ -1414,7 +1762,7 @@ class MsgProcessor(ConsumerThread):
                     
                     self.log.info("Monitor BAIL")
                     continue
-                total_tengine_bw = {0:0, 1:0, 2:0, 3:0}
+                total_tengine_bw = {i:0 for i in range(NBEAM)}
                 for host,name,side,loss,txbw in found['tengine']:
                     total_tengine_bw[side] += txbw
                     if loss > 0.10:    # >10% packet loss
@@ -1431,7 +1779,7 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
-                for side in range(n_beams):
+                for side in range(NBEAM):
                     if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
@@ -1439,9 +1787,9 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                if len(found['tengine']) != n_beams:
+                if len(found['tengine']) != NBEAM:
                     problems_found = True
-                    msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), n_beams)
+                    msg = "Found %i T-Engines instead of %i" % (len(found['tengine']), NBEAM)
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
@@ -1454,9 +1802,9 @@ class MsgProcessor(ConsumerThread):
                     
                     self.log.info("Monitor BAIL")
                     continue
-                total_drx_bw = {0:0, 1:0, 2:0, 3:0}
-                total_drx_inactive = {0:0, 1:0, 2:0, 3:0}
-                for host,name,side,loss,txbw,cact in found['drx']:
+                total_drx_bw = {i:0 for i in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])}
+                total_drx_inactive = {i:0 for i in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])}
+                for host,name,side,loss,txbw,cact,flg in found['drx']:
                     total_drx_bw[side] += txbw
                     total_drx_inactive[side] += (1 if txbw == 0 else 0)
                     if loss > 0.10:    # > 10% packet loss
@@ -1473,63 +1821,172 @@ class MsgProcessor(ConsumerThread):
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
-                    if self.drx.cur_freq[side] > 0 and not cact:
+                    if not cact:
                         problems_found = True
                         msg = "%s, DRX-%i -- Correlator not running" % (host, side)
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                for side in range(n_tunings):
-                    if self.drx.cur_freq[side] > 0 and total_drx_inactive[side] > 0:
+                    if flg > 0.02:      # >2% flagging
+                        problems_found = True
+                        msg = "%s, DRX-%i -- Flagging fraction at %.1f%%" % (host, side, flg*100)
+                        new_status = 'WARNING'
+                        new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
+                        status, info = self._combine_status(status, info, new_status, new_info)
+                        self.log.warning(msg)
+                for side in range(self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']):
+                    if total_drx_inactive[side] > 0:
                         problems_found = True
                         msg = "DRX-%i -- TX rate of %.1f MB/s" % (side, total_drx_bw[side]/1024.0**2)
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
-                if len(found['drx']) != n_tunings:
+                if len(found['drx']) != self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER']:
                     problems_found = True
-                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), n_tunings)
+                    msg = "Found %i DRX pipelines instead of %i" % (len(found['drx']), self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])
                     new_status = 'WARNING'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0E, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.warning(msg)
                     
-                ## Check the snap boards
+                ## Check the FPGA boards
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
                     force_recheck = True
                     
                     self.log.info("Monitor BAIL")
                     continue
-                snaps_programmed = self.snaps.is_programmed()
-                if not all(snaps_programmed):
+                fpgas_programmed = self.fpgas.is_programmed()
+                if not all(fpgas_programmed):
                     problems_found = True
-                    msg = "Found %s SNAP2 board(s) not programmed" % (len(snaps_programmed) - sum(snaps_programmed),)
+                    msg = "Found %s FPGA board(s) not programmed" % (len(fpgas_programmed) - sum(fpgas_programmed),)
                     new_status = 'ERROR'
                     new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                     status, info = self._combine_status(status, info, new_status, new_info)
                     self.log.error(msg)
+                    ext_msg = []
+                    for z,p in zip(self.fpgas, fpgas_programmed):
+                        if not p:
+                            ext_msg.append(z.host)
+                    ext_msg = ' '.join(ext_msg)
+                    self.log.error('Board(s) are: %s', ext_msg)
                 else:
-                    snaps_ok = self.snaps.is_ok()
-                    if not all(snaps_ok):
+                    fpgas_ok = self.fpgas.is_ok()
+                    if not all(fpgas_ok):
                         problems_found = True
-                        msg = "Found %s SNAP2 board(s) with internal error conditions" % (len(snaps_ok) - sum(snaps_ok),)
+                        msg = "Found %s FPGA board(s) with internal error conditions" % (len(fpgas_ok) - sum(fpgas_ok),)
                         new_status = 'ERROR'
                         new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.error(msg)
+                        ext_msg = []
+                        for z,o in zip(self.fpgas, fpgas_ok):
+                            if not o:
+                                ext_msg.append(z.host)
+                        ext_msg = ' '.join(ext_msg)
+                        self.log.error('Board(s) are: %s', ext_msg)
                     else:
-                        snaps_sending = self.snaps.is_sending()
-                        if not all(snaps_sending):
+                        fpgas_sending = self.fpgas.is_sending()
+                        if not all(fpgas_sending):
                             problems_found = True
-                            msg = "Found %s SNAP2 board(s) not sending data" % (len(snaps_sending) - sum(snaps_sending),)
+                            msg = "Found %s FPGA board(s) not sending data" % (len(fpgas_sending) - sum(fpgas_sending),)
                             new_status = 'ERROR'
                             new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                             status, info = self._combine_status(status, info, new_status, new_info)
                             self.log.error(msg)
+                            ext_msg = []
+                            for z,s in zip(self.fpgas, fpgas_sending):
+                                if not s:
+                                    ext_msg.append(z.host)
+                            ext_msg = ' '.join(ext_msg)
+                            self.log.error('Board(s) are: %s', ext_msg)
                             
+                ## Check the timing monitor board
+                if time.time() - tm_poll > 1800:
+                    try:
+                        output = subprocess.check_output(['/home/ndp/ng_digital_processor/scripts/valon_status.py'], text=True)
+                        
+                        _lock = None
+                        for line in output.split('\n'):
+                            if line.startswith('12V:'):
+                                _, value = line.split(None, 1)
+                                value = float(value)
+                                tm_state['12V'] = False
+                                if value > 2:
+                                    tm_state['12V'] = True
+                            elif line.startswith('9V:'):
+                                _, value = line.split(None, 1)
+                                value = float(value)
+                                tm_state['9V'] = False
+                                if value > 2:
+                                    tm_state['9V'] = True
+                            elif line.startswith('6V:'):
+                                _, value = line.split(None, 1)
+                                value = float(value)
+                                tm_state['6V'] = False
+                                if value > 2:
+                                    tm_state['6V'] = True
+                            elif line.startswith('Valon Lock:'):
+                                tm_state['lock'] = False
+                                if line.find('True') != -1:
+                                    tm_state['lock'] = True
+                            elif line.startswith('Last Sync Pulse:'):
+                                _, _, _, value, _ = line.split(None, 4)
+                                value = float(value)
+                                tm_state['sync'] = False
+                                if value < 10:
+                                    tm_state['sync'] = True
+                            elif line.startswith('MCU Temperature:'):
+                                _, _, value, _ = line.split(None, 3)
+                                value = float(value)
+                                tm_state['temp'] = False
+                                if value > 10 and value < 60:
+                                    tm_state['temp'] = True
+                            elif line.startswith('  Phase locked:'):
+                                if _lock is None:
+                                    _lock = (line.find('True') != -1)
+                                    if _lock != tm_state['lock']:
+                                        self.log.warning('Disagreement over Valon lock state: "lock" is %s but "phase locked" is %s', tm_state['lock'], _lock)
+                                        tm_state['lock'] = _lock
+                                        
+                        tm_poll = time.time()
+                        tm_state['comm'] = True
+                        
+                    except subprocess.CalledProcessError as e:
+                        self.log.warning('failed to call valon_status.py: %s', str(e))
+                        tm_state['comm'] = False
+                        tm_state = {k:False for k in tm_state}
+                        
+                    except Exception as e:
+                        self.log.warning('failed to process valon_status.py output: %s', str(e))
+                        tm_state['comm'] = False
+                        tm_state = {k:False for k in tm_state}
+                        
+                if not all(tm_state.values()):
+                    problems_found = True
+                    tm_count = len(tm_state) - sum(tm_state.values())
+                    msg = "Found %i timing monitor problem(s)" % (tm_count,)
+                    new_status = 'ERROR'
+                    new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0F, msg)
+                    status, info = self._combine_status(status, info, new_status, new_info)
+                    self.log.error(msg)
+                    ext_msg = []
+                    for k,s in tm_state.items():
+                        n = k+' out-of-range'
+                        if k == 'comm':
+                            n = 'Communication error'
+                        elif k == 'lock':
+                            n = 'Valon not locked'
+                        elif k == 'sync':
+                            n = 'No recent sync pulse'
+                            
+                        if not s:
+                            ext_msg.append(n)
+                    ext_msg = ', '.join(ext_msg)
+                    self.log.error('Timing monitor problems are: %s', ext_msg)
+                    
                 ## De-assert anything that we can de-assert
                 if not self.ready:
                     ## Deal with the system shutting down in the middle of a poll
@@ -1610,24 +2067,24 @@ class MsgProcessor(ConsumerThread):
                 status, info = self._combine_status(status, info, new_status, new_info)
                     
             # Note: Actually just flattening lists, not summing
-            snap_temps  = sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
+            fpgas_temp = sum([list(v) for v in self.fpgas.get_temperatures(slot).values()], [])
             # Remove error values before reducing
-            snap_temps  = [val for val in snap_temps  if not math.isnan(val)]
-            if len(snap_temps) == 0: # If all values were nan (exceptional!)
-                snap_temps = [float('nan')]
-            snap_temps_max  = np.max(snap_temps)
-            if snap_temps_max > self.config['snap']['temperature_shutdown']:
-                msg = 'Temperature shutdown -- snap'
+            fpgas_temp = [val for val in fpgas_temp  if not math.isnan(val)]
+            if len(fpgas_temp) == 0: # If all values were nan (exceptional!)
+                fpgas_temp = [float('nan')]
+            fpgas_temp_max = np.max(fpgas_temp)
+            if fpgas_temp_max > self.config['fpga']['temperature_shutdown']:
+                msg = 'Temperature shutdown -- fpga'
                 new_status = 'ERROR'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
                                                  'Board temperature shutdown')
                 status, info = self._combine_status(status, info, new_status, new_info)
-                if snap_temps_max > self.config['snap']['temperature_scram']:
+                if fpgas_temp_max > self.config['fpga']['temperature_scram']:
                     self.sht('SCRAM')
                 else:
                     self.sht()
-            elif snap_temps_max > self.config['snap']['temperature_warning']:
-                msg = 'Temperature warning -- snap'
+            elif fpgas_temp_max > self.config['fpga']['temperature_warning']:
+                msg = 'Temperature warning -- fpga'
                 new_status = 'WARNING'
                 new_info   = '%s! 0x%02X! %s' % ('BOARD_TEMP_MAX', 0x01,
                                                  'Board temperature warning')
@@ -1672,10 +2129,10 @@ class MsgProcessor(ConsumerThread):
         if not self.thread_pool.wait(self.shutdown_timeout):
             self.log.warning("Active tasks still exist and will be killed")
         self.run_execute_thread.join(self.shutdown_timeout)
-        if self.run_execute_thread.isAlive():
+        if self.run_execute_thread.is_alive():
             self.log.warning("run_execute thread still exists and will be killed")
         self.run_monitor_thread.join(self.shutdown_timeout)
-        if self.run_monitor_thread.isAlive():
+        if self.run_monitor_thread.is_alive():
             self.log.warning("run_monitor thread still exists and will be killed")
         print(self.name, "shutdown")
         
@@ -1706,13 +2163,13 @@ class MsgProcessor(ConsumerThread):
     def _get_next_fir_index(self):
         idx = self.fir_idx
         self.fir_idx += 1
-        self.fir_idx %= NINPUT
+        self.fir_idx %= self.computed['NINPUT']
         return idx
         
-    def _get_snap_config(self):
+    def _get_fpga_config(self):
         sub_config = {}
         for key in ('firmware', 'fft_shift', 'equalizer_coeffs', 'bypass_pfb'):
-            sub_config[key] = self.config['snap'][key]
+            sub_config[key] = self.config['fpga'][key]
         sub_config['equalizer_coeffs_md5'] = ''
         
         try:
@@ -1747,15 +2204,14 @@ class MsgProcessor(ConsumerThread):
         if key == 'SUBSYSTEM':         return SUBSYSTEM
         if key == 'SERIALNO':          return self.serial_number
         if key == 'VERSION':           return self.version
-        if key == 'SNAP_CONFIG':       return self._get_snap_config()
+        if key == 'SNAP_CONFIG':       return self._get_fpga_config()
         if key == 'TENGINE_CONFIG':    return self._get_tengine_config()
-        # TODO: TBF_STATUS
-        #       TBF_TUNING_MASK
-        if key == 'NUM_STANDS':        return NSTAND
-        if key == 'NUM_SERVERS':       return NSERVER
-        if key == 'NUM_BOARDS':        return NBOARD
+        # TODO: TBT_STATUS
+        #       TBT_TUNING_MASK
+        if key == 'NUM_STANDS':        return self.computed['NSTAND']
+        if key == 'NUM_SERVERS':       return self.computed['NSERVER']
+        if key == 'NUM_BOARDS':        return self.computed['NBOARD']
         if key == 'NUM_BEAMS':         return self.drx.nbeam
-        if key == 'BEAM_FIR_COEFFS':   return FIR_NCOEF
         # TODO: T_NOM
         if key == 'NUM_DRX_TUNINGS':   return self.drx.ntuning
         if args[0] == 'DRX' and args[1] == 'CONFIG':
@@ -1768,20 +2224,24 @@ class MsgProcessor(ConsumerThread):
                 return self.drx.cur_gain[beam_tuning]
             if args[4] == 'HIGH_DR':
                 return self.drx.cur_hdr[beam_tuning]
+        if args[0] == 'TBS' and args[1] == 'CONFIG':
+            if args[2] == 'FREQ':
+                return self.tbs.cur_freq
+            if args[2] == 'FILTER':
+                return self.tbs.cur_filt
         if key == 'NUM_FREQ_CHANS':    return NCHAN
-        if key == 'FIR_CHAN_INDEX':    return self._get_next_fir_index()
-        if key == 'FIR':
-            return self.fst.get_fir_coefs(slot)[input2standpol(self.fir_idx)]
         if key == 'CLK_VAL':           return MCS2.slot2mpm(slot-1)
         if key == 'UTC_START':         return self.utc_start_str # Not in spec
         if key == 'UPTIME':            return self.uptime() # Not in spec
         if key == 'STAT_SAMPLE_SIZE':  return STAT_SAMP_SIZE
         if args[0] == 'ANT':
             inp = args[1]-1
-            if not (0 <= inp < NINPUT):
+            if not (0 <= inp < self.computed['NINPUT']):
                 raise ValueError("Unknown input number %i"%(inp+1))
-            board,stand,pol = input2boardstandpol(inp)
-            samples = self.snaps[board].get_samples(slot, stand, pol,
+            board,stand,pol = input2boardstandpol(inp,
+                                                  ninput_per_board=self.computed['NINPUT_PER_BOARD']
+                                                 )
+            samples = self.fpgas[board].get_samples(slot, stand, pol,
                                                     STAT_SAMP_SIZE)
             # Convert from int8 --> float32 before reducing
             samples = samples.astype(np.float32)
@@ -1792,34 +2252,57 @@ class MsgProcessor(ConsumerThread):
         #  BEAM%i_GAIN
         #  BEAM%i_TUNING # Note: (NDP only)
         if args[0] == 'HEALTH' and args[1] == 'CHECK':
-            t_now = datetime.datetime.utcnow()
-            spectra = self.snaps.get_spectra()
-            spectra = np.array(list(spectra))
-            spectra = spectra.reshape(-1, spectra.shape[-1])
-            spectra = spectra.astype(np.float32)
-            
-            checkname = t_now.strftime("%y%m%d_%H%M%S")
-            checkname = "/tmp/"+checkname+"_snapspecs.dat"
-            with open(checkname, 'wb') as fh:
-                fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
-                spectra.tofile(fh)
-            return checkname
+            acquired = self.health_check_lock.acquire(blocking=False)
+            if not acquired:
+                raise RuntimeError("HEALTH_CHECK already in progress")
+            try:
+                t_now = datetime.datetime.now(tz=datetime.timezone.utc)
+                spectra = list(self.fpgas.get_spectra())
+                
+                checkname = t_now.strftime("%y%m%d_%H%M%S")
+                checkname = "/tmp/"+checkname+"_snapspecs.dat"
+                
+                good_shape = None
+                for s in spectra:
+                    if isinstance(s, np.ndarray) and s.size > 0:
+                        good_shape = s.shape
+                        break
+                if good_shape is None:
+                    # All boards failed - write a zero-length file
+                    with open(checkname, 'wb') as fh:
+                        fh.write(struct.pack('ll', 0, 0))
+                    return checkname
+                    
+                for i in range(len(spectra)):
+                    s = spectra[i]
+                    if not isinstance(s, np.ndarray) or s.size == 0:
+                        # Replace bad entries with nan arrays of the correct shape
+                        spectra[i] = np.full(good_shape, np.nan)
+                spectra = np.array(spectra)
+                spectra = spectra.reshape(-1, spectra.shape[-1])
+                spectra = spectra.astype(np.float32)
+                with open(checkname, 'wb') as fh:
+                    fh.write(struct.pack('ll', spectra.shape[0]//2, spectra.shape[1]))
+                    spectra.tofile(fh)
+                return checkname
+            finally:
+                 self.health_check_lock.release()
         if args[0] == 'BOARD':
             board = args[1]-1
-            if not (0 <= board < NBOARD):
+            if not (0 <= board < self.computed['NBOARD']):
                 raise ValueError("Unknown board number %i"%(board+1))
-            if args[2] == 'STAT': return self.snaps[board].get_board_status(return_json=True)
-            if args[2] == 'INFO': return self.snaps[board].get_board_info(return_json=True)
+            if args[2] == 'STAT': return self.fpgas[board].get_board_status(return_json=True)
+            if args[2] == 'INFO': return self.fpgas[board].get_board_info(return_json=True)
             if args[2] == 'TEMP':
-                temps = list(self.snaps[board].get_temperatures(slot).values())
+                temps = list(self.fpgas[board].get_temperatures(slot).values())
                 op = args[3]
                 return reduce_ops[op](temps)
-            if args[2] == 'FIRMWARE': return self.config['snap']['firmware']
-            if args[2] == 'HOSTNAME': return self.snaps[board].host
+            if args[2] == 'FIRMWARE': return self.config['fpga']['firmware']
+            if args[2] == 'HOSTNAME': return self.fpgas[board].host
             raise KeyError
         if args[0] == 'SERVER':
             svr = args[1]-1
-            if not (-1 <= svr < NSERVER):
+            if not (-1 <= svr < self.computed['NSERVER']):
                 raise ValueError("Unknown server number %i"%(svr+1))
             if svr == -1:
                 sobj = self.headnode[0]
@@ -1842,7 +2325,7 @@ class MsgProcessor(ConsumerThread):
                 # Note: Actually just flattening lists, not summing
                 temps += sum([list(v) for v in self.headnode.get_temperatures(slot).values()], [])
                 temps += sum([list(v) for v in self.servers.get_temperatures(slot).values()], [])
-                temps += sum([list(v) for v in self.snaps.get_temperatures(slot).values()], [])
+                temps += sum([list(v) for v in self.fpgas.get_temperatures(slot).values()], [])
                 # Remove error values before reducing
                 temps = [val for val in temps if not math.isnan(val)]
                 if len(temps) == 0: # If all values were nan (exceptional!)
@@ -1863,18 +2346,15 @@ class MsgProcessor(ConsumerThread):
             'VERSION':            lambda x: truncate_message(x, 256),
             'SNAP_CONFIG':        lambda x: truncate_message(x, 1024),
             'TENGINE_CONFIG':     lambda x: truncate_message(x, 1024),
-            #'TBF_STATUS':
-            #'TBF_TUNING_MASK':
+            #'TBT_STATUS':
+            #'TBT_TUNING_MASK':
             'NUM_DRX_TUNINGS':    lambda x: struct.pack('>B', x),
             'NUM_FREQ_CHANS':     lambda x: struct.pack('>H', x),
             'NUM_BEAMS':          lambda x: struct.pack('>B', x),
             'NUM_STANDS':         lambda x: struct.pack('>H', x),
             'NUM_BOARDS':         lambda x: struct.pack('>B', x),
             'NUM_SERVERS':        lambda x: struct.pack('>B', x),
-            'BEAM_FIR_COEFFS':    lambda x: struct.pack('>B', x),
             #'T_NOMn:
-            'FIR_CHAN_INDEX':     lambda x: struct.pack('>H', x),
-            'FIR':                lambda x: x.astype('>h').tobytes(),
             'CLK_VAL':            lambda x: struct.pack('>I', x),
             'UTC_START':          lambda x: truncate_message(x, 256), # Not in spec
             'UPTIME':             lambda x: struct.pack('>I', x),     # Not in spec
@@ -1910,15 +2390,16 @@ class MsgProcessor(ConsumerThread):
             'GLOBAL_TEMP_MIN':    lambda x: struct.pack('>f', x),
             'GLOBAL_TEMP_AVG':    lambda x: struct.pack('>f', x),
             'CMD_STAT':           lambda x: pack_reply_CMD_STAT(*x),
-            'DRX_CONFIG_FREQ':    lambda x: struct.pack('>f', x),
+            'DRX_CONFIG_FREQ':    lambda x: struct.pack('>d', x),
             'DRX_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
-            'DRX_CONFIG_GAIN':    lambda x: struct.pack('>H', x)
+            'DRX_CONFIG_GAIN':    lambda x: struct.pack('>H', x),
+            'TBS_CONFIG_FREQ':    lambda x: struct.pack('>d', x),
+            'TBS_CONFIG_FILTER':  lambda x: struct.pack('>H', x),
         }[key](value)
         
     def _format_report_result(self, key, value):
         format_function = defaultdict(lambda : str)
         format_function.update({
-            'FIR':      pretty_print_bytes,
             'CMD_STAT': lambda x: '%i commands in previous slot' % len(x)
         })
         return format_function[key](value)
@@ -1950,7 +2431,7 @@ class MsgProcessor(ConsumerThread):
             else:
                 self.thread_pool.add_task(self.sht, msg.data)
         elif msg.cmd == 'STP':
-            mode = msg.data # TBN/TBF/BEAMn/COR
+            mode = msg.data # TBS/TBT/BEAMn/COR
             if mode == 'DRX':
                 # TODO: This is not actually part of the spec (useful for debugging?)
                 if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
@@ -1958,7 +2439,13 @@ class MsgProcessor(ConsumerThread):
                 else:
                     self.state['lastlog'] = "STP: Subsystem is not ready"
                     exit_status = 99
-            elif mode == 'TBF':
+            elif mode == 'TBS':
+                if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
+                    exit_status = self.tbs.stop()
+                else:
+                    self.state['lastlog'] = "STP: Subsystem is not ready"
+                    exit_status = 99
+            elif mode == 'TBT':
                 if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
                     self.state['lastlog'] = "UNIMPLEMENTED STP request"
                     exit_status = -1 # TODO: Implement this
@@ -1996,11 +2483,17 @@ class MsgProcessor(ConsumerThread):
             else:
                 self.state['lastlog'] = "DRX: Subsystem is not ready"
                 exit_status = 99
-        elif msg.cmd == 'TBF':
+        elif msg.cmd == 'TBS':
             if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
-                exit_status = self.tbf.process_command(msg)
+                exit_status = self.tbs.process_command(msg)
             else:
-                self.state['lastlog'] = "TBF: Subsystem is not ready"
+                self.state['lastlog'] = "TBS: Subsystem is not ready"
+                exit_status = 99
+        elif msg.cmd == 'TBT':
+            if self.state['status'] not in ('SHUTDWN', 'BOOTING'):
+                exit_status = self.tbt.process_command(msg)
+            else:
+                self.state['lastlog'] = "TBT: Subsystem is not ready"
                 exit_status = 99
         elif msg.cmd == 'BAM':
             if self.state['status'] not in ('SHUTDWN', 'BOOTING'):

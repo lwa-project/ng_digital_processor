@@ -1,13 +1,28 @@
 #!/bin/sh
 
 # Rules for routing traffic from the nodes out
-iptables-restore < /etc/iptables.rules
+iptables-legacy-restore < /etc/iptables.rules
 
 # Limit the GPU clocks
 nvidia-smi -pm 1
 nvidia-smi -lgc 1300,1300
 
 # Set CPUs to performance mode
-for i in `seq 0 1 63`; do
-        echo performance > /sys/devices/system/cpu/cpu${i}/cpufreq/scaling_governor
-done
+is_amd=`grep -i amd /proc/cpuinfo `
+if [ "${is_amd}" != "" ]; then
+        ## AMD
+        for sgf in `ls /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor `; do
+                echo performance > ${sgf}
+        done
+else
+        ## Intel
+        echo -n 100 >  /sys/devices/system/cpu/intel_pstate/min_perf_pct
+        for sgf in `ls /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor `; do
+                echo -n performance > ${sgf}
+        done
+fi
+
+# Synthesizer to 196 MHz
+/home/ndp/ng_digital_processor/scripts/valon_program_196MHz.py
+
+exit 0

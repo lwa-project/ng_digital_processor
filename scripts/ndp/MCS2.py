@@ -7,7 +7,7 @@ def data_to_hex(data):
             
 import queue
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 import socket
 from .ConsumerThread import ConsumerThread
 from .SocketThread import UDPRecvThread
@@ -26,7 +26,7 @@ def get_current_slot():
     return int(time.time())
 def get_current_mpm():
     # Returns current milliseconds past midnight as an integer
-    dt = datetime.utcnow()
+    dt = datetime.now(tz=timezone.utc)
     ms = int(dt.microsecond / 1000.)
     return ((dt.hour*60 + dt.minute)*60 + dt.second)*1000 + ms
 def slot2utc(slot=None):
@@ -126,24 +126,27 @@ class Msg(object):
         hdr = pkt[:38]
         hdr = hdr.decode()
         
-        self.slot = get_current_slot()
-        self.dst  = hdr[:3]
-        self.src  = hdr[3:6]
-        self.cmd  = hdr[6:9]
-        self.ref  = int(hdr[9:18])
-        datalen   = int(hdr[18:22])
-        self.mjd  = int(hdr[22:28])
-        self.mpm  = int(hdr[28:37])
-        space     = hdr[37]
-        self.data = pkt[38:38+datalen]
         try:
-            self.data = self.data.decode()
-        except UnicodeDecodeError:
-            pass
-        # WAR for DATALEN parameter being wrong for BAM commands (FST too?)
-        broken_commands = ['BAM']#, 'FST']
-        if self.cmd in broken_commands:
-            self.data = pkt[38:]
+            self.slot = get_current_slot()
+            self.dst  = hdr[:3]
+            self.src  = hdr[3:6]
+            self.cmd  = hdr[6:9]
+            self.ref  = int(hdr[9:18])
+            datalen   = int(hdr[18:22])
+            self.mjd  = int(hdr[22:28])
+            self.mpm  = int(hdr[28:37])
+            space     = hdr[37]
+            self.data = pkt[38:38+datalen]
+            try:
+                self.data = self.data.decode()
+            except UnicodeDecodeError:
+                pass
+            # WAR for DATALEN parameter being wrong for BAM commands (FST too?)
+            broken_commands = ['BAM']#, 'FST']
+            if self.cmd in broken_commands:
+                self.data = pkt[38:]
+        except Exception as e:
+            print("Failed to decode packet: %s" % str(e))
             
     def create_reply(self, accept, status, data=''):
         msg = Msg(#src=self.dst,

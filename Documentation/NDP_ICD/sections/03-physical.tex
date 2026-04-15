@@ -1,0 +1,226 @@
+% 03-physical.tex - Section 3: Physical Interfaces
+
+\chapter{Physical Interfaces}
+\label{sec:physical}
+
+\section{Overview}
+
+The NDP subsystem interfaces with the following components:
+\begin{itemize}
+    \item Analog Signal Processor (ASP) --- signal input
+    \item Monitor and Control System (MCS) --- control interface
+    \item Data recorders --- output data
+    \item Network infrastructure --- data transport
+\end{itemize}
+
+\section{Signal Input from ASP}
+
+The NDP receives conditioned analog signals from the ASP via coaxial cables. Each stand provides two polarization signals (X and Y).
+
+\subsection{Input Specifications}
+
+Table~\ref{tab:input-specs} lists the signal input specifications.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Signal Input Specifications}
+    \label{tab:input-specs}
+    \begin{tabular}{lll}
+        \toprule
+        \textbf{Parameter} & \textbf{Specification} & \textbf{Notes} \\
+        \midrule
+        Total inputs & 512 & 256 stands $\times$ 2 polarizations \\
+        Connector Type & QMA Female & \\
+        Impedance & 50~$\Omega$ & \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{ZCU102 F-engine Boards}
+
+The F-engines perform analog-to-digital conversion and frequency channelization using Xilinx ZCU102 FPGA boards that each host two LWA digitizer boards.
+
+\subsection{Board Configuration}
+
+Table~\ref{tab:zcu-config} summarizes the ZCU102 board configuration.
+
+\begin{table}[htbp]
+    \centering
+    \caption{ZCU102 Board Configuration}
+    \label{tab:zcu-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Number of boards & 16 \\
+        Inputs per board & 32 \\
+        Stands per board & 16 \\
+        Sample rate & 196~MHz \\
+        ADC resolution & 8 bits \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{siteNote}
+Currently the LWA-NA site uses SNAP2 boards instead of the ZCU102.  The SNAP2s can host four LWA digitizer boards each.  The other parameters are the same as with the ZCU102.
+\end{siteNote}
+
+\subsection{F-engine Processing}
+
+Each ZCU102 board performs the following processing:
+\begin{enumerate}
+    \item Analog-to-digital conversion at 196~MHz with 8-bit resolution
+    \item Polyphase filter bank (PFB) with 4096 channels
+    \item Equalization (gain adjustment per channel)
+    \item Packetization and transmission to X-engines
+\end{enumerate}
+
+Table~\ref{tab:fengine-params} gives the signal processing parameters for each F-engine board.
+
+\begin{table}[htbp]
+    \centering
+    \caption{F-engine Signal Processing Parameters}
+    \label{tab:fengine-params}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        FFT size & 8192 (4096 output channels) \\
+        Channel bandwidth & 23.926~kHz \\
+        Total bandwidth & 98~MHz \\
+        Output data format & Complex 8-bit (4+4) \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{Network Interface}
+
+Each ZCU102 board has a 40~Gbps Ethernet interface for transmitting channelized data to the X-engine servers.  Table~\ref{tab:fengine-network} lists the network configuration.
+
+\begin{table}[htbp]
+    \centering
+    \caption{F-engine Network Configuration}
+    \label{tab:fengine-network}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Interface speed & 40~Gbps \\
+        Protocol & UDP \\
+        Hostnames & zcu01--zcu16 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{GPU Servers (X-engines)}
+
+The X-engines perform beamforming and correlation using GPU-accelerated servers.
+
+\subsection{Server Configuration}
+
+Table~\ref{tab:xengine-config2} summarizes the X-engine server configuration.
+
+\begin{table}[htbp]
+    \centering
+    \caption{X-engine Server Configuration}
+    \label{tab:xengine-config2}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Number of servers & 4 \\
+        Pipelines per server & 4 \\
+        Hostnames & ndp1--ndp4 \\
+        Processing framework & Bifrost \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\subsection{X-engine Processing}
+
+Each X-engine pipeline performs:
+\begin{itemize}
+    \item Packet capture and reordering
+    \item Beamforming (delay and sum with gain control)
+    \item Correlation (cross-multiplication and accumulation)
+    \item Triggered buffer capture
+    \item Output packetization
+\end{itemize}
+
+\subsection{IPMI Interface}
+
+Each server includes an IPMI interface for out-of-band management.  Table~\ref{tab:ipmi-config} lists the IPMI settings.
+
+\begin{table}[htbp]
+    \centering
+    \caption{IPMI Configuration}
+    \label{tab:ipmi-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        IPMI hostnames & ndp1-ipmi -- ndp4-ipmi \\
+        Capabilities & Power control, sensor monitoring \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Headnode}
+
+The headnode (hostname: \texttt{ndp}) runs the NDP control service and interfaces between the system and MCS.  Table~\ref{tab:headnode-config} lists the headnode parameters.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Headnode Configuration}
+    \label{tab:headnode-config}
+    \begin{tabular}{ll}
+        \toprule
+        \textbf{Parameter} & \textbf{Value} \\
+        \midrule
+        Hostname & ndp \\
+        Control service & ndp-control \\
+        MCS receive port & 1742 \\
+        MCS send port & 1743 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Network Architecture}
+
+\subsection{Data Network}
+
+The data network carries channelized data from F-engines to X-engines:
+\begin{itemize}
+    \item 40~Gbps (F-engines) and 100~Gbps (X-engines) Ethernet connections
+    \item Dedicated data switch
+    \item Multicast or unicast UDP packets
+\end{itemize}
+
+\subsection{Control Network}
+
+The control network provides:
+\begin{itemize}
+    \item SSH access to all systems
+    \item IPMI management access
+    \item MCS command interface
+\end{itemize}
+
+\section{Output Data Interfaces}
+
+Output data from NDP is transmitted via UDP packets.  Table~\ref{tab:output-interfaces} summarizes the output data interfaces.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Output Data Interfaces}
+    \label{tab:output-interfaces}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Output Type} & \textbf{Format} & \textbf{Protocol} & \textbf{Destination} \\
+        \midrule
+        DRX/PBEAM & Mark~5C & UDP & Data recorder \\
+        COR & Custom & UDP & Orville Imager \\
+        TBS & Custom & UDP & Data recorder \\
+        TBT & Custom & UDP/File & Data recorder \textit{or} Local storage \\
+        \bottomrule
+    \end{tabular}
+\end{table}

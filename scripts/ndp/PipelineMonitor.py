@@ -125,12 +125,7 @@ def _get_command_line(pid, host="localhost"):
     else:
         try:
             cmd = subprocess.check_output(['ssh', host, "cat /proc/%i/cmdline" % pid], 
-                                          stderr=subprocess.STDOUT)
-            try:
-                cmd = cmd.decode()
-            except AttributeError:
-                # Python2 catch
-                pass
+                                          stderr=subprocess.STDOUT, text=True)
             cmd = cmd.replace('\0', ' ')
             cmd = "%s:%s" % (host, cmd)
         except subprocess.CalledProcessError:
@@ -152,12 +147,7 @@ class BifrostPipelines(object):
         else:
             try:
                 pidDirs = subprocess.check_output(['ssh', self.host, "ls -1 %s" % BIFROST_STATS_BASE_DIR], 
-                                                  stderr=subprocess.STDOUT)
-                try:
-                    pidDirs = pidDirs.decode()
-                except AttributeError:
-                    # Python2 catch
-                    pass
+                                                  stderr=subprocess.STDOUT, text=True)
             except subprocess.CalledProcessError:
                 pidDirs = '\n'
             pidDirs = pidDirs.split('\n')[:-1]                           
@@ -218,27 +208,41 @@ class BifrostPipeline(object):
         
         new_state = {}
         for block in contents.keys():
-            if block[:3] != 'udp':
-                continue
-                
             t = time.time()
-            try:
-                log     = contents[block]['stats']
-                good    = log['ngood_bytes']
-                missing = log['nmissing_bytes']
-                invalid = log['ninvalid_bytes']
-                late    = log['nlate_bytes']
-                nvalid  = log['nvalid']
-            except KeyError:
-                good, missing, invalid, late, nvalid = 0, 0, 0, 0, 0
-                
-            new_state[block] = {'time'   : t, 
-                                'good'   : good, 
-                                'missing': missing, 
-                                'invalid': invalid, 
-                                'late'   : late, 
-                                'nvalid' : nvalid}
             
+            if block[:3] == 'udp':
+                try:
+                    log     = contents[block]['stats']
+                    good    = log['ngood_bytes']
+                    missing = log['nmissing_bytes']
+                    invalid = log['ninvalid_bytes']
+                    late    = log['nlate_bytes']
+                    nvalid  = log['nvalid']
+                except KeyError:
+                    good, missing, invalid, late, nvalid = 0, 0, 0, 0, 0
+                    
+                new_state[block] = {'time'   : t, 
+                                    'good'   : good, 
+                                    'missing': missing, 
+                                    'invalid': invalid, 
+                                    'late'   : late, 
+                                    'nvalid' : nvalid}
+                
+            elif block == 'PowerLineFlaggerOp':
+                try:
+                    log       = contents[block]['stats']
+                    flag_now  = log['flag_frac_now']
+                    flag_move = log['flag_frac_move']
+                    flag_ts   = log['flag_update']
+                except KeyError:
+                    flag_now = flag_move = -1.0
+                    flag_ts = 0
+                    
+                new_state[block] = {'time': t,
+                                    'flag_frac_now' : flag_now,
+                                    'flag_frac_move': flag_move,
+                                    'flag_update'   : flag_ts}
+                
         try:
             self._last_state = self._state
         except AttributeError:
@@ -360,6 +364,21 @@ class BifrostPipeline(object):
         # correlator.
         self.rx_rate()
         return self._corr_active
+        
+    def get_flagging_stats(self, flag_type='now', block='PowerLineFlaggerOp'):
+        """
+        Return the flagging fraction.  flag_type can either be 'now' for the last
+        gulp of data analyzed or 'move' for a moving average value.
+        """
+        
+        if flag_type not in ('now', 'move'):
+            raise ValueError(f"Unknown flag_type '{flag_type}'")
+            
+        curr = self._get_state()
+        try:
+            return curr[block][f"flag_frac_{flag_type}"]
+        except KeyError:
+            return -1.0
 
 class BifrostRemotePipeline(BifrostPipeline):
     def __init__(self, host, pid):
@@ -384,7 +403,7 @@ class BifrostRemotePipeline(BifrostPipeline):
             log = subprocess.check_output(['rsync', '-e ssh', '-avH', '--min-size=1', '--delete-during', '--delete-missing-args', 
                                            "%s:%s" % (self.host, os.path.join(BIFROST_STATS_BASE_DIR, str(self.pid))), 
                                            self._dir_name], 
-                                          stderr=subprocess.STDOUT)
+                                          stderr=subprocess.STDOUT, text=True)
         except subprocess.CalledProcessError:
             pass
            
@@ -395,27 +414,41 @@ class BifrostRemotePipeline(BifrostPipeline):
             
         new_state = {}
         for block in contents.keys():
-            if block[:3] != 'udp':
-                continue
-                
             t = time.time()
-            try:
-                log     = contents[block]['stats']
-                good    = log['ngood_bytes']
-                missing = log['nmissing_bytes']
-                invalid = log['ninvalid_bytes']
-                late    = log['nlate_bytes']
-                nvalid  = log['nvalid']
-            except KeyError:
-                good, missing, invalid, late, nvalid = 0, 0, 0, 0, 0
-                
-            new_state[block] = {'time'   : t, 
-                                'good'   : good, 
-                                'missing': missing, 
-                                'invalid': invalid, 
-                                'late'   : late, 
-                                'nvalid' : nvalid}
             
+            if block[:3] == 'udp':
+                try:
+                    log     = contents[block]['stats']
+                    good    = log['ngood_bytes']
+                    missing = log['nmissing_bytes']
+                    invalid = log['ninvalid_bytes']
+                    late    = log['nlate_bytes']
+                    nvalid  = log['nvalid']
+                except KeyError:
+                    good, missing, invalid, late, nvalid = 0, 0, 0, 0, 0
+                    
+                new_state[block] = {'time'   : t, 
+                                    'good'   : good, 
+                                    'missing': missing, 
+                                    'invalid': invalid, 
+                                    'late'   : late, 
+                                    'nvalid' : nvalid}
+                
+            elif block == 'PowerLineFlaggerOp':
+                try:
+                    log       = contents[block]['stats']
+                    flag_now  = log['flag_frac_now']
+                    flag_move = log['flag_frac_move']
+                    flag_ts   = log['flag_update']
+                except KeyError:
+                    flag_now = flag_move = -1.0
+                    flag_ts = 0
+                    
+                new_state[block] = {'time': t,
+                                    'flag_frac_now' : flag_now,
+                                    'flag_frac_move': flag_move,
+                                    'flag_update'   : flag_ts}
+                
         try:
             self._last_state = self._state
         except AttributeError:

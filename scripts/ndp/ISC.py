@@ -13,8 +13,9 @@ from uuid import uuid4
 from collections import deque
 
 
-__version__ = '0.7'
-__all__ = ['logException', 'PipelineMessageServer', 'StartTimeClient', 'TriggerClient',
+__version__ = '0.8'
+__all__ = ['logException', 'PipelineMessageServer', 'StartTimeClient',
+           'TriggerClient', 'StreamingClient', 
            'DRXConfigurationClient', 'BAMConfigurationClient',
            'CORConfigurationClient', 'PipelineSynchronizationServer',
            'PipelineSynchronizationClient', 'PipelineEventServer', 'PipelineEventClient']
@@ -89,7 +90,7 @@ class PipelineMessageServer(object):
         
     def packetStartTime(self, utcStartTime):
         """
-        Send the UTC start time to TBN and DRX clients.
+        Send the UTC start time to DRX clients.
         """
         
         try:
@@ -141,14 +142,23 @@ class PipelineMessageServer(object):
         
     def trigger(self, trigger, samples, mask, local=False):
         """
-        Send a trigger to start dumping TBF data.  This includes:
+        Send a trigger to start dumping TBT data.  This includes:
           * the trigger time
           * the number of samples to dump
-          * the DRX tuning mask to use
+          * the server tuning mask to use
           * whether or not to dump to disk
         """
         
         self.socket.send_string('TRIGGER %i %i %i %i' % (trigger, samples, mask, local))
+        
+    def stream(self, frequency, filter):
+        """
+        Send a trigger to start streaming TBS data.  This includes:
+          * the central frequency in Hz
+          * the filter code
+        """
+        
+        self.socket.send_string('STREAM %.6f %i' % (frequency, filter))
         
     def close(self):
         self.socket.close()
@@ -246,6 +256,28 @@ class TriggerClient(PipelineMessageClient):
             mask    = int(fields[3], 10)
             local   = bool(int(fields[4], 10))
             return trigger, samples, mask, local
+
+
+class StreamingClient(PipelineMessageClient):
+    """
+    Sub-class of PipelineMessageClient that is specifically for streaming 
+    information.
+    """
+    
+    def __init__(self, addr=('ndp', 5832), context=None):
+        super(StreamingClient, self).__init__('STREAM', addr=addr, context=context)
+        
+    def __call__(self, block=False):
+        msg = super(StreamingClient, self).__call__(block=block)
+        if not msg:
+            # Nothing to report
+            return False
+        else:
+            # Unpack
+            fields  = msg.split(None, 2)
+            frequency = float(fields[1])
+            filter = int(fields[2], 10)
+            return frequency, filter
 
 
 class DRXConfigurationClient(PipelineMessageClient):

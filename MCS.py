@@ -21,7 +21,7 @@ try:
 except ImportError:
     from io import StringIO
     
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import deque
 
 __version__ = "0.1"
@@ -38,7 +38,7 @@ def getTime():
     """
     
     # determine current time
-    dt = datetime.utcnow()
+    dt = datetime.now(tz=timezone.utc)
     year        = dt.year             
     month       = dt.month      
     day         = dt.day    

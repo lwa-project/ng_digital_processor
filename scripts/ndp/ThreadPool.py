@@ -96,7 +96,7 @@ class FuturePool(object):
     count = 0
     def __init__(self, max_workers, name=None):
         self.tasks   = Queue(max_workers)
-        self.results = Queue(max_workers)
+        self.results = Queue()
         self.workers = []
         self.ntask   = 0
         self.name    = name
@@ -145,12 +145,14 @@ class ObjectPool(list):
               objs2.val = [-1, -2, -3]
               print(objs2.val       # --> [-1, -2, -3])
     """
-    def __init__(self, objs=[], future_pool=None):
+    def __init__(self, objs=[], future_pool=None, future_pool_size=-1):
         list.__init__(self, objs)
         if future_pool is not None:
             list.__setattr__(self, 'future_pool', future_pool)
         else:
-            list.__setattr__(self, 'future_pool', FuturePool(len(self)))
+            if future_pool_size <= 0:
+                future_pool_size = len(self)
+            list.__setattr__(self, 'future_pool', FuturePool(future_pool_size))
     def __getattr__(self, item):
         for obj in self:
             if not hasattr(obj, item):
@@ -169,6 +171,14 @@ class ObjectPool(list):
         for ret in rets:
             if isinstance(ret, Exception):
                 raise ret
+    def __getitem__(self, value):
+        if isinstance(value, slice):
+            # For a slice, pull out the right objects and return a new ObjectPool
+            # that shares the same future_pool
+            objs = list.__getitem__(self, value)
+            return ObjectPool(objs, future_pool=self.future_pool)
+        else:
+            return list.__getitem__(self, value)
 
 if __name__ == "__main__":
     import time
@@ -178,6 +188,8 @@ if __name__ == "__main__":
     a = ObjectPool(['a', 'bb', 'ccc'])
     print(a.upper())
     #a.join()
+    
+    print(a[1:].upper())
     
     def delayed_print(i):
         time.sleep(random.random()*3)

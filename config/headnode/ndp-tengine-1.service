@@ -26,14 +26,18 @@ SyslogIdentifier=ndp-tengine-1
 ExecStartPre=/bin/bash -c '[ -d /home/ndp/log ] || mkdir -p /home/ndp/log'
 
 # Setup the environment
-Environment=BIFROST_INCLUDE_PATH=/home/ndp/bifrost8_verbs_py3/src/bifrost
-Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/ndp/bifrost8_verbs_py3/lib:$LD_LIBRARY_PATH
-Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_verbs_py3/python:$PYTHONPATH
+Environment=BIFROST_INCLUDE_PATH=/home/ndp/bifrost8_zcu102/src/bifrost
+Environment=LD_LIBRARY_PATH=/usr/local/cuda/lib64:/home/ndp/bifrost8_zcu102/lib:$LD_LIBRARY_PATH
+Environment=PYTHONPATH=/home/ndp/lwa_sv/scripts:/home/ndp/bifrost8_zcu102/python:$PYTHONPATH
 
 Environment=PYTHONUNBUFFERED=1
 
 ExecStart=/bin/bash -ec '\
-numactl --cpunodebind=4-7 --membind=4-7 -- \
+binding=$(python3 -c "from ndp.NdpConfig import parse_config_file; \
+                       from ndp.NdpHelpers import cores_to_numa_binding; \
+                       config = parse_config_file('"'"'/usr/local/share/ndp/ndp_config.json'"'"'); \
+                       print(cores_to_numa_binding(config['"'"'tengine'"'"'][1]['"'"'cpus'"'"']))") && \
+numactl --cpunodebind=$binding --membind=$binding -- \
 python3 /usr/local/bin/ndp_tengine.py \
 	 --beam       1 \
 	 --configfile /usr/local/share/ndp/ndp_config.json \

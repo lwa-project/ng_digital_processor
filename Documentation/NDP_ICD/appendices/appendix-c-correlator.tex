@@ -1,0 +1,122 @@
+% appendix-d-correlator.tex - Appendix D: GPU Correlation with the Tensor Core Correlator
+
+\chapter{GPU Correlation with the Tensor Core Correlator}
+\label{app:correlator}
+
+\section{Overview}
+
+The NDP X-engine correlator computes the full visibility matrix for all 512 inputs (256 stands $\times$ 2 polarizations) in real time.  Rather than implementing a custom GPU correlation kernel, NDP uses the \emph{Tensor Core Correlator} (TCC), a high-performance correlation library developed by ASTRON that exploits the tensor core units available on modern NVIDIA GPUs~(Reference~\ref{ref:tcc}).  A Bifrost wrapper library, \texttt{btcc}, integrates the TCC into the Bifrost pipeline framework used by the X-engines.
+
+\section{Tensor Core Correlator}
+
+The TCC performs the computationally intensive outer-product accumulation that forms the core of an FX correlator's X-engine.  It accepts channelized voltage data for all inputs and produces cross-correlation products (visibilities) for all baselines, including auto-correlations.  For $N$ inputs the number of unique baselines (including autos) is $N(N+1)/2$; with two polarizations the correlator produces four polarization products (XX, YY, XY, YX) per baseline.
+
+The TCC achieves high throughput by mapping the correlation operation onto NVIDIA tensor core matrix-multiply--accumulate instructions.  This mapping imposes a constraint on the time axis: the number of time samples per call must be a multiple of a quantity called $n_\mathrm{time\_per\_block}$, defined as
+
+\begin{equation}
+    n_\mathrm{time\_per\_block} = \frac{128}{n_\mathrm{bits}}
+    \label{eq:ntime-per-block}
+\end{equation}
+
+\noindent where $n_\mathrm{bits}$ is the number of bits per component of the complex input samples.  Table~\ref{tab:tcc-ntime} lists the supported bit depths and corresponding time constraints.
+
+\begin{table}[htbp]
+    \centering
+    \caption{TCC Time-Axis Constraints by Input Bit Depth}
+    \label{tab:tcc-ntime}
+    \begin{tabular}{ccc}
+        \toprule
+        \textbf{Input Type} & $n_\mathrm{bits}$ & $n_\mathrm{time\_per\_block}$ \\
+        \midrule
+        CI4 (4-bit complex)  & 4  & 32 \\
+        CI8 (8-bit complex)  & 8  & 16 \\
+        CF16 (16-bit complex) & 16 & 8 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Bifrost Wrapper}
+
+The Bifrost wrapper, \texttt{btcc}, provides a Python/C++ interface that allows the TCC to be used as a processing block within a Bifrost pipeline.  The wrapper is implemented as a Bifrost plugin and handles three responsibilities:
+
+\begin{itemize}
+    \item \textbf{Input reordering (swizzle).}  The TCC expects input data in a specific memory layout dictated by the tensor core matrix dimensions.  The wrapper includes a GPU kernel (\texttt{swizzel\_kernel}) that transposes the incoming data from the Bifrost ring buffer layout into the layout required by the TCC.
+    \item \textbf{Accumulation.}  The TCC produces one correlation result per call.  The wrapper maintains a GPU-resident accumulation buffer and adds each TCC output to the running sum.
+    \item \textbf{Output reordering (deswizzle).}  When the pipeline signals a dump (at the end of an integration period), a second GPU kernel (\texttt{reorder\_kernel}) copies the accumulated visibilities from the TCC's internal baseline ordering to the standard upper-triangle ordering expected by the rest of the pipeline, applying the appropriate conjugation.  The accumulator is then reset.
+    \item \textbf{CUDA graph optimization.}  After the first execution, the wrapper captures the sequence of GPU operations (swizzle, correlate, accumulate) into a CUDA graph.  Subsequent calls replay the captured graph, reducing kernel launch overhead.
+\end{itemize}
+
+The wrapper exposes three operations:
+
+\begin{description}
+    \item[\texttt{init}($n_\mathrm{bits}$, $n_\mathrm{time}$, $n_\mathrm{chan}$, $n_\mathrm{stand}$, $n_\mathrm{pol}$, $n_\mathrm{decim}$)] Initialize the TCC and allocate intermediate buffers.
+    \item[\texttt{execute}(input, output, dump)] Correlate one gulp of data and accumulate.  If \texttt{dump} is true, flush the accumulator to the output and reset.
+    \item[\texttt{reset\_state}()] Zero the accumulation buffer.
+\end{description}
+
+Table~\ref{tab:btcc-arrays} summarizes the input and output array shapes.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Bifrost TCC Wrapper Array Shapes}
+    \label{tab:btcc-arrays}
+    \begin{tabular}{llll}
+        \toprule
+        \textbf{Array} & \textbf{Shape} & \textbf{Type} & \textbf{Space} \\
+        \midrule
+        Input  & $(n_\mathrm{time},\; n_\mathrm{chan},\; n_\mathrm{stand} \cdot n_\mathrm{pol})$ & CI8 & CUDA \\
+        Output & $(n_\mathrm{chan}/n_\mathrm{decim},\; n_\mathrm{baseline} \cdot n_\mathrm{pol}^2)$ & CI32 & CUDA \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\noindent where $n_\mathrm{baseline} = n_\mathrm{stand} (n_\mathrm{stand}+1)/2$.
+
+\section{NDP Integration}
+
+\subsection{Time-Axis Padding}
+
+The \texttt{CorrelatorOp} block in the X-engine pipeline (\texttt{ndp\_drx.py}) uses the \texttt{btcc} wrapper to correlate each gulp of channelized data.  Because NDP operates the correlator with 8-bit complex (CI8) input data, the TCC requires $n_\mathrm{time}$ to be a multiple of 16.  The pipeline gulp size of 512 spectra satisfies this constraint directly.  In general, if a gulp size is not a multiple of 16, the \texttt{CorrelatorOp} pads $n_\mathrm{time}$ up to the next multiple of 16 at initialization:
+
+\begin{verbatim}
+    ntime_padded = ceil(ntime_gulp / 16) * 16
+\end{verbatim}
+
+\noindent Any extra time samples are zero-filled in the intermediate input array and contribute negligibly to the accumulated visibilities.
+
+\subsection{Channel Decimation}
+\label{sec:cor-decimation}
+
+Each X-engine pipeline processes a subset of the total frequency channels from the F-engine channelizer; the number of channels per pipeline is set by the site configuration file.  To reduce both the computational cost of correlation and the output data rate, the \texttt{CorrelatorOp} applies a frequency decimation factor of 4 \emph{before} invoking the TCC.  This decimation is implemented as a \texttt{BFMap} operation that unpacks the CI4 input samples, sums groups of 4 adjacent frequency channels, and writes the result as CI8 data into the intermediate input array.  The TCC then operates on the decimated data with no knowledge of the original channel count.
+
+The sum of 4 CI4 values (each in the range $\pm 7$) has a maximum magnitude of $4 \times 7 = 28$, well within the CI8 range of $\pm 127$.  Larger decimation factors would risk overflow into the CI8 representation and would require either wider intermediate storage or rescaling.
+
+Table~\ref{tab:cor-channel-budget} shows an example channel budget for the default configuration.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Correlator Channel Budget (Default Configuration)}
+    \label{tab:cor-channel-budget}
+    \begin{tabular}{lcc}
+        \toprule
+        \textbf{Stage} & \textbf{Per Pipeline} & \textbf{Total (16 Pipelines)} \\
+        \midrule
+        F-engine output     & 256 & 4096 \\
+        After decimation ($\times$4) & 64  & 1024 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+The decimated channel bandwidth is $4 \times f_c \approx 95.7$~kHz.
+
+\subsection{Correlation and Accumulation}
+
+The correlation and accumulation cycle proceeds as follows:
+
+\begin{enumerate}
+    \item Each gulp of $n_\mathrm{time\_gulp}$ spectra is copied into the padded intermediate array.
+    \item \texttt{bfcc.execute()} is called with \texttt{dump=0} for intermediate gulps and \texttt{dump=1} for the final gulp in an integration period.
+    \item When a dump occurs, the accumulated visibilities are reordered from the TCC's internal baseline ordering to the NDP output ordering (per-baseline, per-channel) and packetized by the downstream \texttt{PacketizeOp}.
+\end{enumerate}
+
+The integration time is set by the \cmd{COR} command's \texttt{navg} parameter, which specifies the total number of spectra to integrate.  The \texttt{CorrelatorOp} accumulates across multiple gulps until \texttt{navg} spectra have been processed, then triggers a dump.

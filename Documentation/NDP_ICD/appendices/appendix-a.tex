@@ -1,0 +1,45 @@
+% appendix-a.tex - Appendix A: Exit and Status Codes
+
+\chapter{Exit and Status Codes}
+\label{app:codes}
+
+\section{Command Exit Codes}
+
+Table~\ref{tab:exit-codes} lists all exit codes returned in response to control commands.  Per-command exit codes are documented alongside each command in Section~\ref{sec:commands}.
+
+\begin{longtable}{cp{10cm}}
+    \caption{Command Exit Codes} \label{tab:exit-codes} \\
+    \toprule
+    \textbf{Code} & \textbf{Description} \\
+    \midrule
+    \endfirsthead
+
+    \toprule
+    \textbf{Code} & \textbf{Description} \\
+    \midrule
+    \endhead
+
+    \bottomrule
+    \endfoot
+
+    \hex{00} & Process accepted without error \\
+    \hex{01} & Invalid configuration file values \\
+    \hex{04} & Board programming failed \\
+    \hex{05} & Board configuration failed \\
+    \hex{07} & Invalid command arguments (unknown mode) \\
+    \hex{08} & Board-level shutdown failed \\
+    \hex{09} & Server startup failed \\
+    \hex{0A} & Server shutdown failed \\
+    \hex{0B} & Pipeline startup failed \\
+    \hex{0C} & Blocking operation in progress (INI or SHT already running) \\
+    \hex{0D} & Internal F-engine error condition \\
+    \hex{0E} & Pipeline processing error \\
+    \hex{0F} & Other internal error (e.g., timing monitor problem) \\
+    \hex{63} & Subsystem not ready (in SHUTDWN or BOOTING state) \\
+    \hex{FF} & Unknown command or unimplemented feature \\
+
+\end{longtable}
+
+\section{Subsystem Status Codes}
+
+See Table~\ref{tab:sys-status} in Section~\ref{sec:monitor-control} for the status values reported in the SUMMARY field of MCS responses.

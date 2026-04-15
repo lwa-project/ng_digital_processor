@@ -3,7 +3,6 @@ import os
 import sys
 import numpy as np
 import datetime
-
 SUBSYSTEM        = "NDP"
 FS               = 196.0e6
 CLOCK            = 196.0e6
@@ -15,41 +14,56 @@ CHAN_BW          = CLOCK / (2*NCHAN)
 NCHAN_GUARD      = 4
 NCHAN_SELECT_MAX = 1920 # 48 MHz ** TODO: Check what the pipeline limit is!
 NTUNING_MAX      = 32
-NSTAND           = 64
+#NBOARD           = 16                        # Now computed in Ndp.py
+#NINPUT_PER_BOARD = 32                        # Now computed in Ndp.py
+#NINPUT           = NBOARD*NINPUT_PER_BOARD   # Now computed in Ndp.py
 NPOL             = 2
-NINPUT           = NSTAND*NPOL
+#NSTAND           = NINPUT//NPOL              # Now computed in Ndp.py
+NBEAM            = 4
 NSUBSLOT_PER_SEC = 100
-FIR_NFINE        = 16
-FIR_NCOEF        = 32
-#NPIPELINE        = 12
-NSERVER          = 1
-NBOARD           = 2
-NINPUT_PER_BOARD = 64
+#NSERVER          = 4                         # Now computed in Ndp.py
+#NPIPE_PER_SERVER = 4                         # Now computed in Ndp.py
 STAT_SAMP_SIZE   = 512 # The ADC limit is 512 (TODO: Allow > via multiples)
 MAX_MSGS_PER_SEC = 20
 ADC_BITS         = 8
 ADC_MAXVAL       = (1<<(ADC_BITS-1))-1
-TBN_BITS         = 16
 DATE_FORMAT      = "%Y_%m_%dT%H_%M_%S"
-NDP_EPOCH        = datetime.datetime(1970, 1, 1)
-M5C_EPOCH        = datetime.datetime(1990, 1, 1)
+NDP_EPOCH        = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+M5C_EPOCH        = datetime.datetime(1990, 1, 1, tzinfo=datetime.timezone.utc)
 #M5C_OFFSET = int((M5C_EPOCH - NDP_EPOCH).total_seconds())
 M5C_OFFSET = 0 # LWA convention re-defines this to use the 1970 epoch too
 DRX_NSAMPLE_PER_PKT = 4096
-TBN_NSAMPLE_PER_PKT = 512
-TBF_NCHAN_PER_PKT   = 12
+TBS_MIN_NCHAN_PER_PKT = 8
+TBT_NCHAN_PER_PKT   = 16
 NFRAME_PER_SPECTRUM = int(FS) // int(CHAN_BW) # 7840
 #PIPELINE_HOSTS   = ['ndp%i' % (i/2+1) for i in xrange(NPIPELINE)]
 #SERVER_HOSTS     = ['ndp%i' % (i+1) for i in xrange(NSERVER)]
 TRIGGERING_ACTIVE_FILE = '/home/ndp/triggering_active'
 
+def firmware2type(filename):
+    firmware = os.path.basename(filename)
+    if firmware.find('zcu102') != -1:
+        return 'zcu102'
+    elif firmware.find('snap2') != -1:
+        return 'snap2'
+    return ''
+def firmware2ninput(filename):
+    btype = firmware2type(filename)
+    if btype == 'zcu102':
+        return 32
+    elif btype == 'snap2':
+        return 64
+    return 0
+def firmware2nstand(filename):
+    return firmware2ninput(filename) // NPOL
+
 def input2standpol(i):
     stand = i // NPOL
     pol   = i % NPOL
     return stand, pol
-def input2boardstandpol(i):
-    board = i // NINPUT_PER_BOARD
-    i -= board*NINPUT_PER_BOARD
+def input2boardstandpol(i, ninput_per_board=16):
+    board = i // ninput_per_board
+    i -= board*ninput_per_board
     stand = i // NPOL
     i -= stand*NPOL
     pol = i
@@ -81,6 +95,23 @@ def get_freq_domain_filter(fir_coefs):
     weights = weights[...,:-1]
     # weights: [..., chan] complex64
     return weights
+
+
+def compute_constants(config):
+    """
+    Helper function to deal with how we abstract away differences in the FPGA
+    board (SNAP2 vs ZCU102) and server/pipeline setup.
+    """
+    
+    computed = {}
+    computed['NBOARD'] = len(config['host']['fpgas'])
+    computed['NINPUT_PER_BOARD'] = firmware2ninput(config['fpga']['firmware'])
+    computed['NINPUT'] = computed['NBOARD'] * computed['NINPUT_PER_BOARD']
+    computed['NSTAND'] = computed['NINPUT'] // NPOL
+    computed['NSERVER'] = len(config['host']['servers'])
+    computed['NPIPE_PER_SERVER'] = len(config['host']['servers-data']) \
+                                    // computed['NSERVER']
+    return computed
 
 """
 This module is used to fork the current process into a daemon.
