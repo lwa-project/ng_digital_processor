@@ -673,6 +673,11 @@ class ZCU102MonitorClient(object):
                     pass
                     
         ## Force a new connection instance
+        if self._zcu is not None:
+            try:
+                self._zcu._cfpga.disconnect()
+            except Exception as e:
+                self.log.warning("Failed to disconnect %s cleanly: %s", self.host, str(e))
         self._zcu = None
         
         return success
@@ -791,6 +796,11 @@ class ZCU102MonitorClient(object):
                     _run_fpga_helper('configure', self.host, configname, log_stderr=True)
                     
                     ## Force a new connection instance
+                    if self._zcu is not None:
+                        try:
+                            self._zcu._cfpga.disconnect()
+                        except Exception as e:
+                            self.log.warning("Failed to disconnect %s cleanly: %s", self.host, str(e))
                     self._zcu = None
                     
                     ## At LWA1 the ZCU102's have a non-zero chance of coming up
@@ -971,6 +981,11 @@ class Snap2MonitorClient(object):
                     pass
                     
         ## Force a new connection instance
+        if self._snap is not None:
+            try:
+                self._snap._cfpga.disconnect()
+            except Exception as e:
+                self.log.warning("Failed to disconnect %s cleanly: %s", self.host, str(e))
         self._snap = None
         
         return success
@@ -1097,6 +1112,11 @@ class Snap2MonitorClient(object):
                     pass
                     
         ## Force a new connection instance
+        if self._snap is not None:
+            try:
+                self._snap._cfpga.disconnect()
+            except Exception as e:
+                self.log.warning("Failed to disconnect %s cleanly: %s", self.host, str(e))
         self._snap = None
         
         return success
