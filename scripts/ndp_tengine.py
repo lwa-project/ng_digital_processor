@@ -435,12 +435,13 @@ class ReChannelizerOp(object):
                 pass
 
 class TEngineOp(object):
-    def __init__(self, log, iring, oring, beam=1, ntime_gulp=2500, guarantee=True, core=None, gpu=None):
+    def __init__(self, log, iring, oring, beam=1, ntime_gulp=2500, nstand=256, guarantee=True, core=None, gpu=None):
         self.log        = log
         self.iring      = iring
         self.oring      = oring
         self.beam       = beam
         self.ntime_gulp = ntime_gulp
+        self.nstand     = nstand
         self.guarantee  = guarantee
         self.core       = core
         self.gpu        = gpu
@@ -685,8 +686,8 @@ class TEngineOp(object):
                     tchan1 = int(self.rFreq[1] / INT_CHAN_BW + 0.5) - self.nchan_out//2
                     
                     # Adjust the gain to make this ~compatible with LWA1
-                    act_gain0 = self.gain[0] + 5 - 3*pfb_inverter
-                    act_gain1 = self.gain[1] + 5 - 3*pfb_inverter
+                    act_gain0 = self.gain[0] + 5 - 3*pfb_inverter - (4 - 256/self.nstand)
+                    act_gain1 = self.gain[1] + 5 - 3*pfb_inverter - (4 - 256/self.nstand)
                     rel_gain = np.array([1.0, 2**(act_gain0-act_gain1)], dtype=np.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
@@ -1050,6 +1051,7 @@ def main(argv):
     drxConfigs = config['drx']
     ntuning = len(drxConfigs)
     drxConfig = drxConfigs[0]
+    fpgaConfig = config['fpga']
     
     log = logging.getLogger(__name__)
     logFormat = logging.Formatter('%(asctime)s [%(levelname)-8s] %(message)s',
@@ -1114,9 +1116,12 @@ def main(argv):
     oaddr        = recConfig['host']
     oport        = recConfig['port']
     obw          = recConfig['max_bytes_per_sec']
-        
+    
+    nfpga_tot = len(config['host']['fpgas'])
     nserver = len(config['host']['servers'])
     server0 = 0
+    nstand_per_fpga = firmware2nstand(fpgaConfig['firmware'])
+    nstand = nfpga*nstand_per_fpga
     nbeam = drxConfig['beam_count']
     cores = tngConfig['cpus']
     gpus  = tngConfig['gpus']*len(cores)
@@ -1172,7 +1177,8 @@ def main(argv):
                                pfb_inverter=pfb_inverter,
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
-                         beam=beam, ntime_gulp=GSIZE*4096//1960, 
+                         beam=beam, ntime_gulp=GSIZE*4096//1960,
+                         nstand=nstand,
                          core=cores.pop(0), gpu=gpus.pop(0)))
     raddr = Address(oaddr, oport)
     rsock = UDPSocket()
