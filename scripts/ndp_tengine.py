@@ -1121,7 +1121,7 @@ def main(argv):
     nserver = len(config['host']['servers'])
     server0 = 0
     nstand_per_fpga = firmware2nstand(fpgaConfig['firmware'])
-    nstand = nfpga*nstand_per_fpga
+    nstand = nfpga_tot*nstand_per_fpga
     nbeam = drxConfig['beam_count']
     cores = tngConfig['cpus']
     gpus  = tngConfig['gpus']*len(cores)
