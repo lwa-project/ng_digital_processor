@@ -1132,7 +1132,7 @@ def main(argv):
         pfb_inverter = tngConfig['pfb_inverter']
     gain_correction = 0.0
     if 'gain_correction' in tngConfig:
-        gain_correct = tngConfig['gain_correction']
+        gain_correction = tngConfig['gain_correction']
         
     log.info("Src address:  %s:%i", iaddr, iport)
     try:
