@@ -435,16 +435,17 @@ class ReChannelizerOp(object):
                 pass
 
 class TEngineOp(object):
-    def __init__(self, log, iring, oring, beam=1, ntime_gulp=2500, nstand=256, guarantee=True, core=None, gpu=None):
-        self.log        = log
-        self.iring      = iring
-        self.oring      = oring
-        self.beam       = beam
-        self.ntime_gulp = ntime_gulp
-        self.nstand     = nstand
-        self.guarantee  = guarantee
-        self.core       = core
-        self.gpu        = gpu
+    def __init__(self, log, iring, oring, beam=1, ntime_gulp=2500, nstand=256, gain_correction=0.0, guarantee=True, core=None, gpu=None):
+        self.log             = log
+        self.iring           = iring
+        self.oring           = oring
+        self.beam            = beam
+        self.ntime_gulp      = ntime_gulp
+        self.nstand          = nstand
+        self.gain_correction = gain_correction
+        self.guarantee       = guarantee
+        self.core            = core
+        self.gpu             = gpu
         
         self.bind_proclog = ProcLog(type(self).__name__+"/bind")
         self.in_proclog   = ProcLog(type(self).__name__+"/in")
@@ -687,8 +688,8 @@ class TEngineOp(object):
                     
                     # Adjust the gain to make this ~compatible with LWA1
                     stand_scale = np.sqrt(256 / self.nstand)
-                    act_gain0 = self.gain[0] + (7 - stand_scale) - 3*pfb_inverter
-                    act_gain1 = self.gain[1] + (7 - stand_scale) - 3*pfb_inverter
+                    act_gain0 = self.gain[0] + (7 - stand_scale + self.gain_correction) - 3*pfb_inverter
+                    act_gain1 = self.gain[1] + (7 - stand_scale + self.gain_correction) - 3*pfb_inverter
                     rel_gain = np.array([1.0, 2**(act_gain0-act_gain1)], dtype=np.float32)
                     rel_gain = BFArray(rel_gain, space='cuda')
                     
@@ -1129,6 +1130,9 @@ def main(argv):
     pfb_inverter = False
     if 'pfb_inverter' in tngConfig:
         pfb_inverter = tngConfig['pfb_inverter']
+    gain_correction = 0.0
+    if 'gain_correction' in tngConfig:
+        gain_correct = tngConfig['gain_correction']
         
     log.info("Src address:  %s:%i", iaddr, iport)
     try:
@@ -1179,7 +1183,7 @@ def main(argv):
                                core=cores.pop(0), gpu=gpus.pop(0)))
     ops.append(TEngineOp(log, rechan_ring, tengine_ring,
                          beam=beam, ntime_gulp=GSIZE*4096//1960,
-                         nstand=nstand,
+                         nstand=nstand, gain_correction=gain_correction,
                          core=cores.pop(0), gpu=gpus.pop(0)))
     raddr = Address(oaddr, oport)
     rsock = UDPSocket()

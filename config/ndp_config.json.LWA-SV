@@ -285,28 +285,32 @@
                     "recorder_idx":      0,
                     "cpus":              [0, 2, 2, 3, 3],
                     "gpus":              [0],
-                    "pfb_inverter":      true
+                    "pfb_inverter":      true,
+                    "gain_correction":   -0.415
                 },
                 {
                     "pipeline_idx":      1,
                     "recorder_idx":      1,
                     "cpus":              [8, 10, 10, 11, 11],
                     "gpus":              [1],
-                    "pfb_inverter":      true
+                    "pfb_inverter":      true,
+                    "gain_correction":   -0.415
                 },
                 {
                     "pipeline_idx":      2,
                     "recorder_idx":      2,
                     "cpus":              [4, 5, 5, 6, 6],
                     "gpus":              [0],
-                    "pfb_inverter":      true
+                    "pfb_inverter":      true,
+                    "gain_correction":   -0.415
                 },
                 {
                     "pipeline_idx":      3,
                     "recorder_idx":      3,
                     "cpus":              [12, 14, 14, 15, 15],
                     "gpus":              [1],
-                    "pfb_inverter":      true
+                    "pfb_inverter":      true,
+                    "gain_correction":   -0.415
                 }
     ],
     "recorder": [
