@@ -88,7 +88,6 @@ def equalizer(hostname):
     if hostname.startswith('zcu'):
         ninput = 32
         
-    acc_len = int(round(CHAN_BW * t_int))
     with access_lock:
         f = _get_control_obj(hostname)
         
