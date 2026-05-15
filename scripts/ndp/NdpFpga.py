@@ -80,6 +80,31 @@ def spectra(hostname, t_int):
             'shape': list(spectra.shape),
             'dtype': str(spectra.dtype)}
 
+def equalizer(hostname):
+    lock_file = get_lockfile(hostname)
+    access_lock = FileLock(lock_file, timeout=LOCK_TIMEOUT)
+    
+    ninput = 64
+    if hostname.startswith('zcu'):
+        ninput = 32
+        
+    acc_len = int(round(CHAN_BW * t_int))
+    with access_lock:
+        f = _get_control_obj(hostname)
+        
+        coeffs = []
+        f.set_equalization()
+        for i in range(ninput):
+            coeffs.append(f.eq.get_coeffs(i))
+            
+    coeffs = np.array(coeffs)
+    
+    filename = f"/dev/shm/{hostname}_coeffs_{os.getpid()}.npy"
+    np.save(filename, coeffs)
+    return {'filename': filename,
+            'shape': list(coeffs.shape),
+            'dtype': str(coeffs.dtype)}
+
 def check(hostname, check_style):
     lock_file = get_lockfile(hostname)
     access_lock = FileLock(lock_file, timeout=LOCK_TIMEOUT)
@@ -136,7 +161,7 @@ if __name__ == '__main__':
         description='Help for programming and configuring SNAP2 and ZCU102 FPGA boards'
     )
     parser.add_argument('operation', type=str,
-                        help='operation to run, one of "program" or "configure"')
+                        help='operation to run, one of "program", "configure", "spectra", "equalizer", or "check"')
     parser.add_argument('hostname', type=str,
                         help='hostname of the FPGA board to apply the operation to')
     parser.add_argument('oparg', type=str,
@@ -151,6 +176,8 @@ if __name__ == '__main__':
             configure(args.hostname, args.oparg)
         elif args.operation == 'spectra':
             ret = spectra(args.hostname, float(args.oparg))
+        elif args.operations == 'equalizer':
+            ret = equalizer(args.hostname)
         elif args.operation == 'check':
             ret = check(args.hostname, args.oparg)
         else:
