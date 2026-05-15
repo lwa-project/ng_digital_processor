@@ -182,7 +182,7 @@ if __name__ == '__main__':
             configure(args.hostname, args.oparg)
         elif args.operation == 'spectra':
             ret = spectra(args.hostname, float(args.oparg))
-        elif args.operations == 'equalizer':
+        elif args.operation == 'equalizer':
             ret = equalizer(args.hostname)
         elif args.operation == 'check':
             ret = check(args.hostname, args.oparg)
