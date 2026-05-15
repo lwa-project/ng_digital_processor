@@ -92,10 +92,16 @@ def equalizer(hostname):
     with access_lock:
         f = _get_control_obj(hostname)
         
-        coeffs = []
+        old_coeffs = []
+        for i in range(ninput):
+            old_coeffs.append(f.eq.get_coeffs(i))
+            
         f.set_equalization()
+        
+        coeffs = []
         for i in range(ninput):
             coeffs.append(f.eq.get_coeffs(i))
+            f.eq.set_coeffs(i, old_coeffs[i])
             
     coeffs = np.array(coeffs)
     
