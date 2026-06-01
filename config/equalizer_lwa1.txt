@@ -11,7 +11,6 @@
 #  Stand 220 pol 0: digitizer 435
 #  Stand 229 pol 1: digitizer 482
 # Scaled so that: min(this file) = min(equalizer_lwana.txt)
-4894.50
 2531.50
 2531.50
 2531.50
