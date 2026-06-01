@@ -81,7 +81,7 @@
                 "tbx_recorder_idx":  4,
                 "cor_recorder_idx":  5,
                 "cpus":              [8, 10, 11, 12, 13, 14],
-                "gpus":              [1],
+                "gpus":              [0],
                 "powerline_flagger": true
             },
             {
