@@ -1,3 +1,17 @@
+# Generated: 2026-05-13T02:01:15.552096+00:00
+# Station: LWA1
+# LST: 10.24 hr
+# Lower Frequency: 25.00 MHz
+# Upper Frequency: 74.00 MHz
+# Antennas Used:
+#  Stand  63 pol 0: digitizer 167
+#  Stand  31 pol 1: digitizer 192
+#  Stand   5 pol 1: digitizer 204
+#  Stand 138 pol 1: digitizer 220
+#  Stand 220 pol 0: digitizer 435
+#  Stand 229 pol 1: digitizer 482
+# Scaled so that: min(this file) = min(equalizer_lwana.txt)
+4894.50
 2531.50
 2531.50
 2531.50
