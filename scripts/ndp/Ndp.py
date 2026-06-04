@@ -1740,6 +1740,8 @@ class MsgProcessor(ConsumerThread):
                 ## Check the servers
                 found = {'drx':[], 'tengine':[]}
                 for host in list(pipelines.keys()):
+                    tpoll0 = time.time()
+                    
                     ### Basic information about what to expect
                     n_expected = NBEAM if host == 'localhost' else (self.computed['NPIPE_PER_SERVER']*self.computed['NSERVER'])
                     
@@ -1750,6 +1752,7 @@ class MsgProcessor(ConsumerThread):
                             refresh = True
                             break
                     if refresh or force_recheck:
+                        self.log.debug("Recreating BifrostPipelines object for host '%s'", host)
                         del pipelines[host]
                         pipelines[host] = BifrostPipelines(host).pipelines()
                         
@@ -1770,10 +1773,14 @@ class MsgProcessor(ConsumerThread):
                         if name.find('drx') != -1:
                             found['drx'].append( (host,name,side,loss,txbw,cact,flg) )
                         elif name.find('tengine') != -1:
-                            found['tengine'].append( (host,name,side,loss,txbw) )
+                            bact = (self.drx.cur_freq[side*2] > 0) or (self.drx.cur_freq[side*2+1] > 0)
+                            found['tengine'].append( (host,name,side,loss,txbw,bact) )
                         else:
                             pass
                             
+                    tpoll1 = time.time()
+                    self.log.debug("Updated pipeline state for host '%s' in %.1f s", host, tpoll1-tpoll0)
+                    
                 ## Make sure we have everything we need
                 ### T-engines
                 if not self.ready:
@@ -1783,8 +1790,10 @@ class MsgProcessor(ConsumerThread):
                     self.log.info("Monitor BAIL")
                     continue
                 total_tengine_bw = {i:0 for i in range(NBEAM)}
-                for host,name,side,loss,txbw in found['tengine']:
+                is_tengine_active = {i:False for i in range(NBEAM)}
+                for host,name,side,loss,txbw,bact in found['tengine']:
                     total_tengine_bw[side] += txbw
+                    is_tengine_active[side] = bact
                     if loss > 0.10:    # >10% packet loss
                         problems_found = True
                         msg = "T-Engine-%i -- RX loss of %.1f%%" % (side, loss*100.0)
@@ -1800,7 +1809,7 @@ class MsgProcessor(ConsumerThread):
                         status, info = self._combine_status(status, info, new_status, new_info)
                         self.log.warning(msg)
                 for side in range(NBEAM):
-                    if self.drx.cur_freq[side*2] > 0 and total_tengine_bw[side] == 0:
+                    if is_tengine_active[side] and total_tengine_bw[side] == 0:
                         problems_found = True
                         msg = "T-Engine-%i -- TX rate of %.1f MB/s" % (side, total_tengine_bw[side]/1024.0**2)
                         new_status = 'ERROR'
