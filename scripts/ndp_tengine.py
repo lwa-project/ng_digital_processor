@@ -16,6 +16,7 @@ from bifrost.ndarray import copy_array, memset_array
 from bifrost.fft import Fft
 from bifrost.fir import Fir
 from bifrost.quantize import quantize as Quantize
+from bifrost.reduce import reduce as Reduce
 from bifrost.transpose import transpose as Transpose
 from bifrost.libbifrost import bf
 from bifrost.proclog import ProcLog
@@ -890,8 +891,13 @@ class PacketizeOp(object):
         self.size_proclog = ProcLog(type(self).__name__+"/size")
         self.sequence_proclog = ProcLog(type(self).__name__+"/sequence0")
         self.perf_proclog = ProcLog(type(self).__name__+"/perf")
+        self.stats_proclog = ProcLog(type(self).__name__+"/stats")
         
-        self.in_proclog.update(  {'nring':1, 'ring0':self.iring.name})
+        self.in_proclog.update(    {'nring':1, 'ring0':self.iring.name})
+        self.stats_proclog.update( {'beam': self.beam0,
+                                    'updated': 0,
+                                    'saturation': [0,]*(self.nbeam_max*self.ntune_max*2),
+                                    'power': [0,]*(self.nbeam_max*self.ntune_max*2)})
         
     def main(self):
         global FILE_QUEUE
@@ -945,6 +951,11 @@ class PacketizeOp(object):
             if nbit == 8:
                 igulp_size *= 2
                 
+            # Figure out how often up update the saturation power power statistics
+            # (about every 10 s)
+            nstat_gulps = int(round(1500 * 32 * FILTER2BW[filt] / self.npkt_gulp / FILTER2BW[7]))
+            nstat_gulps = max(1, nstat_gulps)
+            
             # Figure out where we need to be in the buffer to be at a frame boundary
             NPACKET_SET = 4
             ticksPerSample = int(FS) // int(bw)
@@ -961,6 +972,12 @@ class PacketizeOp(object):
             time_tag -= int(round(fdly*ticksPerSample))         # Correct for FIR filter delay
             
             try:
+                del sat_partial
+                del pwr_partial
+                gpu_sat_stats
+                gpu_pwr_stats
+                sat_stats
+                pwr_stats
                 del qdata
                 del pdata
             except NameError:
@@ -976,6 +993,7 @@ class PacketizeOp(object):
                 desc1.set_tuning(int(round(cfreq1 / FS * 2**32)))
                 desc_src = ((1&0x7)<<3)
                 
+                n = 0
                 for ispan in iseq.read(igulp_size, begin=boffset):
                     if ispan.size < igulp_size:
                         continue # Ignore final gulp
@@ -985,6 +1003,85 @@ class PacketizeOp(object):
                     
                     # Load the data
                     idata = ispan.data_view(in_dtype).reshape(ishape)
+                    
+                    # Run the statistics
+                    ## Temporary and state holding variables
+                    try:
+                        sat_partial
+                    except NameError:
+                        sat_partial = BFArray(shape=(self.npkt_gulp,nbeam,ntune,npol), dtype=np.float32, space='cuda')
+                        pwr_partial = BFArray(shape=(self.npkt_gulp,nbeam,ntune,npol), dtype=np.float32, space='cuda')
+                        
+                        gpu_sat_stats = BFArray(shape=(1,nbeam,ntune,npol), dtype=np.float32, space='cuda')
+                        gpu_pwr_stats = BFArray(shape=(1,nbeam,ntune,npol), dtype=np.float32, space='cuda')
+                        
+                        sat_stats = gpu_sat_stats.copy(space='cuda_host')
+                        pwr_stats = gpu_pwr_stats.copy(space='cuda_host')
+                        
+                        memset_array(sat_partial, 0)
+                        memset_array(pwr_partial, 0)
+                        
+                    ## Dump over we've accumulated `nstat_gulps` sets of `self.npkt_gulp` packets
+                    if n == nstat_gulps:
+                        n = 0
+                        
+                        ### Reduce across the `self.npkt_gulp` dimension to get a single
+                        ### value per beam/tuning/pol
+                        Reduce(sat_partial, gpu_sat_stats, op='mean')
+                        Reduce(pwr_partial, gpu_pwr_stats, op='mean')
+                        
+                        ### Move back to the CPU and normalize for `self.npkt_gulp`
+                        copy_array(sat_stats, gpu_sat_stats)
+                        copy_array(pwr_stats, gpu_pwr_stats)
+                        sat_stats /= nstat_gulps
+                        pwr_stats /= nstat_gulps
+                        
+                        ### Reset the temporary variables
+                        memset_array(sat_partial, 0)
+                        memset_array(pwr_partial, 0)
+                        
+                        ### Update the ProcLog
+                        self.stats_proclog.update({'beam': self.beam0,
+                                                   'updated': time_tag, 
+                                                   'saturation': sat_stats.ravel().tolist(),
+                                                   'power': pwr_stats.ravel().tolist()})
+                        
+                    ## Determine how to unpack the data (ci4 vs ci8) and set the metric
+                    ## to use for figuring out the saturation 
+                    if in_dtype == 'ci4':
+                        unpack = """
+                                 auto sample = a(i,m,j,k,l).real_imag;
+                                 auto re = ((signed char)  (sample & 0xF0))       / 16;
+                                 auto im = ((signed char) ((sample & 0x0F) << 4)) / 16;
+                                 """
+                        metric = 7*7
+                    else:
+                        unpack = """
+                                 auto sample = a(i,m,j,k,l);
+                                 auto re = (signed char) sample.real;
+                                 auto im = (signed char) sample.imag;
+                                 """
+                        metric = 127*127
+                        
+                    ## Run the per packet set statistics
+                    BFMap(f"""
+                          signed short pwr0;
+                          float pwr = 0.0;
+                          
+                          for(int m=0; m<{idata.shape[1]}; m++) {{
+                              {unpack}
+                              pwr0 = re*re + im*im;
+                              pwr += (float) pwr0;
+                              if( pwr0 >= {metric} ) {{
+                                  b(i,j,k,l) += (float) 1 / {idata.shape[1]};
+                              }}
+                          }}
+                          c(i,j,k,l) += pwr / {idata.shape[1]};
+                          """,
+                          {'a': idata, 'b': sat_partial, 'c': pwr_partial},
+                          axis_names=('i','j','k','l'),
+                          shape=(self.npkt_gulp, nbeam, ntune, npol))
+                    n += 1
                     
                     # Tranpose the axes to get into an order that the packetizer wants
                     try:
