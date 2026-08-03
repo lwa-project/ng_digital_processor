@@ -1613,7 +1613,7 @@ class MsgProcessor(ConsumerThread):
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
                 self.log.info('Waiting for servers to power off')
                 try:
-                    self._wait_until_servers_power('off', max_wait=240)
+                    self._wait_until_servers_power('off', max_wait=600)
                 except RuntimeError:
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
@@ -1644,7 +1644,7 @@ class MsgProcessor(ConsumerThread):
                         return self.raise_error_state('SHT', 'BOARD_SHUTDOWN_FAILED')
                 self.log.info('Waiting for servers to power off')
                 try:
-                    self._wait_until_servers_power('off', max_wait=240)
+                    self._wait_until_servers_power('off', max_wait=600)
                 except RuntimeError:
                     if 'FORCE' not in arg:
                         return self.raise_error_state('SHT', 'SERVER_SHUTDOWN_FAILED')
