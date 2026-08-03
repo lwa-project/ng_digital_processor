@@ -131,10 +131,10 @@ def check(hostname, check_style):
                   }
             
             _, _, rmss = f.input.get_bit_stats()
-            ret['min'] = rmms.min()
-            ret['mean'] = rmms.mean()
-            ret['max'] = rmms.max()
-            ret['std'] = rmms.std()
+            ret['min'] = rmss.min()
+            ret['mean'] = rmss.mean()
+            ret['max'] = rmss.max()
+            ret['std'] = rmss.std()
             
         elif check_style == 'operational':
             ret = {'is_ok': True,
