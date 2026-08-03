@@ -707,6 +707,23 @@ class ZCU102MonitorClient(object):
             pass
         return status
         
+    def is_rms_reasonable(self):
+        # Is the input RMS reasonable?  "Reasonable" means a max RMS value
+        # less than 250 counts and an overall standard deviation across all
+        # inputs less than 100.
+        #
+        # NB: I *think* these two criteria are enough to distinguish between
+        #     an ASP problem (wrong gain across the board) and an NDP probelm
+        #     where some ADCs have a problem.
+        
+        status = True
+        try:
+            ret = _run_fpga_helper('check', self.host, 'rms')
+            status = ((ret['max'] < 250) and (ret['std'] < 100))
+        except Exception as e:
+            pass
+        return status
+        
     def is_sending(self):
         # Is the FPGA sending data out?
         
@@ -1011,6 +1028,23 @@ class Snap2MonitorClient(object):
             status = ret['is_ok']
             for msg in ret.get('errors', []):
                 self.log.error("%s %s", self.host, msg)
+        except Exception as e:
+            pass
+        return status
+        
+    def is_rms_reasonable(self):
+        # Is the input RMS reasonable?  "Reasonable" means a max RMS value
+        # less than 250 counts and an overall standard deviation across all
+        # inputs less than 100.
+        #
+        # NB: I *think* these two criteria are enough to distinguish between
+        #     an ASP problem (wrong gain across the board) and an NDP probelm
+        #     where some ADCs have a problem.
+        
+        status = True
+        try:
+            ret = _run_fpga_helper('check', self.host, 'rms')
+            status = ((ret['max'] < 250) and (ret['std'] < 100))
         except Exception as e:
             pass
         return status
@@ -1730,6 +1764,7 @@ class MsgProcessor(ConsumerThread):
         while not self.shutdown_event.is_set():
             ## A little more state
             problems_found = False
+            any_unreasonable_count = 0
             
             if self.ready:
                 ## Initial state
@@ -1927,6 +1962,26 @@ class MsgProcessor(ConsumerThread):
                             self.log.error(msg)
                             ext_msg = []
                             for z,s in zip(self.fpgas, fpgas_sending):
+                                if not s:
+                                    ext_msg.append(z.host)
+                            ext_msg = ' '.join(ext_msg)
+                            self.log.error('Board(s) are: %s', ext_msg)
+                            
+                        fpgas_reaonsable = self.fpgas.is_rms_reasonable()
+                        if not all(fpgas_reaonsable):
+                            any_unreasonable_count += 1
+                        else:
+                            any_unreasonable_count = 0
+                            
+                        if any_unreasonable_count == 3:
+                            problems_found = True
+                            msg = "Found %s FPGA board(s) with unreasonable input RMS values" % (len(fpgas_reaonsable) - sum(fpgas_reaonsable),)
+                            new_status = 'ERROR'
+                            new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
+                            status, info = self._combine_status(status, info, new_status, new_info)
+                            self.log.error(msg)
+                            ext_msg = []
+                            for z,s in zip(self.fpgas, fpgas_reaonsable):
                                 if not s:
                                     ext_msg.append(z.host)
                             ext_msg = ' '.join(ext_msg)

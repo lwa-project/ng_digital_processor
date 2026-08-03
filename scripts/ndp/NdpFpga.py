@@ -123,6 +123,19 @@ def check(hostname, check_style):
             summary, flags = f.fpga.get_status()
             ret = {'fpga': summary['temp']}
             
+        elif check_style == 'rms':
+            ret = {'min': 0.0,
+                   'mean': 0.0,
+                   'max': 0.0,
+                   'std': 0.0
+                  }
+            
+            _, _, rmss = f.input.get_bit_stats()
+            ret['min'] = rmms.min()
+            ret['mean'] = rmms.mean()
+            ret['max'] = rmms.max()
+            ret['std'] = rmms.std()
+            
         elif check_style == 'operational':
             ret = {'is_ok': True,
                    'warnings': [],
