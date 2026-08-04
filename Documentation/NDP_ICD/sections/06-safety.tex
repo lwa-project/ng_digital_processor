@@ -124,9 +124,33 @@ The NDP monitors F-engine board health including:
     \item Equalizer clip counts
     \item Ethernet transmit overflow/full status
     \item Data transmission status
+    \item Input RMS levels
 \end{itemize}
 
 If an F-engine board fails to program or stops transmitting data, the system enters the \texttt{ERROR} state.
+
+\subsection{Input RMS Monitoring}
+
+In addition to the per-input statistics reported through the \mib{ANT\{n\}\_RMS} MIB entries, the NDP evaluates the distribution of input RMS values on each F-engine board to detect ADC problems.  A board is considered reasonable when both of the following hold across the inputs on that board:
+
+\begin{itemize}
+    \item The maximum RMS is less than 250 counts
+    \item The standard deviation of the RMS values is less than 100 counts
+\end{itemize}
+
+The two criteria are intended to distinguish an analog signal path problem, where the gain is wrong across all inputs and the RMS values remain similar to one another, from an NDP problem, where only the inputs on one or more misbehaving ADCs depart from the rest.
+
+\begin{calloutBox}{Operational Note}{orange}
+This check is a heuristic and can mis-attribute the source of a problem.  An analog signal path fault that affects only part of the array can trip the standard deviation criterion and be reported as an NDP condition, and conversely an ADC fault common to all of the inputs on a board can present as a uniform gain error.  The reported condition should be treated as an indication that the input levels are wrong, not as a definitive statement of which subsystem is at fault.  Confirm the source against the per-input \mib{ANT\{n\}\_RMS} values and the current ASP configuration before acting.
+\end{calloutBox}
+
+The check is evaluated once per monitoring poll.  To avoid reacting to transient conditions, the system enters the \texttt{ERROR} state only after the check fails on three consecutive polls, and the condition is reported in the \texttt{SUMMARY} field of the MIB with exit code \hex{0D}:
+
+\begin{verbatim}
+    Found N FPGA board(s) with unreasonable input RMS values
+\end{verbatim}
+
+\noindent The hostnames of the affected boards are written to the system log.
 
 \section{X-engine Pipeline Monitoring}
 
