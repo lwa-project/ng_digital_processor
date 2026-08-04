@@ -1752,7 +1752,10 @@ class MsgProcessor(ConsumerThread):
         
         # Regular expresion for parsing command lines to find tuning/beam info
         tb_re = re.compile(r'--(?P<type>(tuning)|(beam))[= \t](?P<side>\d+)')
-        
+         
+        # State bariable to track input RMS problems
+        any_unreasonable_count = 0
+         
         # State variable for polling the timing monitor board
         tm_poll = 0.0
         tm_state = {'comm': False,
@@ -1764,7 +1767,6 @@ class MsgProcessor(ConsumerThread):
         while not self.shutdown_event.is_set():
             ## A little more state
             problems_found = False
-            any_unreasonable_count = 0
             
             if self.ready:
                 ## Initial state
