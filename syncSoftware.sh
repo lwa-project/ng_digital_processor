@@ -24,6 +24,15 @@ for i in `seq 1 6`; do
 done
 
 #
+# DRX pipeline counting
+#
+if [[ ! -e config/ndp_config.json ]]; then
+	echo "No default configuation found in 'config/ndp_config.json'"
+	exit 1
+fi
+npipe_per_server=`python3 -c "import json; fh=open('config/ndp_config.json', 'r'); conf=json.load(fh)['host']; print(len(conf['servers-data'])//len(conf['servers']) - 1); fh.close()"`
+
+#
 # Argument parsing
 #
 
@@ -176,7 +185,9 @@ if [ "${DO_UPSTART}" == "1" ]; then
 			rsync -e ssh -avH ${SRC_PATH}/headnode/ndp-*.service ndp${node}:${DST_PATH}/
 			rsync -e ssh -avH ${SRC_PATH}/headnode/ndp-server-monitor.service ndp${node}:${DST_PATH}/
 		else
-			rsync -e ssh -avH ${SRC_PATH}/servers/ndp-drx-[01].service ndp${node}:${DST_PATH}/
+			for pipe in `seq 0 ${npipe_per_server}`; do
+				rsync -e ssh -avH ${SRC_PATH}/servers/ndp-drx-${pipe}.service ndp${node}:${DST_PATH}/
+			done
 			rsync -e ssh -avH ${SRC_PATH}/servers/ndp-server-monitor.service ndp${node}:${DST_PATH}/
 		fi
 		ssh ndp${node} "systemctl daemon-reload"
@@ -193,6 +204,9 @@ if [ "${DO_RESTART}" == "1" ]; then
 			ssh ndp${node} "restart ndp-control && restart ndp-tengine-0 && restart ndp-tengine-1 && restart ndp-tengine-2 && restart ndp-tengine-3 && restart ndp-server-monitor"
 		else
 			ssh ndp${node} "restart ndp-drx-0 && restart ndp-drx-1 && restart ndp-server-monitor"
+			if [[ ${pipe} == "3" ]]; then
+				ssh ndp${node} "restart ndp-drx-2 && restart ndp-drx-3"
+			fi
 		fi
 	done
 fi
@@ -207,6 +221,9 @@ if [ "${DO_QUERY}" == "1" ]; then
 			ssh ndp${node} "status ndp-control && status ndp-tengine-0 && status ndp-tengine-1 && status ndp-tengine-2 && status ndp-tengine-3 && status ndp-server-monitor"
 		else
 			ssh ndp${node} "status ndp-drx-0 && status ndp-drx-1 && status ndp-server-monitor"
+			if [[ ${pipe} == "3" ]]; then
+				ssh ndp${node} "status ndp-drx-2 && status ndp-drx-3"
+			fi
 		fi
 	done
 fi
