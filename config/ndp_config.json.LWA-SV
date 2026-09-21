@@ -215,7 +215,7 @@
         "password":             "casper",
         "data_ip_base":         "192.168.40.101",
         "data_port_base":       10000,
-        "firmware":             "/home/ndp/zcu102_f_200msps_64i_4096c_2025-09-24_1837.fpg", 
+        "firmware":             "/home/ndp/zcu102_f_200msps_64i_4096c_2026-07-07_1719.fpg", 
         "max_program_attempts": 5,
         "fft_shift":            8191,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer_lwa1.txt",
