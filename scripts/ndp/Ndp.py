@@ -2277,13 +2277,13 @@ class MsgProcessor(ConsumerThread):
         return json.dumps(sub_config)
         
     def _get_report_result(self, key, args, slot):
-        reduce_ops = {'MAX':      np.max,
-                      'MIN':      np.min,
+        reduce_ops = {'MAX':      lambda x: int(np.max(x)),
+                      'MIN':      lambda x: int(np.min(x)),
                       'AVG':      np.mean,
                       'RMS':      lambda x: np.sqrt(np.mean(x**2)),
                       'SAT':      lambda x: np.sum(np.abs(x)>=ADC_MAXVAL),
                       'DCOFFSET': np.mean,
-                      'PEAK':     np.max}
+                      'PEAK':     lambda x: int(np.max(x))}
         if key == 'SUMMARY':           return self.state['status']
         if key == 'INFO':              return self.state['info']
         if key == 'LASTLOG':           return self.state['lastlog']
