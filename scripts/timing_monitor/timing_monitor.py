@@ -120,7 +120,7 @@ class TimingMonitor:
                 except ValueError:
                     if value in ('True', 'HIGH', 'true'):
                         value = True
-                    elif value == ('False', 'LOW', 'false'):
+                    elif value in ('False', 'LOW', 'false'):
                         value = False
             status[key] = value
         return status
