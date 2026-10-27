@@ -707,19 +707,15 @@ class ZCU102MonitorClient(object):
             pass
         return status
         
-    def is_rms_reasonable(self):
-        # Is the input RMS reasonable?  "Reasonable" means a max RMS value
-        # less than 250 counts and an overall standard deviation across all
-        # inputs less than 100.
-        #
-        # NB: I *think* these two criteria are enough to distinguish between
-        #     an ASP problem (wrong gain across the board) and an NDP probelm
-        #     where some ADCs have a problem.
+    def get_input_histogram_status(self):
+        # Check the ADC input histograms for holes, which is the signature of
+        # lost ADC lane alignment.  Returns the dictionary from the 'histogram'
+        # check, i.e., 'nstream', 'nbad', 'nunknown', 'frac_bad', 'bad', and
+        # 'unknown', or None if the check could not be run.
         
-        status = True
+        status = None
         try:
-            ret = _run_fpga_helper('check', self.host, 'rms')
-            status = ((ret['max'] < 250) and (ret['std'] < 100))
+            status = _run_fpga_helper('check', self.host, 'histogram')
         except Exception as e:
             pass
         return status
@@ -1032,19 +1028,15 @@ class Snap2MonitorClient(object):
             pass
         return status
         
-    def is_rms_reasonable(self):
-        # Is the input RMS reasonable?  "Reasonable" means a max RMS value
-        # less than 250 counts and an overall standard deviation across all
-        # inputs less than 100.
-        #
-        # NB: I *think* these two criteria are enough to distinguish between
-        #     an ASP problem (wrong gain across the board) and an NDP probelm
-        #     where some ADCs have a problem.
+    def get_input_histogram_status(self):
+        # Check the ADC input histograms for holes, which is the signature of
+        # lost ADC lane alignment.  Returns the dictionary from the 'histogram'
+        # check, i.e., 'nstream', 'nbad', 'nunknown', 'frac_bad', 'bad', and
+        # 'unknown', or None if the check could not be run.
         
-        status = True
+        status = None
         try:
-            ret = _run_fpga_helper('check', self.host, 'rms')
-            status = ((ret['max'] < 250) and (ret['std'] < 100))
+            status = _run_fpga_helper('check', self.host, 'histogram')
         except Exception as e:
             pass
         return status
@@ -1753,8 +1745,10 @@ class MsgProcessor(ConsumerThread):
         # Regular expresion for parsing command lines to find tuning/beam info
         tb_re = re.compile(r'--(?P<type>(tuning)|(beam))[= \t](?P<side>\d+)')
          
-        # State bariable to track input RMS problems
-        any_unreasonable_count = 0
+        # State variable to track ADC input histogram problems.  If more than
+        # 30% of all inputs have bad histograms for two consecutive checks, the
+        # system goes into ERROR.
+        bad_input_count = 0
          
         # State variable for polling the timing monitor board
         tm_poll = 0.0
@@ -1969,23 +1963,25 @@ class MsgProcessor(ConsumerThread):
                             ext_msg = ' '.join(ext_msg)
                             self.log.error('Board(s) are: %s', ext_msg)
                             
-                        fpgas_reaonsable = self.fpgas.is_rms_reasonable()
-                        if not all(fpgas_reaonsable):
-                            any_unreasonable_count += 1
+                        fpgas_hist = self.fpgas.get_input_histogram_status()
+                        nstream = sum([h['nstream'] for h in fpgas_hist if h is not None])
+                        nbad = sum([h['nbad'] for h in fpgas_hist if h is not None])
+                        if nstream > 0 and nbad / nstream > 0.3:
+                            bad_input_count += 1
                         else:
-                            any_unreasonable_count = 0
+                            bad_input_count = 0
                             
-                        if any_unreasonable_count >= 3:
+                        if bad_input_count >= 2:
                             problems_found = True
-                            msg = "Found %s FPGA board(s) with unreasonable input RMS values" % (len(fpgas_reaonsable) - sum(fpgas_reaonsable),)
+                            msg = "Found %i of %i ADC input(s) with likely lane alignment loss" % (nbad, nstream)
                             new_status = 'ERROR'
                             new_info   = '%s! 0x%02X! %s' % ('SUMMARY', 0x0D, msg)
                             status, info = self._combine_status(status, info, new_status, new_info)
                             self.log.error(msg)
                             ext_msg = []
-                            for z,s in zip(self.fpgas, fpgas_reaonsable):
-                                if not s:
-                                    ext_msg.append(z.host)
+                            for z,h in zip(self.fpgas, fpgas_hist):
+                                if h is not None and h['nbad'] > 0:
+                                    ext_msg.append(f"{z.host} ({h['nbad']}/{h['nstream']})")
                             ext_msg = ' '.join(ext_msg)
                             self.log.error('Board(s) are: %s', ext_msg)
                             
