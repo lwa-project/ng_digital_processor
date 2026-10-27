@@ -1975,7 +1975,7 @@ class MsgProcessor(ConsumerThread):
                         else:
                             any_unreasonable_count = 0
                             
-                        if any_unreasonable_count == 3:
+                        if any_unreasonable_count >= 3:
                             problems_found = True
                             msg = "Found %s FPGA board(s) with unreasonable input RMS values" % (len(fpgas_reaonsable) - sum(fpgas_reaonsable),)
                             new_status = 'ERROR'
