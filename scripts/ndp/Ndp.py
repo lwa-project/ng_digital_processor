@@ -1745,9 +1745,7 @@ class MsgProcessor(ConsumerThread):
         # Regular expresion for parsing command lines to find tuning/beam info
         tb_re = re.compile(r'--(?P<type>(tuning)|(beam))[= \t](?P<side>\d+)')
          
-        # State variable to track ADC input histogram problems.  If more than
-        # 30% of all inputs have bad histograms for two consecutive checks, the
-        # system goes into ERROR.
+        # State variable to track ADC input histogram problems
         bad_input_count = 0
          
         # State variable for polling the timing monitor board
