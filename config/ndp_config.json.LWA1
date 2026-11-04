@@ -33,8 +33,8 @@
     },
     "drx": [
             {
-                "first_channel":     640,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     192,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -45,8 +45,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     832,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     416,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -57,8 +57,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     1024,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     640,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      2,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -69,8 +69,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     1216,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     864,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      3,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -81,8 +81,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     1408,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     1088,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -93,8 +93,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     1600,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     1312,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -105,8 +105,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     1792,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     1536,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      2,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -114,23 +114,23 @@
                 "cor_recorder_idx":  5,
                 "cpus":              [9, 10, 11, 12, 13, 14],
                 "gpus":              [0],
+                "powerline_flagger": true
+            },
+            {
+                "first_channel":     1760,
+                "capture_bandwidth": 5.359375e6,
+                "beam_count":        4,
+                "pipeline_idx":      3,
+                "tengine_idx":       [0, 1, 2, 3],
+                "tbx_recorder_idx":  4,
+                "cor_recorder_idx":  5,
+                "cpus":              [24, 26, 27, 28, 29, 30],
+                "gpus":              [1],
                 "powerline_flagger": true
             },
             {
                 "first_channel":     1984,
-                "capture_bandwidth": 4.59375e6,
-                "beam_count":        4,
-                "pipeline_idx":      3,
-                "tengine_idx":       [0, 1, 2, 3],
-                "tbx_recorder_idx":  4,
-                "cor_recorder_idx":  5,
-                "cpus":              [24, 26, 27, 28, 29, 30],
-                "gpus":              [1],
-                "powerline_flagger": true
-            },
-            {
-                "first_channel":     2176,
-                "capture_bandwidth": 4.59375e6,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -141,8 +141,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     2368,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     2208,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -153,8 +153,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     2560,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     2432,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      2,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -165,8 +165,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     2752,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     2656,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      3,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -177,8 +177,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     2944,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     2880,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      0,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -189,8 +189,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     3136,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     3104,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      1,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -202,7 +202,7 @@
             },
             {
                 "first_channel":     3328,
-                "capture_bandwidth": 4.59375e6,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      2,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -213,8 +213,8 @@
                 "powerline_flagger": true
             },
             {
-                "first_channel":     3520,
-                "capture_bandwidth": 4.59375e6,
+                "first_channel":     3552,
+                "capture_bandwidth": 5.359375e6,
                 "beam_count":        4,
                 "pipeline_idx":      3,
                 "tengine_idx":       [0, 1, 2, 3],
@@ -269,7 +269,7 @@
         "fft_shift":            8191,
         "equalizer_coeffs":     "/usr/local/share/ndp/equalizer_lwa1.txt",
         "bypass_pfb":           false,
-        "nchan_packet":         96,
+        "nchan_packet":         112,
         "temperatures":         ["ambient", "ppc", "fpga", "inlet", "outlet"],
         "temperature_warning":  80.0,
         "temperature_shutdown": 85.0,
